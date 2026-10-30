@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/bananaikun/HaYenai-Luncher/main/apps/app/icons/128x128.png" width="120" height="120" alt="HaYenai" />
+<img src="https://raw.githubusercontent.com/bananaikun/HaYenai-Launcher/main/apps/app/icons/128x128.png" width="120" height="120" alt="HaYenai" />
 
 # HaYenai
 
 **Minecraft Java 版桌面客户端 —— 液态玻璃界面，壁纸即皮肤。**
 
 <p>
-  <a href="https://github.com/bananaikun/HaYenai-Luncher/releases"><img src="https://img.shields.io/github/v/release/bananaikun/HaYenai-Luncher?style=for-the-badge&logo=github" alt="Release" /></a>
-  <a href="https://github.com/bananaikun/HaYenai-Luncher/stargazers"><img src="https://img.shields.io/github/stars/bananaikun/HaYenai-Luncher?style=for-the-badge&logo=github&color=ffb800" alt="Stars" /></a>
+  <a href="https://github.com/bananaikun/HaYenai-Launcher/releases"><img src="https://img.shields.io/github/v/release/bananaikun/HaYenai-Launcher?style=for-the-badge&logo=github" alt="Release" /></a>
+  <a href="https://github.com/bananaikun/HaYenai-Launcher/stargazers"><img src="https://img.shields.io/github/stars/bananaikun/HaYenai-Launcher?style=for-the-badge&logo=github&color=ffb800" alt="Stars" /></a>
   <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License" />
 </p>
 
@@ -64,7 +64,7 @@ fork 后的改动集中在**界面材质**和**壁纸引擎**两块，功能与�
 
 ## 下载
 
-前往 [Releases](https://github.com/bananaikun/HaYenai-Luncher/releases) 下载对应平台的安装包。
+前往 [Releases](https://github.com/bananaikun/HaYenai-Launcher/releases) 下载对应平台的安装包。
 
 | 平台 | 文件 |
 | --- | --- |
