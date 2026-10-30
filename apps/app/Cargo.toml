@@ -1,0 +1,129 @@
+[package]
+name = "theseus_gui"
+# The actual version is set by the theseus-build workflow on tagging
+version = "1.0.26"
+edition.workspace = true
+description = "HaYenai is a cross-platform Minecraft launcher"
+homepage = "https://www.ghs.red"
+license = "GPL-3.0-only"
+
+[dependencies]
+async_zip = { workspace = true, features = ["deflate", "tokio-fs"] }
+bytes = { workspace = true }
+chrono = { workspace = true }
+daedalus = { workspace = true }
+dashmap = { workspace = true }
+either = { workspace = true }
+enumset = { workspace = true, features = ["serde"] }
+flate2 = { workspace = true }
+fontdb = { workspace = true }
+futures = { workspace = true }
+hyper = { workspace = true, features = ["server"] }
+hyper-util = { workspace = true }
+# 壁纸预览是 GIF（preview.gif）；workspace 只开了 jpeg/png/webp，这里补 gif 才能在 Rust 侧取色
+image = { workspace = true, features = ["gif"] }
+keyring = { workspace = true }
+libc = { workspace = true }
+native-dialog = { workspace = true }
+notify = { workspace = true }
+paste = { workspace = true }
+quartz_nbt = { workspace = true, features = ["serde"] }
+regex = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+# 磁悬条的「系统资源」档要读本机 CPU/内存/网络；system + network 两个 feature 就够
+sysinfo = { workspace = true, features = ["system", "network", "disk"] }
+serde_with = { workspace = true }
+sha2 = { workspace = true }
+tauri-plugin-deep-link = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+tauri-plugin-fs = { workspace = true }
+tauri-plugin-http = { workspace = true }
+tauri-plugin-opener = { workspace = true }
+tauri-plugin-os = { workspace = true }
+tauri-plugin-single-instance = { workspace = true }
+tauri-plugin-updater = { workspace = true }
+tauri-plugin-window-state = { workspace = true }
+tempfile = { workspace = true }
+theseus = { workspace = true, features = ["tauri"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
+tokio-util = { workspace = true, features = ["compat", "rt"] }
+tracing = { workspace = true }
+tracing-error = { workspace = true }
+trash = { workspace = true }
+url = { workspace = true }
+urlencoding = { workspace = true }
+uuid = { workspace = true, features = ["serde", "v4"] }
+zip = { workspace = true }
+
+[dependencies.tauri]
+workspace = true
+features = [
+  "devtools",
+  "macos-private-api",
+  "protocol-asset",
+  "tray-icon",
+  "unstable"
+]
+
+[build-dependencies]
+cc = { workspace = true }
+tauri-build = { workspace = true, features = ["codegen"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.13.13", default-features = false, features = [
+  "async-io",
+  "settings",
+] }
+tauri-plugin-updater = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6.2"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+  "NSColor",
+  "NSColorSpace",
+  "objc2-core-foundation",
+] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+  "NSNotification",
+  "NSOperation",
+  "NSString",
+  "block2",
+] }
+
+[target."cfg(windows)".dependencies]
+windows-version = "0.1.7"
+
+[target."cfg(windows)".dependencies.windows]
+workspace = true
+features = [
+  "Foundation",
+  "UI_ViewManagement",
+  "Win32_Graphics_Dwm",
+  "Win32_Storage_EnhancedStorage",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_UI_WindowsAndMessaging",
+]
+
+[features]
+# by default Tauri runs in production mode
+# when `tauri dev` runs it is executed with `cargo run --no-default-features` if `devPath` is an URL
+default = ["custom-protocol"]
+# this feature is used for production builds where `devPath` points to the filesystem
+# DO NOT remove this
+custom-protocol = ["tauri/custom-protocol"]
+updater = []
+
+[lints]
+workspace = true
+
+# 这个 bin crate 是打包时间的绝对大头（opt-level=s 下 codegen 30 分钟）。
+# 启动器界面本身对性能不敏感，降到 1 能让每次增量构建快约四成；
+# app-lib（下载/解压/校验那些真正吃 CPU 的地方）仍走 workspace 的 opt-level=s。
+[profile.release.package.theseus_gui]
+opt-level = 1

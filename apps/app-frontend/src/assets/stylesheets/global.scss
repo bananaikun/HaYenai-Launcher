@@ -1,0 +1,1137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import '@modrinth/assets/styles/opacity.scss';
+
+@font-face {
+    font-family: 'bundled-minecraft-font-mrapp';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400;
+    src: url('https://cdn-raw.modrinth.com/fonts/minecraft/regular.otf') format('opentype');
+}
+
+@font-face {
+    font-family: 'bundled-minecraft-font-mrapp';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 400;
+    src: url('https://cdn-raw.modrinth.com/fonts/minecraft/italic.otf') format('opentype');
+}
+
+@font-face {
+    font-family: 'bundled-minecraft-font-mrapp';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 600;
+    src: url('https://cdn-raw.modrinth.com/fonts/minecraft/bold.otf') format('opentype');
+}
+
+@font-face {
+    font-family: 'bundled-minecraft-font-mrapp';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 600;
+    src: url('https://cdn-raw.modrinth.com/fonts/minecraft/bold-italic.otf') format('opentype');
+}
+
+.font-minecraft {
+    font-family: 'bundled-minecraft-font-mrapp', monospace;
+}
+
+:root {
+    font-family: var(--font-standard, sans-serif), sans-serif;
+    color-scheme: dark;
+    --view-width: calc(100% - 5rem);
+    --expanded-view-width: calc(100% - 13rem);
+}
+
+body {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+// `color-scheme: dark` makes the UA paint an opaque dark canvas, and
+// `defaults.scss` gives body an opaque `--color-bg`. Both would sit in front of
+// the transparent window, so they have to be cleared.
+html,
+html body {
+    background-color: transparent;
+}
+
+// Opaque snapshots of the surface palette. The transparent window mode derives
+// its translucent surfaces from these, since a token cannot reference itself.
+:root {
+    --surface-1-opaque: var(--surface-1);
+    --surface-1-5-opaque: var(--surface-1-5);
+    --surface-2-opaque: var(--surface-2);
+    --surface-2-5-opaque: var(--surface-2-5);
+    --surface-3-opaque: var(--surface-3);
+    --surface-4-opaque: var(--surface-4);
+    --surface-5-opaque: var(--surface-5);
+
+    // A card sits directly on the page rather than on another panel, so it
+    // follows the component opacity as it is set. The palettes below override
+    // this with the translucent mix; everywhere else a card keeps painting the
+    // plain surface it always painted.
+    --surface-card: var(--surface-3);
+
+    // The baselines the ratio scale is measured against (see opacity.scss).
+    // Declared opaque so the plain themes, and any host that has not adopted the
+    // model, keep painting exactly what they painted before.
+    --opacity-baseline: 100%;
+    --opacity-baseline-page: 100%;
+
+    // Content surfaces carry text, so they keep a readable floor instead of
+    // following the ratio scale; outside the palettes they are the plain
+    // surfaces they have always been.
+    --surface-content: var(--surface-3-opaque);
+    --surface-content-alt: var(--surface-1-5-opaque);
+    --surface-bar: var(--surface-3-opaque);
+    --surface-content-muted: var(--surface-2-opaque);
+    --surface-content-selected: var(--surface-2-5-opaque);
+
+    @include opacity-scale;
+}
+
+// Declared on `body`, not on the root: the opaque snapshots above live on the
+// root, and redefining the same tokens on that same element would form a
+// reference cycle that resolves every background to `transparent`. Modals and
+// dropdowns teleport into `body`, so they still inherit these.
+html.transparent-window body {
+    // `--transparent-window-alpha` is the user-facing opacity. Deeper surfaces
+    // interpolate toward opaque so that stacked panels keep their contrast at
+    // low settings; at 100% every layer lands back on fully opaque.
+    --window-alpha: var(--transparent-window-alpha, 55%);
+
+    // The baselines the ratios are measured against. The window mode has a single
+    // layer, so the page and the components above it share one. The scale is
+    // emitted here rather than on the root: `var()` substitution happens on the
+    // element that declares a property, so a rung declared elsewhere would bake in
+    // that element's baseline and never follow these.
+    --opacity-baseline: var(--window-alpha);
+    --opacity-baseline-page: var(--window-alpha);
+
+    // Content surfaces are a stack rather than one blanket transparency: the
+    // deeper a layer sits, the more of the baseline it keeps, so a card reads as
+    // a solid sheet over a darker row while the whole stack still follows the
+    // setting. At a 100% baseline every layer is opaque, as it always was.
+    --surface-content: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--opacity-ratio-content),
+        transparent
+    );
+    --surface-content-selected: color-mix(
+        in srgb,
+        var(--surface-2-5-opaque) var(--opacity-ratio-content-selected),
+        transparent
+    );
+    --surface-content-muted: color-mix(
+        in srgb,
+        var(--surface-2-opaque) var(--opacity-ratio-content-muted),
+        transparent
+    );
+    --surface-content-alt: color-mix(
+        in srgb,
+        var(--surface-1-5-opaque) var(--opacity-ratio-content-alt),
+        transparent
+    );
+    --surface-bar: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--opacity-ratio-bar),
+        transparent
+    );
+
+    @include opacity-scale;
+
+    // The ratio goes through a variable: `color-mix()` rejects a `calc()` in its
+    // percentage slot, and an invalid argument drops the surface entirely.
+    --surface-1: color-mix(
+        in srgb,
+        var(--surface-1-opaque) var(--opacity-baseline-page),
+        transparent
+    );
+    --surface-1-5: color-mix(
+        in srgb,
+        var(--surface-1-5-opaque) var(--opacity-ratio-1-5),
+        transparent
+    );
+    --surface-2: color-mix(in srgb, var(--surface-2-opaque) var(--opacity-ratio-2), transparent);
+    --surface-2-5: color-mix(
+        in srgb,
+        var(--surface-2-5-opaque) var(--opacity-ratio-chrome),
+        transparent
+    );
+    --surface-3: color-mix(in srgb, var(--surface-3-opaque) var(--opacity-ratio-3), transparent);
+    --surface-4: color-mix(in srgb, var(--surface-4-opaque) var(--opacity-ratio-4), transparent);
+    --surface-5: color-mix(in srgb, var(--surface-5-opaque) var(--opacity-ratio-5), transparent);
+
+    // A card sits directly on the page rather than on another panel, so it takes
+    // the component opacity as it is set: ratio 0, no interpolated floor of its
+    // own. At 0% a `--surface-3` card would still be 55% opaque, which is why the
+    // background behind the cards never used to come through.
+    --surface-card: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--opacity-ratio-card),
+        transparent
+    );
+
+    // Compatibility aliases with remaining consumers still resolve against the
+    // body palette instead of the opaque root values.
+    --color-bg: color-mix(
+        in srgb,
+        var(--surface-1-opaque) var(--opacity-baseline-page),
+        transparent
+    );
+    --color-divider: color-mix(
+        in srgb,
+        var(--surface-5-opaque) var(--opacity-ratio-5),
+        transparent
+    );
+    --color-divider-dark: color-mix(
+        in srgb,
+        var(--surface-5-opaque) var(--opacity-ratio-5),
+        transparent
+    );
+    --color-tooltip-bg: var(--surface-3-opaque);
+
+    // The tint families need the same treatment as the surfaces above, and for
+    // the same reason: the mix that turns an opaque base into a tint lives in
+    // `variables.scss` on the root, and `var()` substitution happens on the
+    // element that declares it, so those tints would keep the root's 100%
+    // baseline no matter what this one is set to. The bases carry no rung, so
+    // they are inherited as they are.
+    --color-red-highlight: color-mix(
+        in srgb,
+        var(--color-red-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-orange-highlight: color-mix(
+        in srgb,
+        var(--color-orange-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-green-highlight: color-mix(
+        in srgb,
+        var(--color-green-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-blue-highlight: color-mix(
+        in srgb,
+        var(--color-blue-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-purple-highlight: color-mix(
+        in srgb,
+        var(--color-purple-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    // The highlight family renders at 25% of the baseline in the theme this
+    // palette paints by default; the light theme's pink tint is the one at 22%
+    // (`variables.scss`), and a single rule cannot tell the two apart. The light
+    // palette re-declares its value below, next to the `-bg` rungs.
+    --color-pink-highlight: color-mix(
+        in srgb,
+        var(--color-pink-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-gray-highlight: color-mix(
+        in srgb,
+        var(--color-gray-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+
+    // The `-bg` tint rungs are the dark/oled values (20%); the light palette
+    // re-declares them at 10% in the scoped block below.
+    --color-red-bg: color-mix(
+        in srgb,
+        var(--color-red-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-orange-bg: color-mix(
+        in srgb,
+        var(--color-orange-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-green-bg: color-mix(
+        in srgb,
+        var(--color-green-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-blue-bg: color-mix(
+        in srgb,
+        var(--color-blue-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-purple-bg: color-mix(
+        in srgb,
+        var(--color-purple-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-pink-bg: color-mix(
+        in srgb,
+        var(--color-pink-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+
+    // The brand tint follows the accent colour, which is why it takes the base
+    // the theme and accent selected rather than a tone of its own.
+    --color-brand-highlight: color-mix(
+        in srgb,
+        var(--color-brand-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+}
+
+// The custom-background path needs the same treatment as the transparent window
+// above, and for the same reason: `surface-*` are declared opaquely on the root,
+// so a component that reads one paints a solid block that hides the image behind
+// it. Redefining the tokens here is what lets the image show *through* the
+// interface -- patching individual elements only ever reached the few that were
+// patched, which is why "component opacity" appeared not to work.
+//
+// Two settings drive this, and the second compounds on the first:
+//
+//   * "Background visibility" decides how much of the image comes through the
+//     *page* layer (`--custom-bg-page-alpha`).
+//   * "Component opacity" decides how much comes through the components stacked
+//     on it (`--custom-bg-component-alpha`), and cannot reveal more than the
+//     page already lets through. At 100% a component is fully opaque; at 0% it
+//     is as transparent as the page itself, so lowering it reveals more of the
+//     same image rather than a different amount of it.
+//
+// The theme store turns the two settings into those alphas, so a layer here only
+// has to read the right one.
+//
+// `has-custom-background` is toggled on `html` by the theme store, but the
+// palette belongs on `body`: modals and dropdowns teleport out of the shell into
+// `body`, so a token defined on the shell alone would not reach them.
+html.has-custom-background body {
+    // Default to fully opaque so the palette still resolves if the store has not
+    // published the settings yet. Without a fallback the `color-mix()` arguments
+    // below would be invalid and every surface would collapse to nothing, which
+    // is a much worse failure than a momentarily opaque UI. The transparent
+    // window path above uses the same guard for the same reason.
+    --custom-bg-page-alpha: var(--custom-bg-page-alpha-setting, 100%);
+    --custom-bg-component-alpha: var(--custom-bg-component-alpha-setting, 100%);
+
+    /* 面板（设置页、首页卡、.home-glass-card）读的是 `--surface-1`。
+       它的原定义挂在**页面层** alpha 上；壁纸模式把页面层归零（为了不压暗壁纸）之后，
+       这些面板就完全透明了 —— 设置页"整页发白、字看不清"就是这么来的。
+       这里把 `--surface-1/-1-5` 改挂到**卡片层**：页面层归零不影响面板，"卡片不透明度"滑杆照旧管用。 */
+    --surface-1: color-mix(
+        in srgb,
+        var(--surface-1-opaque) var(--ui-card-alpha, 55%),
+        transparent
+    );
+    --surface-1-5: color-mix(
+        in srgb,
+        var(--surface-1-5-opaque) var(--ui-card-alpha, 55%),
+        transparent
+    );
+
+    // The page layer follows "Background visibility"; everything above it follows
+    // "Component opacity". The ratios below are measured against those two
+    // baselines, so lowering one lets the image through every layer above it. The
+    // scale is emitted in this same rule on purpose: `var()` substitution happens
+    // on the element that declares a property, so a rung declared anywhere else
+    // would bake in that element's baseline instead of following these.
+    --opacity-baseline: var(--custom-bg-component-alpha);
+    --opacity-baseline-page: var(--custom-bg-page-alpha);
+
+    // Content surfaces are a stack rather than one blanket transparency: the
+    // deeper a layer sits, the more of the baseline it keeps, so a card reads as
+    // a solid sheet over a darker row while the whole stack still follows the
+    // setting. At a 100% baseline every layer is opaque, as it always was.
+    --surface-content: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--opacity-ratio-content),
+        transparent
+    );
+    --surface-content-selected: color-mix(
+        in srgb,
+        var(--surface-2-5-opaque) var(--opacity-ratio-content-selected),
+        transparent
+    );
+    --surface-content-muted: color-mix(
+        in srgb,
+        var(--surface-2-opaque) var(--opacity-ratio-content-muted),
+        transparent
+    );
+    --surface-content-alt: color-mix(
+        in srgb,
+        var(--surface-1-5-opaque) var(--opacity-ratio-content-alt),
+        transparent
+    );
+    --surface-bar: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--opacity-ratio-bar),
+        transparent
+    );
+
+    @include opacity-scale;
+
+    // Interpolation and a variable both matter here: Sass leaves a custom
+    // property value as written, and `color-mix()` rejects a `calc()` in its
+    // percentage slot, so each ratio has to arrive through a variable.
+    --surface-1: color-mix(
+        in srgb,
+        var(--surface-1-opaque) var(--opacity-baseline-page),
+        transparent
+    );
+    --surface-1-5: color-mix(
+        in srgb,
+        var(--surface-1-5-opaque) var(--opacity-ratio-1-5),
+        transparent
+    );
+    --surface-2: color-mix(in srgb, var(--surface-2-opaque) var(--opacity-ratio-2), transparent);
+    --surface-2-5: color-mix(
+        in srgb,
+        var(--surface-2-5-opaque) var(--opacity-ratio-chrome),
+        transparent
+    );
+    --surface-3: color-mix(in srgb, var(--surface-3-opaque) var(--opacity-ratio-3), transparent);
+    --surface-4: color-mix(in srgb, var(--surface-4-opaque) var(--opacity-ratio-4), transparent);
+    --surface-5: color-mix(in srgb, var(--surface-5-opaque) var(--opacity-ratio-5), transparent);
+
+    // A card sits directly on the page rather than on another panel, so it takes
+    // the component opacity as it is set: ratio 0, no interpolated floor of its
+    // own. At 0% a `--surface-3` card would still be 55% opaque, which is why the
+    // background behind the cards never used to come through.
+    --surface-card: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--opacity-ratio-card),
+        transparent
+    );
+
+    // Compatibility aliases with remaining consumers still resolve against the
+    // body palette instead of the opaque root values.
+    --color-bg: color-mix(
+        in srgb,
+        var(--surface-1-opaque) var(--opacity-baseline-page),
+        transparent
+    );
+    --color-divider: color-mix(
+        in srgb,
+        var(--surface-5-opaque) var(--opacity-ratio-5),
+        transparent
+    );
+    --color-divider-dark: color-mix(
+        in srgb,
+        var(--surface-5-opaque) var(--opacity-ratio-5),
+        transparent
+    );
+    --color-tooltip-bg: var(--surface-3-opaque);
+
+    // The tint families need the same treatment as the surfaces above, and for
+    // the same reason: the mix that turns an opaque base into a tint lives in
+    // `variables.scss` on the root, and `var()` substitution happens on the
+    // element that declares it, so those tints would keep the root's 100%
+    // baseline no matter what this one is set to. The bases carry no rung, so
+    // they are inherited as they are.
+    --color-red-highlight: color-mix(
+        in srgb,
+        var(--color-red-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-orange-highlight: color-mix(
+        in srgb,
+        var(--color-orange-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-green-highlight: color-mix(
+        in srgb,
+        var(--color-green-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-blue-highlight: color-mix(
+        in srgb,
+        var(--color-blue-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-purple-highlight: color-mix(
+        in srgb,
+        var(--color-purple-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    // The highlight family renders at 25% of the baseline in the theme this
+    // palette paints by default; the light theme's pink tint is the one at 22%
+    // (`variables.scss`), and a single rule cannot tell the two apart. The light
+    // palette re-declares its value below, next to the `-bg` rungs.
+    --color-pink-highlight: color-mix(
+        in srgb,
+        var(--color-pink-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+    --color-gray-highlight: color-mix(
+        in srgb,
+        var(--color-gray-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+
+    // The `-bg` tint rungs are the dark/oled values (20%); the light palette
+    // re-declares them at 10% in the scoped block below.
+    --color-red-bg: color-mix(
+        in srgb,
+        var(--color-red-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-orange-bg: color-mix(
+        in srgb,
+        var(--color-orange-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-green-bg: color-mix(
+        in srgb,
+        var(--color-green-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-blue-bg: color-mix(
+        in srgb,
+        var(--color-blue-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-purple-bg: color-mix(
+        in srgb,
+        var(--color-purple-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+    --color-pink-bg: color-mix(
+        in srgb,
+        var(--color-pink-bg-opaque) var(--opacity-ratio-keep-20),
+        transparent
+    );
+
+    // The brand tint follows the accent colour, which is why it takes the base
+    // the theme and accent selected rather than a tone of its own.
+    --color-brand-highlight: color-mix(
+        in srgb,
+        var(--color-brand-highlight-opaque) var(--opacity-ratio-keep-25),
+        transparent
+    );
+}
+
+// The `-bg` tint rung and the pink highlight rung are theme-specific: the light
+// palette paints them at 10% / 22% of the baseline, dark and oled at 20% / 25%
+// (`variables.scss`). The two palette rules above cannot tell light from dark --
+// they are scoped only to the palette mode -- so the light values are re-declared
+// here, after both. The theme store marks the resolved theme on `html`
+// (`light-mode`, plus the `.light` alias `variables.scss` also honours), and this
+// selector is more specific than the palette rules, so it wins wherever both
+// apply. `var()` substitutes on the declaring element, so the rung is still
+// resolved against the scale declared on this same `body` by the palette above.
+html.light-mode.transparent-window body,
+html.light.transparent-window body,
+html.light-mode.has-custom-background body,
+html.light.has-custom-background body {
+    // The selected-button fill is `--color-brand-highlight` in the light theme, and
+    // that tint resolves per palette now, so it is republished here, where the
+    // baseline is known, instead of keeping the root's substitution.
+    --color-button-bg-selected: var(--color-brand-highlight);
+
+    --color-red-bg: color-mix(
+        in srgb,
+        var(--color-red-bg-opaque) var(--opacity-ratio-keep-10),
+        transparent
+    );
+    --color-orange-bg: color-mix(
+        in srgb,
+        var(--color-orange-bg-opaque) var(--opacity-ratio-keep-10),
+        transparent
+    );
+    --color-green-bg: color-mix(
+        in srgb,
+        var(--color-green-bg-opaque) var(--opacity-ratio-keep-10),
+        transparent
+    );
+    --color-blue-bg: color-mix(
+        in srgb,
+        var(--color-blue-bg-opaque) var(--opacity-ratio-keep-10),
+        transparent
+    );
+    --color-purple-bg: color-mix(
+        in srgb,
+        var(--color-purple-bg-opaque) var(--opacity-ratio-keep-10),
+        transparent
+    );
+    --color-pink-bg: color-mix(
+        in srgb,
+        var(--color-pink-bg-opaque) var(--opacity-ratio-keep-10),
+        transparent
+    );
+
+    // Light's pink tint is the one highlight the theme paints below 25%.
+    --color-pink-highlight: color-mix(
+        in srgb,
+        var(--color-pink-highlight-opaque) var(--opacity-ratio-keep-22),
+        transparent
+    );
+}
+
+* {
+    box-sizing: border-box;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+    -webkit-font-smoothing: antialiased;
+    will-change: filter;
+}
+
+.badge {
+    display: flex;
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+    align-items: center;
+    background-color: var(--color-bg);
+    padding-block: var(--gap-sm);
+    padding-inline: var(--gap-lg);
+    width: min-content;
+
+    svg {
+        width: 1.1rem;
+        height: 1.1rem;
+        margin-right: 0.5rem;
+    }
+
+    &.featured {
+        background-color: var(--color-brand-highlight);
+        color: var(--color-text-primary);
+    }
+}
+
+/* 2026-10-30 19:00 主人：「设置等界面下的滑动条和侧边栏的滑动条不一致」。
+   原因：这里给全局设了**标准属性** `scrollbar-width: auto` + `scrollbar-color`，
+   Chromium 111+ 一旦看到标准属性就**整体接管**滚动条绘制，下面那套
+   `::-webkit-scrollbar`（10px 磨砂、渐变、圆角）直接失效 ⇒ 部分区域退回系统粗条。
+   改成 `thin` 并去掉 `scrollbar-color`，让 webkit 那套统一接管（侧栏/设置/列表全一致）。 */
+/* 2026-10-30 19:25 **第二次修**：上一次改成 `scrollbar-width: thin` 仍然不一致。
+   查清了：`thin` 只是把**标准属性**设细，颜色/轨道还是各管各的 ——
+   `NavRail.vue` 自己写了 `scrollbar-color: var(--stroke-2) transparent`（细+透明轨道），
+   设置面板没有 ⇒ 用系统默认色，于是「设置那条粗、侧栏那条细」。
+   彻底解决：**全部删掉** `scrollbar-width` / `scrollbar-color`，
+   让文件末尾那套 `::-webkit-scrollbar`（10px 磨砂渐变圆角）统一接管所有滚动容器。 */
+
+// Text uses browser-default selection. Buttons, window drag regions and
+// explicit `select-none` surfaces opt out to avoid accidental selection.
+button,
+[role='button'],
+[data-tauri-drag-region],
+[data-tauri-drag-region] * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] textarea,
+[data-tauri-drag-region] [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+input:placeholder-shown,
+textarea:placeholder-shown {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Chrome, Edge, and Safari */
+*::-webkit-scrollbar {
+    width: 16px;
+    border: 3px solid transparent;
+    opacity: 0.5;
+    transition: opacity 0.2s ease-in-out;
+}
+
+*::-webkit-scrollbar:hover {
+    opacity: 1;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: var(--color-scrollbar);
+    border-radius: var(--radius-lg);
+    border: 5px solid transparent;
+    background-clip: content-box;
+}
+
+.highlighted {
+    box-shadow: 0 0 1rem var(--color-brand) !important;
+}
+
+img {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.card-shadow {
+    box-shadow: var(--shadow-card);
+}
+
+// From the Bootstrap project
+// The MIT License (MIT)
+// Copyright (c) 2011-2023 The Bootstrap Authors
+// https://github.com/twbs/bootstrap/blob/2f617215755b066904248525a8c56ea425dde871/scss/mixins/_visually-hidden.scss#L8
+.visually-hidden {
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+
+    &:not(caption) {
+        position: absolute !important;
+    }
+}
+
+@import '@modrinth/assets/omorphia.scss';
+
+input {
+    border-radius: var(--radius-md);
+    box-sizing: border-box;
+    border: 2px solid transparent;
+    // safari iOS rounds inputs by default
+    // set the appearance to none to prevent this
+    appearance: none !important;
+}
+
+pre {
+    font-weight: var(--font-weight-regular);
+}
+
+input,
+textarea {
+    background: var(--surface-3);
+    color: var(--color-text-default);
+    padding: 0.5rem 1rem;
+    font-weight: var(--font-weight-medium);
+    border: none;
+    outline: 2px solid transparent;
+    box-shadow:
+        var(--shadow-inset-sm),
+        0 0 0 0 transparent;
+    transition: box-shadow 0.1s ease-in-out;
+    min-height: 36px;
+
+    &:focus,
+    &:focus-visible {
+        box-shadow:
+            inset 0 0 0 transparent,
+            0 0 0 0.25rem var(--color-brand-shadow);
+        color: var(--color-button-text-active);
+    }
+
+    &:disabled,
+    &[disabled='true'] {
+        opacity: 0.6;
+        pointer-events: none;
+        cursor: not-allowed;
+    }
+
+    &:focus::placeholder {
+        opacity: 0.8;
+    }
+
+    &::placeholder {
+        color: var(--color-button-text);
+        opacity: 0.6;
+    }
+}
+
+.slide-enter-active,
+.slide-leave-active {
+    transition:
+        transform 0.2s ease,
+        opacity 0.2s ease;
+}
+
+.slide-enter-from {
+    transform: translateY(30px);
+    opacity: 0;
+}
+
+.slide-leave-to {
+    transform: translateY(-30px);
+    opacity: 0;
+}
+
+.page-transition-layer {
+    grid-area: 1 / 1;
+    min-width: 0;
+    // Keep sticky children (browse toolbar chrome) and fixed chrome shadows
+    // out of a transform containing block during the enter animation.
+    // A translateY on this layer makes `position: sticky` resolve against the
+    // layer instead of the scrollport, so the toolbar (and its shadow) slides
+    // with the page and can stick in the wrong place until the class clears.
+    isolation: isolate;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .page-slide-enter-active {
+        transition: opacity 0.18s ease;
+        will-change: opacity;
+    }
+
+    .page-slide-enter-from {
+        /* 2026-10-25 09:10：不从 0 起（主人 06:44「切换界面时闪一下」）。
+           leave 只有 0.12s 而 enter 要 0.18s，两段并行 ⇒ 中间约 0.12s 两页都近乎透明，
+           那一瞬间露出壁纸就是闪。起手给 0.35，肉眼几乎无感但不再有空白期。 */
+        opacity: 0.35;
+    }
+
+    .page-slide-enter-to {
+        opacity: 1;
+    }
+
+    // Short leave so the outgoing page does not pop; enter still starts on URL
+    // change without waiting for the next page's async setup.
+    .page-slide-leave-active {
+        /* 旧页面立刻让位，不再淡出 —— 淡出与新页淡入重叠就会出现"两页都透明"的空档。 */
+        transition: none;
+        pointer-events: none;
+    }
+
+    .page-slide-leave-to {
+        opacity: 0;
+    }
+}
+
+/* ============================================================
+   主页卡片 · 液态玻璃面
+   ------------------------------------------------------------
+   与后台 `HaYenai-服务器端/src/styles/global.css` 的 `.lg`（启动器原语里的
+   `.panel`）同一套材质：上下双色玻璃 + 模糊饱和 / 顶边内高光 / 柔和外投影。
+   三层缺一层就会退化成「半透明白块」，所以 border、内高光、外投影必须同时给。
+
+   消费方：`components/home/HomeDashboard.vue` 的 `.home-widget`（最近项目 / 日历 /
+   固定的世界 …）与侧栏的游玩洞察、每日小挑战、Minecraft 新闻三张卡。
+
+   浅色取值为什么写在这里：`src/ui/tokens.css` 的浅色玻璃分档挂在
+   `[data-theme='light']` 上，而启动器的主题开关（`store/theme.ts`）只写
+   `html.light-mode`，那套浅色分档目前不会被命中 —— 浅色下 `--glass-*` 仍是
+   「白色 4.5%~10%」，压在亮壁纸上几乎看不见。这里按后台 tokens.css 的浅色原值
+   就地补齐，作用域仅限本类，不改 `src/ui/**`。
+   ============================================================ */
+.home-glass-card {
+    /* 与后台 .panel.fill 一致：实底一档、18px 圆角、发丝描边、无模糊 */
+    padding: var(--sp-5, 20px);
+    border: 1px solid var(--stroke-1);
+    border-radius: var(--r-md, 18px);
+    background: color-mix(
+        in srgb,
+        var(--surface-1-opaque) var(--ui-card-alpha, 55%),
+        transparent
+    );
+    -webkit-backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(150%);
+    backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(150%);
+    box-shadow: var(--inset-1);
+}
+
+html.light-mode .home-glass-card,
+html.light .home-glass-card {
+    --glass-1: rgba(255, 255, 255, 0.5);
+    --glass-2: rgba(255, 255, 255, 0.62);
+    --glass-3: rgba(255, 255, 255, 0.74);
+    --glass-deep-2: rgba(255, 255, 255, 0.78);
+    --stroke-1: rgba(255, 255, 255, 0.75);
+    --stroke-2: rgba(58, 68, 100, 0.13);
+    /* 投影与内高光同理：深色那组是「黑色投影 + 白色 10% 高光」，
+       放在浅色玻璃上会糊成一圈脏边 */
+    --sh-1: 0 1px 2px rgba(30, 40, 70, 0.05), 0 10px 24px -14px rgba(30, 40, 70, 0.2);
+    --sh-2: 0 2px 6px rgba(30, 40, 70, 0.06), 0 30px 58px -30px rgba(30, 40, 70, 0.28);
+    --inset-1: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+/* 不支持 backdrop-filter 的运行时（旧 WebView）：换实底，别让字压在壁纸上 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .home-glass-card {
+        background: var(--glass-deep-2);
+    }
+}
+
+/* 减少透明度偏好：玻璃失去载体，给足不透明度并关掉模糊 */
+@media (prefers-reduced-transparency: reduce) {
+    .home-glass-card {
+        background: var(--glass-deep-2);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
+
+// 后台管理外壳与设置卡片样式（逐字复制，见文件头说明）
+// 令牌（含 `--glass-*` `--c-a` `--sidebar-w`）由 main.js 引入 `src/ui/tokens.css`，
+// 走 JS 而不是 SCSS @import：.css 文件在 Sass 里会退化成原生 @import，
+// 必须排在文件顶部，否则被浏览器丢弃。
+@import './admin-verbatim.scss';
+
+/* ============================================================
+   玻璃面 · 卡片与面板（与侧栏同款）
+   ------------------------------------------------------------
+   侧栏 `.side` 是「底垫 + 玻璃渐变 + 模糊饱和 + 发丝描边 + 内高光」五层。
+   启动器里绝大多数卡片是 Tailwind 的 `bg-surface-2/3`（实底），压在壁纸上
+   就像贴了一块塑料 —— 这里把它们统一改成同一套玻璃。
+
+   只覆盖 `bg-surface-2/3`：这两个是卡片/面板的层，`bg-surface-4/5` 是
+   悬停与分隔层，保持原样才不会让按钮在悬停时"浮起来两层"。
+
+   三个数值由设置 → 外观 → 界面玻璃控制（--ui-*）。
+   ============================================================ */
+.bg-surface-2,
+.bg-surface-3 {
+    // 用 *-opaque 作底：`--surface-2` 自己已经被"背景/组件不透明度"混过一次，
+    // 再混一次会薄到几乎看不见（上一版卡片"不像侧栏"就是这个原因）。
+    background-color: color-mix(
+        in srgb,
+        var(--surface-2-opaque, var(--surface-2)) var(--ui-card-alpha, 55%),
+        transparent
+    );
+    /* ⚠ 不加 backdrop-filter：内容页几十行逐行模糊会明显掉帧（主人反馈的卡顿）。
+       模糊交给外层容器，行只留半透底 + 内高光。 */
+    box-shadow: var(--inset-1);
+    transition:
+        background-color var(--t-base, 360ms) var(--ease, ease),
+        box-shadow var(--t-base, 360ms) var(--ease, ease),
+        transform 220ms var(--ease-out, ease),
+        border-color var(--t-base, 360ms) var(--ease, ease);
+}
+
+/* 大圆角的是"卡片"，给一点点上浮反馈；小控件保持不动，避免列表抖动 */
+.bg-surface-2.rounded-xl:hover,
+.bg-surface-2.rounded-2xl:hover,
+.bg-surface-3.rounded-xl:hover,
+.bg-surface-3.rounded-2xl:hover {
+    transform: translate3d(0, -1px, 0);
+    box-shadow: var(--inset-1), var(--sh-1);
+}
+
+/* 不支持 backdrop-filter 的运行时（旧 WebView）：退回实底，别让字压在壁纸上 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .bg-surface-2,
+    .bg-surface-3 {
+        background-color: var(--surface-2);
+    }
+}
+
+/* 系统级「降低透明度」：玻璃失去载体，直接给足不透明度并关掉模糊 */
+@media (prefers-reduced-transparency: reduce) {
+    .bg-surface-2,
+    .bg-surface-3 {
+        background-color: var(--surface-2);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+}
+
+/* ============================================================
+   玻璃面 · 内容列表行（实例/整合包里的条目）
+   ------------------------------------------------------------
+   这些行吃的是 `--surface-content*`（另一套令牌，由"组件不透明度"派生），
+   前面只覆盖了 `bg-surface-2/3`，所以列表看起来还是实心白块。
+   这里只补模糊与内高光，**不改它们的底色** —— 底色已经跟着滑杆走了。
+   ============================================================ */
+.bg-surface-content,
+.bg-surface-content-alt,
+.bg-surface-content-muted {
+    /* ⚠ 只加模糊是不够的：`--surface-content*` 本身由"组件不透明度"派生，
+       那个值是 100% 时它就是**纯色**（内容页那些"实心白行"就是这么来的）。
+       这里直接把底换成 ui-card-alpha 控制的半透，模糊才有意义。 */
+    background-color: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--ui-card-alpha, 55%),
+        transparent
+    );
+    /* ⚠ 不加 backdrop-filter：内容页几十行逐行模糊会明显掉帧（主人反馈的卡顿）。
+       模糊交给外层容器，行只留半透底 + 内高光。 */
+    box-shadow: var(--inset-1);
+    transition:
+        background-color var(--t-base, 360ms) var(--ease, ease),
+        box-shadow var(--t-base, 360ms) var(--ease, ease);
+}
+
+/* ============================================================
+   弹窗：不套玻璃
+   ------------------------------------------------------------
+   弹窗压在黑色遮罩上，玻璃会把遮罩透上来 —— 就是"打开窗口时底部发暗"的来源。
+   弹窗内部的表面一律回到实底，观感由它自己的描边和内高光承担。
+   ============================================================ */
+.modal-container .bg-surface-1,
+.modal-container .bg-surface-2,
+.modal-container .bg-surface-3,
+.modal-container .bg-surface-content,
+.modal-container .bg-surface-content-alt,
+.modal-container .bg-surface-content-muted,
+.modal-container .bg-surface-content-selected {
+    background-color: var(--surface-2-opaque);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+}
+
+/* ============================================================
+   控件统一玻璃（搜索框 / 输入框 / 下拉 / 滚动条 / 加载条）
+   ------------------------------------------------------------
+   上一轮只覆盖了 `bg-surface-2/3` 卡片与 `--surface-content` 列表行，
+   `.base-card`（`background: var(--surface-3)`）和原生控件没被覆盖到，
+   所以下载页那种大白块、搜索框、下拉菜单还是实心的。
+   ============================================================ */
+
+/* 通用卡片类。
+   ⚠ `.card` / `.navigation-card` 是 SCSS `@extend .base-card` —— 编译后各自是独立选择器，
+   DOM 上并没有 `base-card` 类。只写 `.base-card` 一条规则，`.card` 元素根本命中不了
+   （这就是"下载页那块大白卡一直没变"的原因）。三个都要列。 */
+.base-card,
+.card,
+.navigation-card {
+    background-color: color-mix(
+        in srgb,
+        var(--surface-3-opaque) var(--ui-card-alpha, 55%),
+        transparent
+    );
+    border: 1px solid var(--stroke-1);
+    -webkit-backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(160%);
+    backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(160%);
+    box-shadow: var(--inset-1);
+}
+
+/* 输入类控件：排除 range/checkbox/radio/color，避免把滑块和勾选框也刷成一块玻璃 */
+input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='color']),
+select,
+textarea {
+    background-color: color-mix(in srgb, var(--surface-2-opaque) 62%, transparent);
+    border: 1px solid var(--stroke-1);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    color: var(--text-0);
+
+    &:focus,
+    &:focus-visible {
+        border-color: var(--c-a);
+        background-color: color-mix(in srgb, var(--surface-2-opaque) 74%, transparent);
+    }
+}
+
+/* 弹窗里保持实底：它压在黑色遮罩上，玻璃会透出遮罩（就是「底部发暗」的来源） */
+.modal-container input:not([type='range']):not([type='checkbox']):not([type='radio']),
+.modal-container select,
+.modal-container textarea,
+.modal-container .base-card {
+    background-color: var(--surface-2-opaque);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+/* 滚动条：细一点、磨砂质感（原生伪元素不能真模糊，用半透渐变 + 细边框模拟） */
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-image: linear-gradient(180deg, var(--glass-4), var(--glass-2));
+    background-color: var(--color-scrollbar);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background-image: linear-gradient(180deg, var(--glass-5, var(--glass-4)), var(--glass-3));
+}
+
+/* 顶部加载条：**移除**（2026-10-25 07:05 主人要求「移除切换界面时上方类似加载的进度条」）。
+   切页面时那条横线在玻璃界面里非常突兀，直接不显示；元素保留（有 v-if 逻辑引它），
+   只把视觉抹掉，避免改动视图层的挂载/卸载时序。 */
+.modrinth-loading-bar {
+    display: none !important;
+}
+
+
+/* ============================================================
+   按钮（ButtonFrame）与设置侧栏选中项
+   ============================================================ */
+
+/* 按钮底色是实心 `--surface-4`，在壁纸下像一块块塑料。
+   改半透（不加模糊：按钮多，逐个模糊同样掉帧）。 */
+.button-frame--base,
+.button-frame--chip,
+.button-frame--chip-text,
+.button-frame--highlight,
+.button-frame--colored-text {
+    background-color: color-mix(in srgb, var(--surface-4-opaque) 62%, transparent);
+}
+
+/* ============================================================
+   全局材质统一 —— 与**侧边栏 `.side` 完全相同**（2026-10-24 18:46 版）
+   ------------------------------------------------------------
+   background-image: linear-gradient(180deg, --glass-2, --glass-1)
+   + color-mix(#0a0b10 var(--ui-dim)) + blur(34px) saturate(180%)
+   ============================================================ */
+.card,
+.base-card,
+.navigation-card,
+.button-base,
+.combobox-options-scrollbar,
+.bg-surface-1,
+.bg-surface-2,
+.bg-surface-3,
+.bg-surface-4,
+.bg-surface-content,
+.bg-surface-content-alt,
+.bg-surface-content-muted {
+    background-color: transparent;
+    background-image:
+        linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%),
+        color-mix(in srgb, #0a0b10 var(--ui-dim, 25%), transparent);
+    -webkit-backdrop-filter: blur(34px) saturate(180%);
+    backdrop-filter: blur(34px) saturate(180%);
+    border-color: var(--stroke-1);
+    box-shadow: var(--inset-1);
+}
+
+/* 下拉/列表：条目本身不铺材质（每行开模糊必掉帧），只做悬浮与选中 */
+[role='option'],
+[role='menuitem'] {
+    background-image: none;
+}
+
+[role='option']:hover,
+[role='menuitem']:hover,
+[role='option'][data-focused='true'],
+[role='menuitem'][data-focused='true'] {
+    background-color: color-mix(in srgb, var(--glass-4) 70%, transparent);
+    color: var(--text-0);
+}
+
+[role='option'][aria-selected='true'],
+[role='menuitem'][aria-selected='true'] {
+    background: color-mix(in srgb, var(--c-a) 30%, transparent);
+    color: var(--text-0);
+}
+
+/* 日历小组件：只要模糊，不要任何底色 */
+.home-widget[data-widget-kind='calendar'] {
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    -webkit-backdrop-filter: blur(34px) saturate(180%);
+    backdrop-filter: blur(34px) saturate(180%);
+    box-shadow: none;
+}

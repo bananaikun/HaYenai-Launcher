@@ -1,0 +1,679 @@
+/* 逐字复制自后台管理 /d/mod/HaYenai/HaYenai-服务器端/src/styles/shell.css 与 modules.css 的对应区块。
+   这些类名启动器原本没有，直接引入不会冲突；不要本地修改，改动请回后台同步。 */
+
+.side {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: var(--sidebar-w);
+  padding: 18px 14px 16px;
+  background: linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%);
+  border-right: 1px solid var(--stroke-1);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+  transition: width 520ms var(--ease);
+  overflow: hidden;
+}
+.side::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--spec-2) 22%, transparent);
+  pointer-events: none;
+}
+.side.min {
+  width: var(--sidebar-w-min);
+  align-items: center;
+}
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 4px 6px 14px;
+  width: 100%;
+  /* 按钮重置（.side-brand 现为「个人」入口） */
+  background: none;
+  border: 0;
+  border-radius: var(--r-md);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background var(--t-base) var(--ease), color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+.side-brand:hover {
+  background: var(--glass-2);
+}
+.side-brand:focus-visible {
+  outline: none;
+  box-shadow: var(--inset-2), var(--sh-1);
+}
+/* 当前页为「个人」：复用导航选中态的液态玻璃胶囊语言 */
+.side-brand.on {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--c-a) 22%, transparent) 0%, rgba(191, 90, 242, 0.12) 100%),
+    var(--glass-2);
+  box-shadow: var(--inset-2), var(--sh-1);
+}
+.brand-orb {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  background: var(--grad-a);
+  box-shadow: 0 14px 30px -14px color-mix(in srgb, var(--c-a) 80%, transparent), var(--inset-2);
+}
+.brand-orb::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  z-index: -1;
+  border-radius: 20px;
+  background: radial-gradient(circle, rgba(191, 90, 242, 0.4), transparent 70%);
+  filter: blur(11px);
+}
+.brand-orb span {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+/* 设置了个人头像时，圆角方块直接显示图片（本地路径经 /api/fs/raw 取流） */
+.brand-orb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.brand-name {
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: 0.05em;
+  /* 昵称由设置驱动，可能很长 —— 单行省略，不撑破侧栏 */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.brand-sub {
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+}
+
+.side-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+}
+.side.min .side-nav {
+  align-items: center;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  height: 50px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  text-align: left;
+  transition: background var(--t-base) var(--ease), color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease), transform 160ms var(--ease-out);
+}
+.side.min .nav-item {
+  justify-content: center;
+  padding: 0;
+  width: 46px;
+}
+.nav-item:hover {
+  background: var(--glass-2);
+  color: var(--text-0);
+}
+.nav-item:active {
+  transform: scale(0.98);
+}
+/* 选中：液态玻璃胶囊 + 内高光 */
+.nav-item.on {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--c-a) 22%, transparent) 0%, rgba(191, 90, 242, 0.12) 100%),
+    var(--glass-2);
+  color: var(--text-0);
+  box-shadow: var(--inset-2), var(--sh-1);
+  border: 1px solid var(--stroke-1);
+}
+/* 选中态的左侧轨道已改为 .side-nav 里单一滑动的 .nav-orb，见 styles/art.css */
+.nav-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--glass-2);
+  border: 1px solid var(--stroke-1);
+  transition: all var(--t-base) var(--ease);
+}
+.nav-item.on .nav-ico {
+  background: color-mix(in srgb, var(--c-a) 24%, transparent);
+  border-color: color-mix(in srgb, var(--c-a) 42%, transparent);
+  box-shadow: 0 0 20px -5px color-mix(in srgb, var(--c-a) 75%, transparent);
+}
+.nav-item:hover .nav-ico {
+  transform: translate3d(0, -1px, 0);
+}
+.nav-cn {
+  font-size: 12.8px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.nav-en {
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.side-foot {
+  width: 100%;
+  padding-top: 14px;
+  border-top: 1px solid var(--stroke-1);
+}
+
+/* 侧栏底部：主题 + 音乐 小开关组 */
+.mini-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  background: var(--glass-1);
+  border: 1px solid var(--stroke-1);
+  box-shadow: var(--inset-1);
+}
+.mini-row button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 0;
+  border-radius: 10px;
+  font-size: 10px;
+  color: var(--text-2);
+  transition: all var(--t-fast) var(--ease);
+}
+.mini-row button:hover {
+  color: var(--text-0);
+}
+.mini-row button.on {
+  background: var(--glass-4);
+  color: var(--text-0);
+  box-shadow: var(--sh-1), var(--inset-2);
+}
+
+/* ---------- 侧栏：导航分组 ---------- */
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.nav-group + .nav-group {
+  margin-top: 10px;
+}
+.nav-group-ttl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+}
+.nav-group-ttl .line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--stroke-1), transparent);
+}
+
+/* ---------- 侧栏：正在播放 ---------- */
+
+.set-card {
+  padding: 0;
+}
+.set-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--stroke-1);
+}
+.set-head .ico {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: var(--glass-3);
+  border: 1px solid var(--stroke-1);
+  color: var(--text-1);
+  box-shadow: var(--inset-2);
+}
+.set-body {
+  padding: 6px 24px 20px;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--stroke-1);
+}
+.set-row:last-child {
+  border-bottom: 0;
+}
+.set-row .txt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.set-row .txt .t {
+  font-size: 12.8px;
+  color: var(--text-0);
+}
+.set-row .txt .d {
+  font-size: 11.2px;
+  color: var(--text-3);
+  line-height: 1.5;
+  /* 说明里可能出现长 URL / API 路径，允许在任意位置断行，避免撑破卡片 */
+  overflow-wrap: anywhere;
+}
+/* 名单类多行输入（管理员名单 / QQ 号名单）：等宽 + 可竖向拉伸。
+   填错一行的后果是「游戏里有人拿到主机级权限」，所以在视觉上与普通输入分开。 */
+.set-ids {
+  width: 100%;
+  min-width: 220px;
+  min-height: 64px;
+  resize: vertical;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--stroke-1);
+  background: var(--glass-2);
+  box-shadow: var(--inset-1);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.set-ids:focus {
+  outline: none;
+  border-color: var(--stroke-2);
+}
+.set-ids.set-ids-danger {
+  border-color: color-mix(in srgb, var(--c-bad) 42%, var(--stroke-1));
+}
+.set-ctl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  /* 固定控制列宽度，让开关 / 分段 / 滑杆的右边缘在同一条竖线上 */
+  min-width: 180px;
+}
+/* 控件多的行（输入框 + 多个按钮）：默认 .set-ctl 是 flex:none 且无上限，
+   会被内容顶宽，把左侧文字列压成一字一行。给它上限并允许换行。 */
+.set-row.wrap-ctl .set-ctl {
+  flex-wrap: wrap;
+  max-width: 60%;
+}
+
+/* 分段选项 */
+.choice {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--glass-1);
+  border: 1px solid var(--stroke-1);
+  box-shadow: var(--inset-1);
+}
+
+/* ---- 后台 .titlebar 区块（逐字复制 shell.css 6..112） ---- */
+.titlebar {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: var(--titlebar-h);
+  padding: 0 6px 0 16px;
+  background: linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border-bottom: 1px solid var(--stroke-1);
+  box-shadow: var(--inset-1);
+  z-index: 20;
+  -webkit-app-region: drag;
+}
+
+.tb-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--text-2);
+  text-transform: uppercase;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-ok);
+  box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.5);
+  animation: pulse 2.6s var(--ease) infinite;
+}
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(48, 209, 88, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(48, 209, 88, 0);
+  }
+}
+
+.titlebar-center {
+  font-size: 11.5px;
+  letter-spacing: 0.3em;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+.titlebar-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.win-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--text-2);
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.win-btn:hover {
+  background: var(--glass-3);
+  color: var(--text-0);
+}
+.win-btn.close:hover {
+  background: rgba(255, 69, 58, 0.22);
+  color: #ffd9df;
+}
+
+/* 标题栏中的主题/音乐小控件 */
+.tb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  margin-right: 6px;
+  border-radius: var(--r-pill);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke-1);
+  color: var(--text-2);
+  font-size: 11px;
+  transition: all var(--t-fast) var(--ease);
+}
+.tb-chip:hover {
+  background: var(--glass-3);
+  color: var(--text-0);
+}
+
+/* ---------- 侧边栏 ---------- */
+
+/* ---- 后台 art.css 的 .nav-orb 与 .side .nav-ico 区块（逐字 116..175） ---- */
+.nav-orb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 0;
+  border-radius: 3px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.nav-orb > i {
+  position: absolute;
+  inset: 9px 0;
+  border-radius: inherit;
+  background: var(--grad-a);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c-a) 90%, transparent), 0 0 2px rgba(255, 255, 255, 0.7);
+}
+
+.side .nav-ico {
+  position: relative;
+}
+.side .nav-item .nav-ico {
+  translate: calc(var(--effect, 0) * 3px) 0;
+}
+.side .nav-item .nav-ico::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--c-a) 70%, transparent);
+  box-shadow: 0 0 18px -6px color-mix(in srgb, var(--c-a) 85%, transparent);
+  opacity: calc(var(--effect, 0) * 0.85);
+  pointer-events: none;
+}
+/* 选中项的光环本来就常亮，别让邻近感应的透明度把它压暗 */
+.side .nav-item.on .nav-ico::after {
+  opacity: max(calc(var(--effect, 0) * 0.85), 0.55);
+}
+
+/* ============================================================
+   5 · 滚动进度轨
+   贴在标题栏下沿，内容区滚到底时走满。由 bindScrollProgress 驱动。
+   ============================================================ */
+.scroll-rail {
+  position: absolute;
+  top: var(--titlebar-h);
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: var(--z-rail);
+  pointer-events: none;
+  background: var(--grad-a);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c-a) 65%, transparent);
+  transform: scaleX(0);
+  transform-origin: 0% 50%;
+  opacity: 0.75;
+}
+
+/* ============================================================
+   启动器附加（不属于后台原文，边界仅限本段）
+   ------------------------------------------------------------
+   后台 shell.css 假定自己站在 global.css 之上：按钮去底、字体继承、
+   双行标签堆叠、`.stack` 之类的排版件都在那份 global.css 里。
+   启动器没有那份 reset（也不该为了一个侧栏把后台整份 global.css 引进来），
+   所以这里只补外壳真正依赖的几条。
+
+   改这一段 = 改后台里没有的东西，可以按启动器的实际需要调；
+   上面 527 行仍是逐字副本，动它们之前先回后台同步。
+   ============================================================ */
+.nav-item {
+  background: none;
+  border: 0;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.nav-item .nav-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+.nav-item .nav-label .nav-cn,
+.nav-item .nav-label .nav-en {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 78px 收起态：文字整块不出，只留 46px 图标位 */
+.side.min .nav-label {
+  display: none;
+}
+/* 底部账号行比导航行矮一档，给折叠按钮留出呼吸 */
+.side-foot .nav-item {
+  height: 44px;
+  border: 1px solid transparent;
+}
+.side-foot .nav-item.on {
+  border-color: var(--stroke-1);
+}
+
+/* 侧栏底部的折叠按钮：后台这份 .icon-btn 在 global.css 里，启动器没有那份文件 */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--stroke-1);
+  border-radius: var(--r-xs);
+  background: var(--glass-2);
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.icon-btn:hover {
+  background: var(--glass-4);
+  border-color: var(--stroke-2);
+  color: var(--text-0);
+}
+.icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--inset-2), var(--sh-1);
+}
+
+/* 深色档的底垫。
+   后台的深色玻璃（白 4.5%~7%）是压在它自己的深色背景上的，效果接近"深色磨砂面板"；
+   启动器的底是用户自选壁纸，亮图会让这层玻璃几乎消失、浅色文字也读不出来。
+   这里只给深色档垫一层同色底，让结果回到后台那种观感；浅色档的白色玻璃本身够实，不动。
+   壁纸若偏暗，这层几乎看不出来 —— 它是下限，不是遮罩。 */
+/* 底垫浓度走 --ui-dim（设置 → 外观可调）。
+   后台写死 0.62 是因为它的壁纸天生偏暗；启动器的壁纸由用户换，压太死会发黑。 */
+.dark-mode .side,
+.dark-mode .app-grid-statusbar {
+  background:
+    linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%),
+    color-mix(in srgb, #0a0b10 var(--ui-dim, 40%), transparent);
+}
+
+/* 标题栏单独给一个**下限**。
+   它横在窗口最上沿，几乎所有壁纸那里都是天空/高光（最亮的一块），
+   外壳压暗调到 0 时它就变成一条鲜艳的亮带，跟深色内容完全融不进去。
+   所以这里取 max(外壳压暗, 48%)，并让底边渐变淡出，消掉"一条带子"的硬边。 */
+.dark-mode .app-grid-statusbar {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, #0a0b10 max(var(--ui-dim, 40%), 52%), transparent) 0%,
+      color-mix(in srgb, #0a0b10 max(var(--ui-dim, 40%), 40%), transparent) 100%
+    );
+  -webkit-backdrop-filter: blur(calc(var(--ui-glass-blur, 28px) + 6px)) saturate(120%);
+  backdrop-filter: blur(calc(var(--ui-glass-blur, 28px) + 6px)) saturate(120%);
+}
+
+/* 浅色档同样是被"最亮那块壁纸"顶出来的亮带：压一层浅色底 + 降饱和，
+   让它读起来像窗口的一部分，而不是贴在顶上的一条。 */
+.light-mode .app-grid-statusbar {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-3-opaque) 78%, transparent) 0%,
+      color-mix(in srgb, var(--surface-3-opaque) 58%, transparent) 100%
+    );
+  -webkit-backdrop-filter: blur(calc(var(--ui-glass-blur, 28px) + 6px)) saturate(110%);
+  backdrop-filter: blur(calc(var(--ui-glass-blur, 28px) + 6px)) saturate(110%);
+}
+
+/* 模糊半径同样可调（0 也能用：退回"毛玻璃"变"半透明"） */
+.side,
+.app-grid-statusbar {
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(180%);
+  backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(180%);
+}
+
+/* 深色档把侧栏文字提亮。
+   后台的层次是"深底 + 中低亮度字"，它的底色是自己控制的近黑色；
+   启动器的底是用户壁纸，同一组灰字压在图案上会直接糊掉。
+   这里只抬亮度不动色相，层级关系（主标签 > 副标签 > 分组标题）保持不变。 */
+.dark-mode .side .nav-item {
+  color: rgba(236, 240, 248, 0.84);
+}
+.dark-mode .side .nav-item .nav-cn {
+  color: inherit;
+}
+.dark-mode .side .nav-item .nav-en {
+  color: rgba(236, 240, 248, 0.44);
+}
+.dark-mode .side .nav-item.on,
+.dark-mode .side .nav-item:hover {
+  color: #ffffff;
+}
+.dark-mode .side .nav-item.on .nav-en,
+.dark-mode .side .nav-item:hover .nav-en {
+  color: rgba(255, 255, 255, 0.62);
+}
+.dark-mode .side .nav-group-ttl {
+  color: rgba(236, 240, 248, 0.46);
+}
+.dark-mode .side .brand-name {
+  color: #ffffff;
+}
+.dark-mode .side .brand-sub {
+  color: rgba(236, 240, 248, 0.48);
+}

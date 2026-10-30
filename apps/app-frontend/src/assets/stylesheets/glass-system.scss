@@ -1,0 +1,226 @@
+/* ============================================================================
+   HaYenai 材质总表（2026-10-25 04:30 重写）
+   ----------------------------------------------------------------------------
+   参考风格来源（主人指定「以设置页为参考，看代码不要看截图」）：
+   `apps/app-frontend/src/pages/Settings.vue:909` 的 `.settings-content`：
+       background-color: color-mix(in srgb, #0a0b10 var(--ui-dim, 25%), transparent)
+       background-image: linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%)
+       backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(var(--ui-saturate, 105%))
+       border: 1px solid var(--stroke-1);  box-shadow: var(--inset-1)
+
+   ⇒ 本文件就是把这套配方原样推广到全站，**不加任何保底压暗**（22% 是我上一轮
+     自作聪明加的，主人已否掉）。深浅完全由 `--ui-dim` 与 `--glass-*` 令牌决定，
+     与设置页完全同源。
+
+   文字：设置页是白字，这里也统一白族（玻璃是深色系，白字成立）。
+   ⛔ 不要再往这里加「面板级容器」「属性选择器全兜」之类的宽规则 —— 上一次就是那样乱的。
+   ============================================================================ */
+
+/* ---- 文字：只切颜色，**不动背景/模糊**（主人 06:50 明确）------------------
+   玻璃配方保持现在这一套；壁纸亮 → 深字，壁纸暗/中性 → 白字。
+   `data-wallpaper-tone` 由 `wallpaper-theme.ts` 按 Rust 侧中位亮度写入。
+   ⚠ 已知取舍：亮壁纸 + 深字压在深玻璃上会偏淡，主人已接受（选了"只切文字色"）。 */
+html.has-custom-background {
+    --color-text-primary: #fff;
+    --color-text-secondary: rgba(255, 255, 255, 0.86);
+    --color-text-tertiary: rgba(255, 255, 255, 0.66);
+    --text-0: #fff;
+    --text-1: rgba(255, 255, 255, 0.86);
+    --text-2: rgba(255, 255, 255, 0.66);
+    --text-3: rgba(255, 255, 255, 0.48);
+    --text-halo: none;
+}
+
+html.has-custom-background[data-wallpaper-tone='light'] {
+    --color-text-primary: #14161c;
+    --color-text-secondary: rgba(20, 22, 28, 0.8);
+    --color-text-tertiary: rgba(20, 22, 28, 0.6);
+    --text-0: #14161c;
+    --text-1: rgba(20, 22, 28, 0.8);
+    --text-2: rgba(20, 22, 28, 0.6);
+    --text-3: rgba(20, 22, 28, 0.42);
+}
+
+/* ---- 玻璃：与 .settings-content 一字不差的配方 --------------------------- */
+html.has-custom-background body :is(
+    /* 卡片族 */
+    .card, .base-card, .navigation-card, .home-widget, .home-glass-card,
+    /* 表面色族（逐个列，事后由扫描结果补漏，不用属性选择器一把抓） */
+    .bg-surface-1, .bg-surface-2, .bg-surface-3, .bg-surface-4, .bg-surface-5,
+    [class~='bg-surface-1.5'], [class~='bg-surface-2.5'],
+    .bg-surface-content, .bg-surface-content-alt, .bg-surface-content-muted,
+    /* 控件族 */
+    .button-base, .menu-surface, .home-floating-controls, .hy-glass-list,
+    .combobox-options-scrollbar,
+    /* Tailwind 任意值类：`bg-[--_bg-color,var(--surface-4)]`。
+       类名里**没有** `bg-surface-4` 字样，所以按类名列举的规则一律打不到它 ——
+       项目页右侧那几张实心卡、下载按钮组就是这一批（实机扫描到的原话：
+       `DIV.bg-[--_bg-color,var(--surface-4)]`，背景是不透明 #171b23）。 */
+    [class*='--_bg-color'],
+    [class*='bg-[--'],
+    /* 首页布局切换（Index.vue:426）与其它自绘控件：实机扫到的
+       `BUTTON.home-layout-switch | color(srgb 0.09 0.106 0.137)` 就是实心深块 */
+    .home-layout-switch,
+    .home-widget-layout-switch,
+    /* 只这三类组件单独补（主人 06:50：「就统一现有的模糊风格」），
+       **不动 `--surface-N` 令牌**，其它卡片一律不受影响。
+       它们的原件都是 `background: var(--surface-3)`（组件 CSS，不走 Tailwind 类）。 */
+    .ai-provider-card,
+    .about-panel,
+    .update-channel-card
+) {
+    background-color: color-mix(in srgb, #0a0b10 var(--ui-dim, 25%), transparent) !important;
+    background-image: linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%) !important;
+    -webkit-backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(var(--ui-saturate, 105%)) !important;
+    backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(var(--ui-saturate, 105%)) !important;
+    border-color: var(--stroke-1) !important;
+    box-shadow: var(--inset-1) !important;
+}
+
+/* ---- 首页卡片：清掉 `global.scss:838` 那套「浅色 62% 白」的令牌覆盖 -------
+   它改的是令牌本身，背景声明再怎么写 !important 都打不到。 */
+html.light .home-glass-card,
+html.light-mode .home-glass-card {
+    --glass-1: rgba(255, 255, 255, 0.05) !important;
+    --glass-2: rgba(255, 255, 255, 0.07) !important;
+    --glass-3: rgba(255, 255, 255, 0.1) !important;
+    --stroke-1: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ---- 壁纸层不要实底（原来垫着 rgb(248,248,248)，把画面压成灰白板） ------ */
+html.has-custom-background body .launcher-background,
+html.has-custom-background body .wallpaper-layer {
+    background-color: transparent !important;
+    /* 2026-10-25 13:50：`#app` 改透明后不再建立层叠上下文，而壁纸层是
+       `position: fixed; z-index: 0` —— 结果**壁纸盖在 UI 上面**，设置面板
+       明明在 DOM 里（appHTML 7.5 万字符）却整片看不见。必须压到最底层。 */
+    z-index: -1 !important;
+}
+
+/* ---- 壁纸提示条同配方 --------------------------------------------------- */
+html.has-custom-background body .wallpaper-layer__notice {
+    background-color: color-mix(in srgb, #0a0b10 var(--ui-dim, 25%), transparent) !important;
+    background-image: linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%) !important;
+    border-color: var(--stroke-1) !important;
+    color: var(--color-text-secondary) !important;
+}
+
+/* ---- 日历小组件：取消"只留模糊"特例（2026-10-25 06:45）-------------------
+   原来这里把日历改成 transparent + 无描边，结果它和壁纸完全融为一体 ——
+   实机逐层查过（自身 + ::before 全无背景），主人看到的"绿色实心块"其实是**壁纸本身**，
+   而卡片边界消失了，看起来更像一块死色。现在让它走统一玻璃。 */
+
+/* ---- 实心底色的源头（2026-10-25 04:50）----------------------------------
+   `global.scss:68-74` 把 `--surface-N-opaque` 指回 `--surface-N`，而浅色档的
+   `--surface-1..5` 就是纯白系；随后 325 行又把 `--surface-N` 重新算成
+   `color-mix(var(--surface-N-opaque) var(--ui-card-alpha,55%), transparent)`
+   ⇒ 所有用 `var(--surface-N)` 的地方（表格、表头、侧栏小卡、非 .bg-surface-* 的控件）
+   都拿到一块白 55% 的实心底。**这就是"实心卡片残留"的真正出处**，
+   逐个类加 !important 永远补不完。
+
+   这里把不透明底色本身换成深玻璃色：`--surface-N` 随之变成深色半透，
+   任何用到它的地方自动变成深玻璃，且 `--ui-card-alpha` 滑杆语义不变（仍然可调）。
+   主题档（暗/浅/OLED）不再影响玻璃色 —— 与设置页 .settings-content 同一套观感。 */
+/* ============================================================
+   2026-10-25 07:00 主人叫停：「不要动卡片背景，不要动！！」
+   ------------------------------------------------------------
+   这里原来有两段令牌级改动（`--surface-N-opaque` 改深色、以及把 `--surface-N`
+   直接重定义成半透深玻璃），本意是统一卡片底色 + 修掉 AI/关于/更新页那几块纯黑。
+   但**改令牌等于动全站卡片背景**，主人不接受。已整段删除，恢复到组件自己的取值。
+   ⚠ 副作用（已知、保留待主人决定）：`.ai-provider-card`（`background: var(--surface-3)`）、
+   关于页大卡、更新页「Release/Beta 数据库」两块仍会是深色实底。
+   
+/* ---- hover / focus / 选中 态（2026-10-25 06:05）--------------------------
+   Tailwind 的变体类是独立规则（`hover:bg-surface-2`、`hover:bg-[--_bg-color]`），
+   我覆盖的是**基础态**，一悬停就被它们把实心底装回来 —— 主人 04:47 报的
+   「鼠标悬浮时高亮还在使用实心背景」就是这个。这里按伪类再压一遍，用玻璃亮一档代替实色。 */
+html.has-custom-background body :is([class*='hover:bg-'], [class*='hover:bg-['], [class*='hover:bg-surface']):hover,
+html.has-custom-background body :is([class*='hover:bg-'], [class*='hover:bg-['], [class*='hover:bg-surface']):focus-visible {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    background-image: none !important;
+}
+
+/* 列表项 / 菜单项 / 日历格的悬停与选中：原来直接给实色底或 30% 品牌实色 */
+html.has-custom-background body [role='option']:hover,
+html.has-custom-background body [role='menuitem']:hover,
+html.has-custom-background body [role='option'][data-focused='true'],
+html.has-custom-background body [role='menuitem'][data-focused='true'] {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    background-image: none !important;
+}
+
+html.has-custom-background body [role='option'][aria-selected='true'],
+html.has-custom-background body [role='menuitem'][aria-selected='true'] {
+    background-color: color-mix(in srgb, var(--c-a) 22%, transparent) !important;
+    background-image: none !important;
+}
+
+/* ---- 文字：把硬编码的黑色系拉回白族（2026-10-25 06:05）-------------------
+   主人 04:47 报「暗色壁纸 + 深色主题，一些黑色字体根本看不清，应该统一」。
+   项目页那些段标题用的是固定黑色（Tailwind `text-gray-900` / `text-black` 之类），
+   不跟 `--color-text-*` 走，于是同一屏里黑白混排。这里统一拉回主文字色。 */
+html.has-custom-background body :is(
+    [class*='text-black'], [class*='text-gray-9'], [class*='text-gray-8'],
+    [class*='text-neutral-9'], [class*='text-zinc-9'], [class*='text-slate-9'],
+    [class*='text-stone-9']
+) {
+    color: var(--color-text-primary) !important;
+}
+
+/* ---- 切页时露黑底（2026-10-25 08:55，主人：「闪的应该是那个纯黑色的界面」）----
+   路由切换时旧页面已卸载、新页面还没首帧，中间那一瞬露出的是**根容器的底色**；
+   有壁纸时这个底色应该是"透出壁纸"，不是深色。之前只把 `.launcher-background`
+   和 `.wallpaper-layer` 设成透明，根容器与主内容区仍是深色 ⇒ 那一瞬是纯黑。 */
+html.has-custom-background,
+html.has-custom-background body {
+    background-color: transparent !important;
+}
+
+/* 2026-10-25 13:25 **回退**：上一版给 `#app` / `.app-contents` 垫了 `#12151c` 想兜切页黑屏，
+   结果它把壁纸层整个盖住了 —— 截图上所有卡片都变成"实心深灰、看不到壁纸"。
+   壁纸层虽然 z-index 低，但它挂在 `#app` 内部，父级一不透明就全看不见。
+   ⇒ 兜底色只能放在 **body**（壁纸层之下），`#app` 必须保持透明。 */
+html.has-custom-background body {
+    background-color: #12151c !important;
+}
+
+html.has-custom-background #app,
+html.has-custom-background body .app-contents {
+    background-color: transparent !important;
+}
+
+/* ---- 菜单限高滚动（2026-10-25 12:10）--------------------------------------
+   小组件尺寸从 6 档扩到 15 档之后，编辑栏那个「尺寸」子菜单一屏放不下，
+   底部几项直接跑到视口外**点不到**（主人截图）。这里给所有菜单容器加限高 + 滚动。
+   用 `role=menu` 而不是类名：菜单是 packages/ui 里的通用组件，类名不稳定。 */
+html body [role='menu'] {
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+/* 尺寸项本身也压紧一点，15 项才不至于翻两屏 */
+html body [role='menuitem'] {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+/* ---- 页面/卡片实心底 → 玻璃（2026-10-30 20:00）-----------------------------
+   主人：「残留的界面里，卡片、控件、组件等还是黑色底，与侧边栏、设置页区别」。
+   根因：`--surface-1/2/3` 的 opaque 基色是**深黑**，半透后叠在壁纸上仍是一片黑；
+   而侧栏/设置用的是 `--glass-*`（白色极淡 + 压暗），才会透出壁纸。
+   这里在「有壁纸」时把 1/2/3 三档直接换成同一套玻璃配方 ——
+   **一处生效全站**（Music / Browse / Instance / 各弹窗 / Lab 全部覆盖），
+   并且跟随「界面玻璃」里的三个滑杆（压暗/模糊/饱和）。
+   ⚠ 只换 1/2/3：`--surface-4/5` 是按钮、输入框、hover 态那类**控件层**，
+     它们需要更实的底色才点得准，保持原样。
+   ⚠ 不用 `!important`：组件里显式写的 background 仍然优先，避免误伤示意图/画布。 */
+html.has-custom-background {
+    --surface-1: color-mix(in srgb, #ffffff calc(var(--ui-glass-1-alpha, 0.045) * 100%), transparent);
+    --surface-1-5: color-mix(in srgb, #ffffff calc(var(--ui-glass-2-alpha, 0.07) * 100%), transparent);
+    --surface-2: color-mix(in srgb, #ffffff calc(var(--ui-glass-2-alpha, 0.07) * 100%), transparent);
+    --surface-2-5: color-mix(in srgb, #ffffff calc(var(--ui-glass-2-alpha, 0.07) * 100%), transparent);
+    --surface-3: color-mix(in srgb, #ffffff calc(var(--ui-glass-3-alpha, 0.1) * 100%), transparent);
+    --surface-card: color-mix(in srgb, #ffffff calc(var(--ui-glass-3-alpha, 0.1) * 100%), transparent);
+}

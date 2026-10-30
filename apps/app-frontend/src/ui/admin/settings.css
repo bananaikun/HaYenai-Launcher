@@ -1,0 +1,137 @@
+/* 逐字摘自 后台 modules.css 的 .set-* / .choice / .slider，仅加 .hy-set 作用域 */
+.hy-set .set-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--stroke-1);
+}
+.hy-set .set-head .ico {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: var(--glass-3);
+  border: 1px solid var(--stroke-1);
+  color: var(--text-1);
+  box-shadow: var(--inset-2);
+}
+.hy-set .set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--stroke-1);
+}
+.hy-set .set-row:last-child {
+  border-bottom: 0;
+}
+.hy-set .set-row .txt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.hy-set .set-row .txt .t {
+  font-size: 12.8px;
+  color: var(--text-0);
+}
+.hy-set .set-row .txt .d {
+  font-size: 11.2px;
+  color: var(--text-3);
+  line-height: 1.5;
+  /* 说明里可能出现长 URL / API 路径，允许在任意位置断行，避免撑破卡片 */
+  overflow-wrap: anywhere;
+}
+.hy-set .set-ids {
+  width: 100%;
+  min-width: 220px;
+  min-height: 64px;
+  resize: vertical;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--stroke-1);
+  background: var(--glass-2);
+  box-shadow: var(--inset-1);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.hy-set .set-ids:focus {
+  outline: none;
+  border-color: var(--stroke-2);
+}
+.hy-set .set-ids.set-ids-danger {
+  border-color: color-mix(in srgb, var(--c-bad) 42%, var(--stroke-1));
+}
+.hy-set .set-ctl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  /* 固定控制列宽度，让开关 / 分段 / 滑杆的右边缘在同一条竖线上 */
+  min-width: 180px;
+}
+.hy-set .set-row.wrap-ctl .set-ctl {
+  flex-wrap: wrap;
+  max-width: 60%;
+}
+.hy-set .choice {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--glass-1);
+  border: 1px solid var(--stroke-1);
+  box-shadow: var(--inset-1);
+}
+.hy-set .choice button {
+  height: 27px;
+  padding: 0 13px;
+  border-radius: var(--r-pill);
+  font-size: 11.5px;
+  color: var(--text-2);
+  transition: all 160ms var(--ease-out);
+}
+.hy-set .choice button:hover {
+  color: var(--text-0);
+}
+.hy-set .choice button.on {
+  background: var(--glass-4);
+  color: var(--text-0);
+  box-shadow: var(--sh-1), var(--inset-2);
+}
+.hy-set .choice button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.hy-set .choice button:disabled:hover {
+  color: var(--text-2);
+}
+.hy-set .slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 150px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+  outline: none;
+}
+.hy-set .slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
+.hy-set .slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
