@@ -7,14 +7,11 @@
   <p><sub>派生自 <a href="https://github.com/Mystic-Stars/Axolotl">Axolotl</a>（GPL-3.0-only），本仓库为独立维护的 fork。</sub></p>
 
   <p>
-    <a href="https://github.com/bananaikun/HaYenai/actions">
-      <img src="https://img.shields.io/github/actions/workflow/status/bananaikun/HaYenai/axolotl-ci.yml?style=for-the-badge&logo=github" alt="Desktop CI" />
+    <a href="https://github.com/bananaikun/HaYenai-Luncher/releases">
+      <img src="https://img.shields.io/github/downloads/bananaikun/HaYenai-Luncher/total?style=for-the-badge&logo=github" alt="Downloads" />
     </a>
-    <a href="https://github.com/bananaikun/HaYenai/releases">
-      <img src="https://img.shields.io/github/downloads/bananaikun/HaYenai/total?style=for-the-badge&logo=github" alt="Downloads" />
-    </a>
-    <a href="https://github.com/bananaikun/HaYenai/stargazers">
-      <img src="https://img.shields.io/github/stars/bananaikun/HaYenai?style=for-the-badge&logo=github&color=ffb800" alt="Stars" />
+    <a href="https://github.com/bananaikun/HaYenai-Luncher/stargazers">
+      <img src="https://img.shields.io/github/stars/bananaikun/HaYenai-Luncher?style=for-the-badge&logo=github&color=ffb800" alt="Stars" />
     </a>
     <a href="COPYING.md">
       <img src="https://img.shields.io/badge/License-GPL_3.0-blue.svg?style=for-the-badge" alt="License" />
@@ -23,7 +20,7 @@
 
   <p>
     <a href="https://www.axlmc.org">官方网站</a> ｜
-    <a href="https://github.com/bananaikun/HaYenai/releases/latest">下载最新版</a> ｜
+    <a href="https://github.com/bananaikun/HaYenai-Luncher/releases/latest">下载最新版</a> ｜
     <a href="CONTRIBUTING.md">参与贡献</a>
     ｜ <a href="CODE_OF_CONDUCT.md">行为准则</a>
   </p>
@@ -52,13 +49,19 @@
 
 ---
 
-**HaYenai（美西螈启动器）** 是一款免费、开源、跨平台的 Minecraft Java 版第三方启动器，支持在一个客户端中搜索、安装和更新来自 Modrinth 与 CurseForge 的模组、整合包、资源包和光影，并提供实例管理、多种账户认证、个性化外观与 Axolotl 实验室工具。
+**HaYenai（美西螈启动器）** 是一款免费、开源、跨平台的 Minecraft Java 版第三方启动器，支持在一个客户端中搜索、安装和更新来自 Modrinth 与 CurseForge 的模组、整合包、资源包和光影，并提供实例管理、多种账户认证、个性化外观与实验性工具集。
 
-本项目基于 [Modrinth App](https://github.com/modrinth/code) 构建，移除了不适用于本项目的商业化模块，专注于提供纯净、无广告的桌面启动体验。
+本项目是对 [Axolotl](https://github.com/Mystic-Stars/Axolotl) 的**二次修改**（fork），
+而 Axolotl 自身又是 [Modrinth App](https://github.com/modrinth/code) 的衍生。
+按上游的授权，本仓库同样以 **GPL-3.0-only** 发布，并保留全部上游署名与许可声明（见 [COPYING.md](COPYING.md)）。
 
-本项目与客户端项目 Axolotl Client 无任何关联。
+本仓库在上游基础上主要做了：液态玻璃材质系统、Wallpaper Engine 本地壁纸引擎与画质档、
+壁纸取色主题、中文界面与国内网络适配。功能、结构与上游保持高度一致。
 
-_(注：本项目是调用 Modrinth 公开 API 的独立客户端，与 Rinth, Inc. 无任何关联。)_
+本仓库与上游 Axolotl 项目、以及 Modrinth 官方团队**没有隶属关系**，是独立的社区 fork；
+上游不对本仓库的内容负责，本仓库也不代表上游立场。
+
+_(注：本项目调用 Modrinth 公开 API，与 Rinth, Inc. 无任何关联，也未获其背书。)_
 
 ## 核心优势
 
@@ -69,8 +72,8 @@ _(注：本项目是调用 Modrinth 公开 API 的独立客户端，与 Rinth, I
 
 ## 下载与安装
 
-请前往 [GitHub Releases](https://github.com/bananaikun/HaYenai/releases/latest) 下载适合你操作系统的最新安装包。
-已安装的用户每次均可通过内置的 Tauri 签名校验机制，自动在后台完成更新，无需手动下载安装更新。
+请前往 [GitHub Releases](https://github.com/bananaikun/HaYenai-Luncher/releases/latest) 下载适合你操作系统的最新安装包。
+更新检查走本仓库的 GitHub Releases。当前版本仍需手动下载安装包覆盖（自动更新未接入，见 Issue 区）。
 
 | 系统平台                | 推荐下载文件                              |
 | ----------------------- | ----------------------------------------- |
@@ -104,13 +107,13 @@ sudo apt install axolotl-launcher
 > 小提示：
 > 由于 HaYenai 的主分支代码更新较快，可以在下面用到的网址后面加上`/?`和参数来锁定，以免过于频繁地更新。多个参数用`&`连接。
 > + 使用`shallow=1`避免克隆历史代码 \
->   `git+https://github.com/bananaikun/HaYenai/?shallow=1`
+>   `git+https://github.com/bananaikun/HaYenai-Luncher/?shallow=1`
 > + 使用`ref=`指定分支（例如`experiment/linux-cef-runtime`分支）\
->   `git+https://github.com/bananaikun/HaYenai/?ref=experiment/linux-cef-runtime`
+>   `git+https://github.com/bananaikun/HaYenai-Luncher/?ref=experiment/linux-cef-runtime`
 > + 使用`ref=`指定版本标签（例如`v1.9.7-beta.2`）\
->   `git+https://github.com/bananaikun/HaYenai/?ref=refs/tags/v1.9.7-beta.2`
+>   `git+https://github.com/bananaikun/HaYenai-Luncher/?ref=refs/tags/v1.9.7-beta.2`
 > + 使用`rev=`指定提交（例如`10827ade74f49958cefaa6fda05961c7502741ef`）\
->   `git+https://github.com/bananaikun/HaYenai/?rev=10827ade74f49958cefaa6fda05961c7502741ef`
+>   `git+https://github.com/bananaikun/HaYenai-Luncher/?rev=10827ade74f49958cefaa6fda05961c7502741ef`
 
 ```bash
 nix profile add 'git+https://github.com/bananaikun/HaYenai'
