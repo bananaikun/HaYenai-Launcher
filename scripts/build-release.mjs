@@ -90,8 +90,11 @@ function main() {
     // 并行度看可用内存：theseus_gui 单个 rustc 峰值 ~3–4G。
     // 之前固定 1 是因为构建时主人在玩绝区零，内存被吃光才 OOM —— 那是并发占用，
     // 不是硬件不足。空着 10G 以上就放开到 3，只有内存紧张时才退回 1。
+    // `HAYENAI_JOBS=1` 可强制串行：theseus 那个 crate 在 7G 空闲 + 2 并发时
+    // 会把 rustc 干出 STATUS_STACK_BUFFER_OVERRUN(0xc0000409)。
     const freeGB = os.freemem() / 1024 ** 3
-    const jobs = freeGB > 10 ? '3' : freeGB > 6 ? '2' : '1'
+    const forced = Number(process.env.HAYENAI_JOBS || 0)
+    const jobs = forced > 0 ? String(forced) : freeGB > 10 ? '3' : freeGB > 6 ? '2' : '1'
 
     console.log(`[build] 可用内存 ${freeGB.toFixed(1)}G → CARGO_BUILD_JOBS=${jobs}`)
     console.log('[build] tauri build --bundles nsis …')
