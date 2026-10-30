@@ -703,25 +703,13 @@ function goCreate() {
         opacity 200ms var(--ease);
 }
 
-/* 导航列会溢出（分组 + 两级子项），原生滚动条的默认灰太抢眼，压到发丝级 */
+/* 导航列会溢出（分组 + 两级子项）。滚动条：
+   2026-10-30 23:20 起全站改由 `OverlayScrollbar.vue` 自绘（原生条被整体隐藏），
+   这里原本那套 `.side-nav::-webkit-scrollbar` 已成为死样式，已删。 */
 .side-nav {
     /* 指示器 .nav-orb 是绝对定位，坐标系必须是这层滚动容器，
        否则它会被 .side（position:relative）接管，滚动时不跟内容走 */
     position: relative;
-    /* 2026-10-30 19:25：删掉标准属性，统一走全局 `::-webkit-scrollbar`（否则和设置面板不一致） */
-}
-.side-nav::-webkit-scrollbar {
-    width: 6px;
-}
-.side-nav::-webkit-scrollbar-track {
-    background: transparent;
-}
-.side-nav::-webkit-scrollbar-thumb {
-    border-radius: var(--r-pill);
-    background: var(--stroke-2);
-}
-.side-nav::-webkit-scrollbar-thumb:hover {
-    background: var(--text-3);
 }
 
 /* 父项右侧的展开箭头 */

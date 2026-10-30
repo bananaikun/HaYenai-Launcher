@@ -1,11 +1,11 @@
 .light-properties {
-    --surface-1: #ebebeb;
-    --surface-1-5: #ededed;
-    --surface-2: #f5f5f5;
-    --surface-2-5: #eef1f5;
-    --surface-3: #f8f8f8;
-    --surface-4: #ffffff;
-    --surface-5: #dddddd;
+    --surface-1: color-mix(in srgb, #ebebeb var(--ui-card-alpha, 62%), transparent);
+    --surface-1-5: color-mix(in srgb, #ededed var(--ui-card-alpha, 62%), transparent);
+    --surface-2: color-mix(in srgb, #f5f5f5 var(--ui-card-alpha, 62%), transparent);
+    --surface-2-5: color-mix(in srgb, #eef1f5 var(--ui-card-alpha, 62%), transparent);
+    --surface-3: color-mix(in srgb, #f8f8f8 var(--ui-card-alpha, 62%), transparent);
+    --surface-4: color-mix(in srgb, #ffffff var(--ui-card-alpha, 62%), transparent);
+    --surface-5: color-mix(in srgb, #dddddd var(--ui-card-alpha, 62%), transparent);
 
     --color-red-50: #fef2f2;
     --color-red-100: #fee5e7;
@@ -405,13 +405,13 @@ html {
     // 与后台管理同源（HaYenai-服务器端/src/styles/tokens.css 深色档）。
     // 直接改值，不引入第二套令牌：--glass-* 是这块面板的"玻璃分档"，
     // 旧组件继续吃 --surface-*（不透明底），新组件吃 --glass-*。
-    --surface-1: #101216;
-    --surface-1-5: #14171c;
-    --surface-2: #181b21;
-    --surface-2-5: #1d2128;
-    --surface-3: #232833;
-    --surface-4: #2f3542;
-    --surface-5: #3d4453;
+    --surface-1: color-mix(in srgb, #101216 var(--ui-card-alpha, 55%), transparent);
+    --surface-1-5: color-mix(in srgb, #14171c var(--ui-card-alpha, 55%), transparent);
+    --surface-2: color-mix(in srgb, #181b21 var(--ui-card-alpha, 55%), transparent);
+    --surface-2-5: color-mix(in srgb, #1d2128 var(--ui-card-alpha, 55%), transparent);
+    --surface-3: color-mix(in srgb, #232833 var(--ui-card-alpha, 55%), transparent);
+    --surface-4: color-mix(in srgb, #2f3542 var(--ui-card-alpha, 55%), transparent);
+    --surface-5: color-mix(in srgb, #3d4453 var(--ui-card-alpha, 55%), transparent);
 
     /* ---- 后台同源令牌（值取自 tokens.css，深色档） ---- */
     /* 2026-10-25 08:50：改成**引用滑杆参数**，默认值不变（0.045/0.07），
@@ -715,13 +715,13 @@ html {
     // Same reasoning as `.dark` above: pure black makes the lower steps
     // indistinguishable (the old `surface-1`/`surface-2` pair sat at 1.06:1),
     // so the ladder opens up here too while `surface-1` stays true black.
-    --surface-1: #000000;
-    --surface-1-5: #070809;
-    --surface-2: #0c0e12;
-    --surface-2-5: #111419;
-    --surface-3: #171b21;
-    --surface-4: #242a33;
-    --surface-5: #333a45;
+    --surface-1: color-mix(in srgb, #000000 var(--ui-card-alpha, 55%), transparent);
+    --surface-1-5: color-mix(in srgb, #070809 var(--ui-card-alpha, 55%), transparent);
+    --surface-2: color-mix(in srgb, #0c0e12 var(--ui-card-alpha, 55%), transparent);
+    --surface-2-5: color-mix(in srgb, #111419 var(--ui-card-alpha, 55%), transparent);
+    --surface-3: color-mix(in srgb, #171b21 var(--ui-card-alpha, 55%), transparent);
+    --surface-4: color-mix(in srgb, #242a33 var(--ui-card-alpha, 55%), transparent);
+    --surface-5: color-mix(in srgb, #333a45 var(--ui-card-alpha, 55%), transparent);
 
     --color-ad: #0d1828;
 
@@ -821,4 +821,63 @@ html {
         var(--color-brand-highlight-opaque) var(--opacity-ratio-keep-25, 25%),
         transparent
     );
+}
+
+/* ============================================================================
+   全站玻璃化：surface 阶梯改为「半透明 + 可控实底比例」（2026-10-31）
+   ----------------------------------------------------------------------------
+   问题：`--surface-1..5` 原本是不透明色阶，而全仓 109 处 `bg-surface-4`、
+   71 处 `bg-surface-3` 以及大量 scoped `background: var(--surface-N)`
+   （种子地图工具条、音乐设置输入框、数据库隔离卡片…）都直接拿它当卡片底
+   ⇒ 压在壁纸上就是一块实心黑板。
+   逐个改组件既改不全也会漏，所以在**令牌层**收口：把 `--surface-N` 本身
+   改成 `color-mix(原色 var(--ui-card-alpha), transparent)`，
+   于是「外观 → 界面玻璃 → 卡片实底比例」这一个滑杆就能统一控制所有界面。
+
+   原始不透明值搬到 `--surface-N-solid`，`global.scss` 里的 `-opaque` 别名
+   改为指向它，避免「半透明再乘一次透明度」导致越调越透。
+   ============================================================================ */
+:root {
+  --surface-1-solid: #ebebeb;
+  --surface-2-solid: #f5f5f5;
+  --surface-3-solid: #f8f8f8;
+  --surface-4-solid: #ffffff;
+  --surface-1: color-mix(in srgb, var(--surface-1-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-2: color-mix(in srgb, var(--surface-2-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-3: color-mix(in srgb, var(--surface-3-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-4: color-mix(in srgb, var(--surface-4-solid) var(--ui-card-alpha, 55%), transparent);
+}
+
+.dark-mode {
+  --surface-1-solid: #101216;
+  --surface-1-5-solid: #14171c;
+  --surface-2-solid: #181b21;
+  --surface-2-5-solid: #1d2128;
+  --surface-3-solid: #232833;
+  --surface-4-solid: #2f3542;
+  --surface-5-solid: #3d4453;
+  --surface-1: color-mix(in srgb, var(--surface-1-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-1-5: color-mix(in srgb, var(--surface-1-5-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-2: color-mix(in srgb, var(--surface-2-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-2-5: color-mix(in srgb, var(--surface-2-5-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-3: color-mix(in srgb, var(--surface-3-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-4: color-mix(in srgb, var(--surface-4-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-5: color-mix(in srgb, var(--surface-5-solid) var(--ui-card-alpha, 55%), transparent);
+}
+
+.oled-mode {
+  --surface-1-solid: #000000;
+  --surface-1-5-solid: #070809;
+  --surface-2-solid: #0c0e12;
+  --surface-2-5-solid: #111419;
+  --surface-3-solid: #171b21;
+  --surface-4-solid: #242a33;
+  --surface-5-solid: #333a45;
+  --surface-1: color-mix(in srgb, var(--surface-1-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-1-5: color-mix(in srgb, var(--surface-1-5-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-2: color-mix(in srgb, var(--surface-2-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-2-5: color-mix(in srgb, var(--surface-2-5-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-3: color-mix(in srgb, var(--surface-3-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-4: color-mix(in srgb, var(--surface-4-solid) var(--ui-card-alpha, 55%), transparent);
+  --surface-5: color-mix(in srgb, var(--surface-5-solid) var(--ui-card-alpha, 55%), transparent);
 }

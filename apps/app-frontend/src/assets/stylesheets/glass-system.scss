@@ -224,3 +224,35 @@ html.has-custom-background {
     --surface-3: color-mix(in srgb, #ffffff calc(var(--ui-glass-3-alpha, 0.1) * 100%), transparent);
     --surface-card: color-mix(in srgb, #ffffff calc(var(--ui-glass-3-alpha, 0.1) * 100%), transparent);
 }
+
+/* ---- 滚动条：原生条全部隐藏，改为自绘磨砂覆盖层（2026-10-30 23:20）-------------
+   主人确认的口径：「材质 = 后台管理端侧栏那套玻璃（blur 30px saturate 180% + 白玻璃渐变
+   + 发丝描边）」，范围「全站所有滚动容器」，时机「滚动/悬停才出现」，做法「完全重写」。
+
+   原生 `::-webkit-scrollbar-thumb` **不支持 backdrop-filter**（实测无效，永远只是半透色块），
+   所以真磨砂只能在 DOM 上画 ⇒ 见 `components/ui/OverlayScrollbar.vue`（单例覆盖层）：
+   它挂载时给 `<html>` 加 `.os-overlay`，CSS 才隐藏原生条；组件掉线则原生条自动回来。
+
+   ⚠ 之前两次踩的坑，留档防复发：
+   1. 只要写了 `scrollbar-width`（哪怕是 thin），Chromium 就整体接管，`::-webkit-scrollbar` 全废。
+   2. thumb 不能用 `background` 简写：压缩器会并成双 clip 非法值，整条规则被丢弃，
+      表现就是「改了源码但画面没变」（10-30 21:50 那次）。 */
+
+/* ---- 残留实心面板补模糊（2026-10-31）------------------------------------
+   颜色已由 `variables.scss` 末尾在**令牌层**统一改成半透明（`--surface-N` 吃
+   `--ui-card-alpha`），所以这里只补「背景模糊」这一件令牌做不到的事。
+   ⚠ 不再覆盖 background：否则外观里的「卡片实底比例」滑杆被写死，调不动。 */
+
+.dark-mode .bg-surface-2,
+.dark-mode .bg-surface-3,
+.dark-mode .bg-surface-4,
+.dark-mode .bg-surface-5,
+.light-mode .bg-surface-2,
+.light-mode .bg-surface-3,
+.light-mode .bg-surface-4,
+.light-mode .bg-surface-5,
+.database-isolation,
+.database-channel {
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}

@@ -191,6 +191,7 @@
 		"telemetry:default",
 		"planet-minecraft:default",
 		"update-service:default",
-		"wallpaper:default"
+		"wallpaper:default",
+		"wallpaper:allow-wallpaper-properties"
 	]
 }

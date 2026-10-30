@@ -82,7 +82,6 @@ import UpdateAnnouncementModal from '@/components/ui/announcement/UpdateAnnounce
 import AppActionBar from '@/components/ui/AppActionBar.vue'
 import AppLogo from '@/components/ui/AppLogo.vue'
 import Breadcrumbs from '@/components/ui/Breadcrumbs.vue'
-import ConnectionStatus from '@/components/ui/ConnectionStatus.vue'
 import ContentInstallPreviewModal from '@/components/ui/ContentInstallPreviewModal.vue'
 import ErrorModal from '@/components/ui/ErrorModal.vue'
 import AddServerToInstanceModal from '@/components/ui/install_flow/AddServerToInstanceModal.vue'
@@ -99,6 +98,7 @@ import PrivacyConsentModal from '@/components/ui/modal/PrivacyConsentModal.vue'
 import NavButton from '@/components/ui/NavButton.vue'
 import OfflineAccountRestrictionModal from '@/components/ui/OfflineAccountRestrictionModal.vue'
 import OnboardingOverlay from '@/components/ui/onboarding/OnboardingOverlay.vue'
+import OverlayScrollbar from '@/components/ui/OverlayScrollbar.vue'
 import MagneticBar from '@/components/ui/magnetic/MagneticBar.vue'
 import { applyWallpaperTheme } from '@/helpers/wallpaper-theme'
 import { startRotation, stopRotation } from '@/helpers/wallpaper-rotation'
@@ -3339,11 +3339,10 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
                 <Breadcrumbs class="pt-[2px]" />
             </div>
             <section data-tauri-drag-region class="flex shrink-0 ml-auto items-center">
-                <!-- Update-service indicator. It carries no drag region of its
-                     own, so clicking it must not start a window drag. -->
-                <div class="h-full pointer-events-auto">
-                    <ConnectionStatus />
-                </div>
+                <!-- 2026-10-31 主人要求：标题栏不再显示「更新服务连接状态」。
+                     该圆点弹出的是一块「更新服务不可达 / https://placeholder.invalid/」
+                     的死信息（旧的 SRV 更新服务已废弃），留着只会误导。
+                     组件本身保留，改用 GitHub 更新源后再决定要不要以新语义挂回来。 -->
                 <div class="flex mr-3">
                     <Suspense>
                         <AppActionBar />
@@ -3785,6 +3784,9 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
         @skip="skipOnboarding"
         @request-close-settings="closeOnboardingSettings"
     />
+
+    <!-- 全站磨砂滚动条：单例覆盖层，隐藏原生条并自己画（材质同后台侧栏） -->
+    <OverlayScrollbar />
 </template>
 
 <style lang="scss" scoped>

@@ -65,13 +65,15 @@ html body {
 // Opaque snapshots of the surface palette. The transparent window mode derives
 // its translucent surfaces from these, since a token cannot reference itself.
 :root {
-    --surface-1-opaque: var(--surface-1);
-    --surface-1-5-opaque: var(--surface-1-5);
-    --surface-2-opaque: var(--surface-2);
-    --surface-2-5-opaque: var(--surface-2-5);
-    --surface-3-opaque: var(--surface-3);
-    --surface-4-opaque: var(--surface-4);
-    --surface-5-opaque: var(--surface-5);
+    // 2026-10-31：surface 阶梯已改为半透明（见 variables.scss 末尾），
+    // 这里必须吃**原始不透明值**，否则会二次乘透明度、越调越透。
+    --surface-1-opaque: var(--surface-1-solid, var(--surface-1));
+    --surface-1-5-opaque: var(--surface-1-5-solid, var(--surface-1-5));
+    --surface-2-opaque: var(--surface-2-solid, var(--surface-2));
+    --surface-2-5-opaque: var(--surface-2-5-solid, var(--surface-2-5));
+    --surface-3-opaque: var(--surface-3-solid, var(--surface-3));
+    --surface-4-opaque: var(--surface-4-solid, var(--surface-4));
+    --surface-5-opaque: var(--surface-5-solid, var(--surface-5));
 
     // A card sits directly on the page rather than on another panel, so it
     // follows the component opacity as it is set. The palettes below override
@@ -645,28 +647,10 @@ textarea:placeholder-shown {
     user-select: none;
 }
 
-/* Chrome, Edge, and Safari */
-*::-webkit-scrollbar {
-    width: 16px;
-    border: 3px solid transparent;
-    opacity: 0.5;
-    transition: opacity 0.2s ease-in-out;
-}
-
-*::-webkit-scrollbar:hover {
-    opacity: 1;
-}
-
-*::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-    background-color: var(--color-scrollbar);
-    border-radius: var(--radius-lg);
-    border: 5px solid transparent;
-    background-clip: content-box;
-}
+/* Chrome, Edge, and Safari
+   2026-10-30 21:40：这套 16px 的规则与文件末尾那套 10px 的互相打架，
+   而且全被系统滚动条盖掉（见 glass-system.scss 末尾的最终实现）。
+   这里直接移除，滚动条样式只保留**一处**真源，避免再出现「这边细那边粗」。 */
 
 .highlighted {
     box-shadow: 0 0 1rem var(--color-brand) !important;
@@ -1038,23 +1022,9 @@ textarea {
     backdrop-filter: none;
 }
 
-/* 滚动条：细一点、磨砂质感（原生伪元素不能真模糊，用半透渐变 + 细边框模拟） */
-*::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-*::-webkit-scrollbar-thumb {
-    background-image: linear-gradient(180deg, var(--glass-4), var(--glass-2));
-    background-color: var(--color-scrollbar);
-    border: 3px solid transparent;
-    border-radius: 999px;
-    background-clip: content-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-    background-image: linear-gradient(180deg, var(--glass-5, var(--glass-4)), var(--glass-3));
-}
+/* 2026-10-30 21:55 这套渐变滚动条**已删除**：与 glass-system.scss 末尾那套
+   （照抄后台管理、带 !important）重复，就是"两套互相覆盖"的来源之一。
+   滚动条样式现在**只保留 glass-system.scss 末尾那一处真源**。 */
 
 /* 顶部加载条：**移除**（2026-10-25 07:05 主人要求「移除切换界面时上方类似加载的进度条」）。
    切页面时那条横线在玻璃界面里非常突兀，直接不显示；元素保留（有 v-if 逻辑引它），

@@ -54,7 +54,8 @@
 			"typescript": "5.9.3"
 		},
 		"patchedDependencies": {
-			"readable-stream@2.3.8": "patches/readable-stream@2.3.8.patch"
+			"readable-stream@2.3.8": "patches/readable-stream@2.3.8.patch",
+			"webwallgl@2.1.0": "patches/webwallgl@2.1.0.patch"
 		},
 		"peerDependencyRules": {
 			"allowedVersions": {
@@ -74,5 +75,8 @@
 			"workerd"
 		]
 	},
-	"prettier": "@modrinth/tooling-config/prettier.config.cjs"
+	"prettier": "@modrinth/tooling-config/prettier.config.cjs",
+	"dependencies": {
+		"mediabunny": "^1.62.1"
+	}
 }

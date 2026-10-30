@@ -107,6 +107,18 @@ function main() {
         env.PATH = `${cargoBin}${path.delimiter}${env.PATH ?? ''}`
     }
 
+    // 自动更新的 minisign 私钥。**在仓库外**（不随代码走），口令为空。
+    // 丢了就无法再给老版本发更新，只能用新密钥重发一版让用户手动装。
+    const signingKey =
+        process.env.TAURI_SIGNING_PRIVATE_KEY ||
+        path.resolve(ROOT, '..', 'keys', 'hayenai-updater.key')
+    if (!fs.existsSync(signingKey)) {
+        throw new Error(`缺少签名私钥：${signingKey}（或设置 TAURI_SIGNING_PRIVATE_KEY）`)
+    }
+    env.TAURI_SIGNING_PRIVATE_KEY = signingKey
+    env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD =
+        process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? ''
+
     execFileSync(
         'npx',
         [
@@ -138,7 +150,38 @@ function main() {
     const setupDst = path.join(outDir, `HaYenai-${version}-x64-setup.exe`)
     fs.copyFileSync(setupSrc, setupDst)
 
-    const sums = [setupDst]
+    // 自动更新的签名与清单。`createUpdaterArtifacts` 会把 `.sig` 放在安装包旁边，
+    // 清单里的 signature 必须**逐字**等于这个文件内容，否则更新器签名校验失败。
+    const sigSrc = `${setupSrc}.sig`
+    if (!fs.existsSync(sigSrc)) {
+        throw new Error(
+            `缺少 ${path.basename(sigSrc)}：TAURI_SIGNING_PRIVATE_KEY 没设？没有签名就无法自动更新`,
+        )
+    }
+    const signature = fs.readFileSync(sigSrc, 'utf8').trim()
+    const sigDst = `${setupDst}.sig`
+    fs.copyFileSync(sigSrc, sigDst)
+
+    const notesPath = path.join(outDir, 'NOTES.md')
+    const notes = fs.existsSync(notesPath)
+        ? fs.readFileSync(notesPath, 'utf8').trim()
+        : `HaYenai 启动器 ${version}`
+    const latest = {
+        version,
+        notes,
+        pub_date: new Date().toISOString(),
+        platforms: {
+            'windows-x86_64': {
+                signature,
+                // 发版后这个 tag 会一直存在，所以清单里的地址可以指向版本化 tag，
+                // 不必随 latest 漂移。
+                url: `https://github.com/bananaikun/HaYenai-Launcher/releases/download/v${version}/HaYenai-${version}-x64-setup.exe`,
+            },
+        },
+    }
+    fs.writeFileSync(path.join(outDir, 'latest.json'), `${JSON.stringify(latest, null, 2)}\n`)
+
+    const sums = [setupDst, sigDst, path.join(outDir, 'latest.json')]
         .map((file) => `${sha256(file)}  ${path.basename(file)}`)
         .join('\n')
     fs.writeFileSync(path.join(outDir, 'SHA256SUMS.txt'), `${sums}\n`)

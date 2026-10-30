@@ -18,6 +18,7 @@ import type { SceneInstance } from 'webwallgl'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { analyserLive, spectrumPeak, spectrumSnapshot } from '@/helpers/music/music-analyser'
+import { currentSong, music, next, pause, prev, toggle } from '@/store/music'
 import {
     applyWallpaperTextureScale,
     DEFAULT_WALLPAPER_QUALITY,
@@ -131,7 +132,7 @@ async function mountEngine(): Promise<void> {
     applyWallpaperTextureScale(props.quality.textureScale)
 
     try {
-        const { mount, httpSource } = await import('webwallgl')
+        const { mount, httpSource, createMediaSource } = await import('webwallgl')
         if (disposed || current !== generation) return
 
         const mounted = await mount(element, {
@@ -162,8 +163,13 @@ async function mountEngine(): Promise<void> {
         }
 
         instance = mounted
+        // 调试钩子：dev 下把实例挂到 window，方便用 CDP 直接验证 setProperties 等通路
+        if (import.meta.env.DEV) {
+            ;(window as unknown as { __scene?: unknown }).__scene = mounted
+        }
         mountPointerRelay(mounted)
         attachAudio(mounted)
+        attachMedia(mounted, createMediaSource)
         if (!props.active) {
             // 挂载期间窗口已经不可见了：别让这一帧白跑，也别等下一次 active 变化。
             safeCall(() => mounted.pause())
@@ -283,6 +289,70 @@ function detachAudio(): void {
     audioLinked = null
 }
 
+/* ---------------- 系统媒体（正在播放） ----------------
+   2026-10-30 23:2x 新增：库支持 `setMedia()`，而启动器之前**一次都没调用过**
+   ⇒ 壁纸里的 Song Title / Artist Name / durationsongv2 / timerestarv2 这些组件
+   吃的是库内置的**模拟数据**（假歌名、假进度）。这里把启动器自己的音乐状态接进去。
+
+   契约（types.d.ts）：`MediaSource.snapshot` 是一个**属性**不是函数，渲染循环每帧读它；
+   所以我们交一个 getter 返回同一个可变对象，定时把字段刷新成当前播放状态 ——
+   不每帧分配、也不用理会库何时读。
+   ---------------- */
+let mediaTimer: number | null = null
+
+function attachMedia(
+    inst: { setMedia?: (src: unknown) => void },
+    createMediaSource: (init: Record<string, unknown>) => any,
+): void {
+    detachMedia()
+    if (typeof inst.setMedia !== 'function') return
+
+    let source: any
+    try {
+        // 让库自己补配色/歌词等必需字段，避免 we 的 shader 读到 undefined
+        source = createMediaSource({ hasMedia: false, state: 0 })
+    } catch (error) {
+        console.warn('[wallpaper] 媒体源构造失败', error)
+        return
+    }
+
+    const snap = source.snapshot as Record<string, unknown>
+    const live = {
+        get snapshot() {
+            return snap
+        },
+        // 壁纸里的播放/暂停/上一首/下一首按钮转发给我们自己的播放器
+        play: () => void music.play(),
+        pause: () => pause(),
+        playPause: () => toggle(),
+        skipNext: () => next(),
+        skipPrevious: () => prev(),
+    }
+
+    const sync = (): void => {
+        const song = currentSong()
+        const active = !!song && !!song.name
+        snap.hasMedia = active
+        snap.state = active ? (music.playing ? 1 : 2) : 0
+        snap.title = song?.name ?? ''
+        snap.artist = song?.artist ?? ''
+        snap.albumArtist = song?.artist ?? ''
+        snap.position = music.currentTime || 0
+        snap.duration = music.duration || 0
+    }
+
+    sync()
+    safeCall(() => inst.setMedia?.(live))
+    mediaTimer = window.setInterval(sync, 500)
+}
+
+function detachMedia(): void {
+    if (mediaTimer !== null) {
+        window.clearInterval(mediaTimer)
+        mediaTimer = null
+    }
+}
+
 function safeCall(fn: () => void): void {
     try {
         fn()
@@ -295,6 +365,7 @@ function safeCall(fn: () => void): void {
 function teardownInstance(): void {
     detachPointer?.()
     detachAudio()
+    detachMedia()
     const current = instance
     instance = null
     if (!current) return
@@ -353,18 +424,20 @@ watch(
     },
 )
 
-// 帧率 / 后处理 / AA 都是热更，**不重挂**：重挂一张 100MB 的场景包是可感知的卡顿。
+// 帧率 / 后处理 / AA / 粒子都是热更，**不重挂**：重挂一张 100MB 的场景包是可感知的卡顿。
 watch(
     () => [props.quality.fps, props.quality.postProcessing, props.quality.antiAliasing, props.quality.particles] as const,
-    ([fps, postProcessing, antialiasing]) => {
+    ([fps, postProcessing, antiAliasing, particles]) => {
         const current = instance
         if (!current) return
         safeCall(() => {
             current.setFps(fps)
-            current.setQuality({
-                postProcessing,
-                antiAliasing: antialiasing ? 'fxaa' : 'off',
-            })
+            /* 2026-10-30 修两处（库里 QualityOptions 收的就是四档字符串）：
+               ⚠ 原来写的是 `antiAliasing: antialiasing ? 'fxaa' : 'off'` —— 值域是
+                 'off'|'fxaa'|'msaa2'|'msaa4' 的**字符串**，永远为真 ⇒ 每次改帧率/后处理
+                 都把 MSAA 悄悄打回 FXAA（设置里显示 MSAA×4、实际跑 FXAA）。
+               ⚠ 依赖里 watch 了 particles 却在热更时**没传** ⇒ 粒子档位改了不生效。 */
+            current.setQuality({ postProcessing, antiAliasing, particles })
         })
     },
 )

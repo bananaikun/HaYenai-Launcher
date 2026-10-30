@@ -19,12 +19,11 @@ import AfdianIcon from '@/assets/external/afdian.png'
 import QqIcon from '@/assets/external/qq.svg?component'
 import appLogo from '@/assets/hayenai.png'
 import { BrandConfig } from '@/config'
-import { contributors, type TeamMember, teamMembers } from '@/data/about'
+import { contributors } from '@/data/about'
 import { get as getSettings, getCurrentAppDatabasePath, getUpdateChannel } from '@/helpers/settings'
 
 import QqChannelIcon from './QqChannelIcon.vue'
 import SettingsSection from './SettingsSection.vue'
-import TeamMemberAvatar from './TeamMemberAvatar.vue'
 
 const { formatMessage } = useVIntl()
 const version = ref('')
@@ -243,10 +242,6 @@ const projectLinks = [
         icon: QqChannelIcon,
     },
 ].filter((link) => link.href.length > 0)
-
-function memberCardClass(member: TeamMember): string[] {
-    return [member.url ? 'transition-colors hover:bg-surface-5' : 'cursor-default']
-}
 </script>
 
 <template>
@@ -290,41 +285,6 @@ function memberCardClass(member: TeamMember): string[] {
                 {{ formatMessage(messages.modifiedNotice) }}
             </p>
         </section>
-
-        <SettingsSection>
-            <template #header>
-                <h3
-                    class="m-0 flex items-center gap-2 text-base font-semibold text-[var(--color-text-primary)]"
-                >
-                    <UsersIcon class="size-5 text-[var(--color-text-tertiary)]" />
-                    {{ formatMessage(messages.developmentTeam) }}
-                </h3>
-            </template>
-            <div class="p-4">
-                <ul class="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3">
-                    <li v-for="member in teamMembers" :key="member.name" class="min-w-0">
-                        <component
-                            :is="member.url ? 'a' : 'div'"
-                            :href="member.url"
-                            :target="member.url ? '_blank' : undefined"
-                            :rel="member.url ? 'noopener noreferrer' : undefined"
-                            class="flex min-w-0 select-none flex-col items-center gap-3 rounded-xl bg-surface-4 p-4"
-                            :class="memberCardClass(member)"
-                        >
-                            <TeamMemberAvatar
-                                :name="member.name"
-                                :src="member.avatarUrl"
-                                :remote="member.avatarRemote"
-                            />
-                            <span
-                                class="block truncate text-center font-semibold text-[var(--color-text-primary)]"
-                                >{{ member.name }}</span
-                            >
-                        </component>
-                    </li>
-                </ul>
-            </div>
-        </SettingsSection>
 
         <SettingsSection>
             <template #header>

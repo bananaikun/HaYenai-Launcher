@@ -25,6 +25,7 @@
  * 提示一律是**非阻断**的一行小字，不弹错误框：壁纸是装饰，它坏了不该打断用户。
  */
 import { defineMessages, useVIntl } from '@modrinth/ui'
+import { invoke } from '@tauri-apps/api/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import {
@@ -143,6 +144,7 @@ const mode = computed<'scene' | 'video' | 'web' | 'poster'>(() => {
 })
 
 /** 引擎该不该跑。`document.hidden` 与宿主给的 `active` 取与。 */
+
 /**
  * 这个包当前生效的 WE 属性（用户在外观页改过的覆盖值）。
  * 库的 `mount({ properties })` 就是靠它决定组件颜色/开关/滑块 —— 之前完全没传，
@@ -151,8 +153,95 @@ const mode = computed<'scene' | 'video' | 'web' | 'poster'>(() => {
 const sceneProperties = computed<Record<string, unknown>>(() => {
     const id = props.meta?.id
     if (!id) return {}
-    return wallpaperState.config.properties[id] ?? {}
+    /* 2026-10-30 23:5x **口径（三次试错的最终结论，别再改回去）**：
+       1. `project.json` 的出厂值**不整体铺** —— 实测会把画面改坏（Mt.Fuji 的
+          schemecolor 出厂值是 0 0 0，铺上去白字直接变黑）。scene.json 里烘焙的外观
+          才是作者本意。
+       2. **不自动注入 language** —— Lonely Cat 的 `language.value == 3`（中文）那组
+          是作者写坏的：设成 3 之后 60 个 Clock/Date 图层全部 `visible=false`
+          （主人 23:34 报的「猫壁纸的时间组件没了」），设成 1（英文）立刻恢复。
+       3. 只有**用户自己在属性面板里选过 language** 时，才把它那一组的出厂值补上
+          （本地化包把开关/颜色按语言拆成 barcolor / barcolor1 / barcolor2 …，
+          脚本只读当前 language 对应的一组；用户既然选了，就得把整组给全）。 */
+    const merged: Record<string, unknown> = {
+        ...(wallpaperState.config.properties[id] ?? {}),
+    }
+    if (merged.language === undefined) return merged
+
+    // 该语言对应的那组出厂值（condition 形如 `language.value == 3`）
+    const wanted = Number(merged.language)
+    const CONDITION_RE = /language\.value\s*==\s*(\d+)/
+    for (const [key, def] of Object.entries(schema.value ?? {})) {
+        if (!def || def.value === undefined || def.value === null) continue
+        const matched = CONDITION_RE.exec(def.condition ?? '')
+        if (!matched) continue
+        if (Number(matched[1]) !== wanted) continue
+        /* ⚠ **combo 不注入**：这一组里的 combo 是布局选择（clocklocation 居中/右上…、
+           barstyle 上下/顶部…）。只补开关类（bool/slider/color）就够启用功能
+           （眨眼、时钟透明度、光标特效），位置留给 scene.json 烘焙的样式。 */
+        if (def.type === 'combo') continue
+        if (merged[key] === undefined) merged[key] = def.value
+    }
+    return merged
 })
+
+/** `project.json` 里 general.properties 的一项（后端原样搬运，不做解释）。 */
+type WallpaperPropertyDef = {
+    type?: string
+    value?: unknown
+    condition?: string
+}
+
+/** 每个包的属性 schema（名字、类型、出厂值、condition）。 */
+const schemaByPackage = new Map<string, Record<string, WallpaperPropertyDef>>()
+const schema = ref<Record<string, WallpaperPropertyDef>>({})
+/**
+ * schema 是否已就绪。**场景等它再挂**：`mount({ properties })` 是一次性的，
+ * 而 language 和它对应的那组属性必须在首帧之前就在 properties 里。
+ */
+const propertiesReady = ref(false)
+
+async function loadPropertySchema(): Promise<void> {
+    const id = props.meta?.id
+    if (!id) {
+        propertiesReady.value = true
+        return
+    }
+    const cached = schemaByPackage.get(id)
+    if (cached) {
+        schema.value = cached
+        propertiesReady.value = true
+        return
+    }
+    try {
+        const raw = await invoke<Record<string, WallpaperPropertyDef> | null>(
+            'plugin:wallpaper|wallpaper_properties',
+            { id },
+        )
+        const next = raw ?? {}
+        schemaByPackage.set(id, next)
+        schema.value = next
+    } catch {
+        // 读不到就当作「没有声明属性」，只传用户覆盖值，不致命
+        schema.value = {}
+    } finally {
+        propertiesReady.value = true
+    }
+}
+
+watch(
+    () => props.meta?.id,
+    () => {
+        schema.value = {}
+        propertiesReady.value = false
+        void loadPropertySchema()
+        // IPC 卡住也不能让背景永远停在海报上
+        window.setTimeout(() => {
+            propertiesReady.value = true
+        }, 1500)
+    },
+    { immediate: true },
+)
 
 const engineActive = computed(() => props.active && !documentHidden.value)
 
@@ -221,11 +310,75 @@ onBeforeUnmount(() => {
 // 换包：一切从头开始，别把上一张的「已就绪 / 已失败」带过来。
 watch(
     () => props.meta?.id,
-    () => {
+    (next, previous) => {
         engineReady.value = false
         failure.value = null
+        // 首次挂载（previous === undefined）不盖：启动时本来就有一层海报，
+        // 再盖一次只是多闪一下。真正换包才值得遮挡。
+        if (!previous || !next || previous === next) return
+        void runPixelWipe()
     },
 )
+
+/* ---------------- 换壁纸的像素块过渡 ----------------
+   换包要重新解析 scene.pkg（这张是 38 MB）再编译着色器，这段空窗期原本直接
+   露出海报甚至底色，观感就是"卡一下再蹦出来"。做法：一整屏像素块按对角线
+   顺序从 0 撑到 1 把画面盖住 → 等新引擎出首帧（或 2.5 s 兜底）→ 反序收回。
+
+   三条约束：
+   * **只动 transform**：纯粹合成层动画，不触发重排/重绘，60 fps 很稳；
+   * 块数固定 14×9，不随分辨率变 —— 块是"视觉语言"，不是像素级还原；
+   * `prefers-reduced-motion` 直接不做（与海报那套判断共用同一个信号）。
+   ---------------- */
+const WIPE_COLS = 14
+const WIPE_ROWS = 9
+const WIPE_BLOCK_MS = 200
+const WIPE_STAGGER_MS = 360
+const WIPE_HOLD_MAX_MS = 2500
+const WIPE_TOTAL_MS = WIPE_BLOCK_MS + WIPE_STAGGER_MS
+
+type WipeStage = 'idle' | 'cover' | 'reveal'
+const wipeStage = ref<WipeStage>('idle')
+
+/** 每块的归一化对角线延迟（0..1），盖和收共用，收的时候反过来用。 */
+const wipeBlocks = Array.from({ length: WIPE_COLS * WIPE_ROWS }, (_, index) => {
+    const x = (index % WIPE_COLS) / (WIPE_COLS - 1)
+    const y = Math.floor(index / WIPE_COLS) / (WIPE_ROWS - 1)
+    return (x + y) / 2
+})
+
+function wipeBlockStyle(weight: number): Record<string, string> {
+    const order = wipeStage.value === 'reveal' ? 1 - weight : weight
+    return { transitionDelay: `${Math.round(order * WIPE_STAGGER_MS)}ms` }
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+
+/** 每次换包自增：上一轮的 await 醒来发现 token 变了就直接退出。 */
+let wipeToken = 0
+
+async function runPixelWipe(): Promise<void> {
+    if (reducedMotion.value) return
+    const token = ++wipeToken
+    wipeStage.value = 'cover'
+    await sleep(WIPE_TOTAL_MS + 40)
+    if (token !== wipeToken) return
+
+    // 等新壁纸真的画出来；失败/超时也照常收，绝不把画面永久盖死。
+    const deadline = Date.now() + WIPE_HOLD_MAX_MS
+    while (!engineReady.value && !failure.value && Date.now() < deadline) {
+        await sleep(80)
+        if (token !== wipeToken) return
+    }
+    await sleep(120)
+    if (token !== wipeToken) return
+
+    wipeStage.value = 'reveal'
+    await sleep(WIPE_TOTAL_MS + 40)
+    if (token !== wipeToken) return
+    wipeStage.value = 'idle'
+}
+
 
 defineExpose({
     /** 调试用：当前渲染方式（`scene` / `video` / `poster`）。 */
@@ -239,7 +392,7 @@ defineExpose({
 <template>
     <div class="wallpaper-layer" aria-hidden="true">
         <SceneWallpaper
-            v-if="mode === 'scene' && meta"
+            v-if="mode === 'scene' && meta && propertiesReady"
             :key="`scene:${meta.id}`"
             :wallpaper-id="meta.id"
             :quality="props.quality"
@@ -286,6 +439,21 @@ defineExpose({
         </Transition>
 
         <p v-if="notice" class="wallpaper-layer__notice">{{ notice }}</p>
+
+        <!-- 换包过渡：一整屏像素块，见 runPixelWipe 的注释 -->
+        <div
+            v-if="wipeStage !== 'idle'"
+            class="wallpaper-layer__wipe"
+            :class="`is-${wipeStage}`"
+            aria-hidden="true"
+        >
+            <span
+                v-for="(weight, index) in wipeBlocks"
+                :key="index"
+                class="wallpaper-layer__wipe-block"
+                :style="wipeBlockStyle(weight)"
+            />
+        </div>
     </div>
 </template>
 
@@ -317,6 +485,37 @@ defineExpose({
 
 .wallpaper-poster-leave-to {
     opacity: 0;
+}
+
+/* 换包过渡的像素块（14×9）。只动 transform，纯合成层。 */
+.wallpaper-layer__wipe {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    /* 与 runPixelWipe 里的 WIPE_COLS / WIPE_ROWS 对应 */
+    grid-template-columns: repeat(14, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    pointer-events: none;
+}
+
+.wallpaper-layer__wipe-block {
+    background: var(--surface-3-opaque);
+    border-radius: 2px;
+    /*
+	   1.02 而不是 1：整数分块在非整数像素宽高下会露出 1px 的发丝缝。
+	   多出来的 2% 被相邻块盖住，看不见。
+	*/
+    transform: scale3d(0, 0, 1);
+    transform-origin: center;
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wallpaper-layer__wipe.is-cover .wallpaper-layer__wipe-block {
+    transform: scale3d(1.02, 1.02, 1);
+}
+
+.wallpaper-layer__wipe.is-reveal .wallpaper-layer__wipe-block {
+    transform: scale3d(0, 0, 1);
 }
 
 .wallpaper-layer__notice {

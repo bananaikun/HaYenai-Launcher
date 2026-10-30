@@ -463,7 +463,11 @@ const pageTitle: MessageDescriptor = settingsPageTitle
                     </p>
                 </div>
 
-                <nav v-else class="settings-sidebar-list" :aria-label="formatMessage(pageTitle)">
+                <nav
+                    v-else
+                    class="settings-sidebar-list"
+                    :aria-label="formatMessage(pageTitle)"
+                >
                     <section
                         v-for="group in visibleGroups"
                         :key="group.id"

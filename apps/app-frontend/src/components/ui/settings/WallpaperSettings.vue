@@ -1232,18 +1232,6 @@ onBeforeUnmount(() => {
                             <WallpaperPropertiesPanel :wallpaper-id="currentWallpaper.id" />
                         </details>
                         <div v-for="item in libraryVisible" :key="item.id" class="group relative">
-                            <!-- 轮播多选（主人 06:44）：勾选只进轮播池，不改变当前使用的壁纸 -->
-                            <label
-                                class="wp-rotate-pick"
-                                :title="isRotationId(item.id) ? '从轮播中移除' : '加入轮播'"
-                                @click.stop
-                            >
-                                <input
-                                    type="checkbox"
-                                    :checked="isRotationId(item.id)"
-                                    @change.stop="toggleRotationId(item.id)"
-                                />
-                            </label>
                             <button
                                 type="button"
                                 class="wp-tile"
@@ -1446,7 +1434,7 @@ onBeforeUnmount(() => {
                                 </span>
                             </button>
 
-                            <div class="absolute top-1.5 right-1.5 z-[1]">
+                            <div class="wp-tile__action absolute top-1.5 right-1.5 z-[1]">
                                 <Button
                                     v-if="item.importedId !== null"
                                     type="base"
@@ -1942,5 +1930,15 @@ onBeforeUnmount(() => {
     border-radius: 999px;
     background: var(--color-brand);
     transition: width 200ms ease;
+}
+/* 卡片右上角的「导入 STEAM」胶囊：常态隐藏，悬停/键盘聚焦才出现。
+   之前它常驻在每张缩略图右上角，一屏几十个深色小方块（主人 01:22 报的"黑点"）。 */
+.wp-tile__action {
+    opacity: 0;
+    transition: opacity var(--t-fast, 160ms) var(--ease, ease);
+}
+.wp-tile:hover .wp-tile__action,
+.wp-tile__action:focus-within {
+    opacity: 1;
 }
 </style>

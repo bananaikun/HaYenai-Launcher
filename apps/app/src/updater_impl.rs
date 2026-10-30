@@ -17,27 +17,12 @@ use theseus::{
 use tokio::time::Instant;
 use url::Url;
 
-/// Path of the tauri updater manifest, relative to the resolved base URL.
-///
-/// `plugins.updater.endpoints` in `tauri-release.conf.json` is intentionally
-/// empty: it is compiled in and cannot follow a DNS SRV record, so every check
-/// goes through [`check_with_endpoints`], which passes the resolved base
-/// explicitly. An empty static list is therefore never read — the plugin only
-/// falls back to it when `build()` is called without `endpoints(...)`, which
-/// this crate never does (and `build()` would reject an empty list, so a future
-/// caller must supply one too).
-const UPDATE_LATEST_PATH: &str = "latest";
 /// Path of the release catalog, relative to the resolved base URL.
-const UPDATE_CATALOG_PATH: &str = "api/versions";
-
-/// How long the preflight health check may take before the update check is
-/// reported as failed.
 ///
-/// The updater plugin issues its own requests without a timeout, so an offline
-/// check used to hang until the download budget (15 minutes) ran out. Asking
-/// `/health` first with a 3 s budget turns that into an immediate failure while
-/// still allowing a slow-but-alive server to answer.
-const UPDATE_PREFLIGHT_BUDGET: Duration = Duration::from_secs(3);
+/// 只有 apt 托管的 Linux 更新还在用 HaYenai 更新服务器的 `/api/versions`
+/// （.deb 没有 minisign 签名，得靠目录里的 sha256/size 校验）。Windows/macOS/
+/// AppImage 的检查与下载都走 GitHub Releases。
+const UPDATE_CATALOG_PATH: &str = "api/versions";
 
 // The updater plugin builds `Update` with no request timeout, so a stalled
 // connection would hang the download forever. Bound the whole download.
@@ -218,10 +203,17 @@ fn update_platform() -> Result<&'static str> {
     }
 }
 
-/// The updater manifest URL: the resolved base followed by `/latest`.
+/// GitHub Releases 上那份签名过的 `latest.json`。
+///
+/// 之前这里是「DNS SRV 解析出的 HaYenai 更新服务器 + `/latest`」；换源到 GitHub 后
+/// 地址是固定的，不需要任何解析，也不再需要先探测服务是否在线。
+/// 两个通道（release / beta）暂时共用同一份清单：每次发版都会覆盖它。
+const GITHUB_UPDATE_ENDPOINT: &str =
+    "https://github.com/bananaikun/HaYenai-Launcher/releases/latest/download/latest.json";
+
+/// The updater manifest URL.
 async fn update_endpoint() -> Result<Url> {
-    let endpoint = update_server_url(UPDATE_LATEST_PATH).await;
-    Url::parse(&endpoint).map_err(|error| {
+    Url::parse(GITHUB_UPDATE_ENDPOINT).map_err(|error| {
         theseus::Error::from(theseus::ErrorKind::OtherError(error.to_string()))
             .into()
     })
@@ -236,18 +228,6 @@ async fn check_with_endpoints<R: Runtime>(
     let platform = update_platform()?;
     let current_version =
         webview.app_handle().package_info().version.to_string();
-
-    // Fail fast when the service is down: the plugin's own requests carry no
-    // timeout, so without this the caller waits out the whole download budget.
-    if !UpdateService::shared()
-        .is_reachable(UPDATE_PREFLIGHT_BUDGET)
-        .await
-    {
-        return Err(theseus::Error::from(theseus::ErrorKind::OtherError(
-            "The update service is unreachable".to_string(),
-        ))
-        .into());
-    }
 
     let mut updater = webview
         .updater_builder()

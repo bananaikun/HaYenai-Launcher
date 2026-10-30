@@ -45,14 +45,15 @@ export const UI_GLASS_LIMITS = {
 const STORAGE_KEY = 'hayenai:ui-glass'
 
 /**
- * 默认值取「能读清字、又看得出是玻璃」的档位。
- * 深色底垫 40% 而不是更高：主人明确说过压太暗了。
+ * 默认值 = 主人当前实际在用的档位（2026-10-31 从 localStorage 读回后固化）。
+ * `cardOpacity: 0` 是刻意的：卡片不要实底，全靠玻璃 + 模糊 + 发丝描边，
+ * 这样壁纸能透过卡片；`--surface-N` 已在令牌层接上这个值。
  */
 const DEFAULTS: UiGlassSettings = {
-    dim: 25,
-    cardOpacity: 55,
-    blur: 28,
-    saturate: 105,
+    dim: 0,
+    cardOpacity: 0,
+    blur: 16,
+    saturate: 160,
     glassAlpha: 7,
     strokeAlpha: 10,
     motionMs: 360,

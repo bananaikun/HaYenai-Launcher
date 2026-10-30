@@ -22,7 +22,7 @@ import {
     safeAnnouncementUrl,
     toAnnouncementEntries,
 } from '@/helpers/remote-announcements'
-import { fetchAnnouncements } from '@/helpers/update-service'
+import { fetchGithubReleases } from '@/helpers/github-releases'
 
 const props = defineProps<{ ready: boolean; previewOnly?: boolean }>()
 const { formatMessage } = useVIntl()
@@ -225,15 +225,14 @@ async function refresh() {
     controller = abort
     const timeout = setTimeout(() => abort.abort(), 10000)
     try {
-        if (!cacheKey) cacheKey = `${stateKey}:cache:update-service`
+        if (!cacheKey) cacheKey = `${stateKey}:cache:github-releases`
         if (disposed || abort.signal.aborted) return
         loadCache()
 
-        // Announcements are fetched by the Rust update service, not by the
-        // webview: the host comes from a DNS SRV lookup at runtime, so it cannot
-        // be on the static `http:` capability list. `null` covers "offline" and
-        // "nothing published" alike, and both map to the empty state.
-        const items = await fetchAnnouncements()
+        // 公告直接取本仓库的 GitHub Releases（发版说明就是公告）。这里由 webview
+        // 自己发请求，所以 `https://api.github.com` 必须在 CSP 的 connect-src 里。
+        // `null` 同时覆盖「离线」与「一条都没有」，两者都落到空状态。
+        const items = await fetchGithubReleases()
         if (disposed || abort.signal.aborted || !items) return
 
         const parsed = parseAnnouncements(toAnnouncementEntries(items))

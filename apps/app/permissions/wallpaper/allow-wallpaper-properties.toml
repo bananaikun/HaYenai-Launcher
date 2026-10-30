@@ -1,0 +1,20 @@
+# 手写权限：wallpaper_properties 没有被 tauri-build 自动生成。
+#
+# 现象（2026-10-30 实测）：前端 `invoke('plugin:wallpaper|wallpaper_properties')` 报
+#   `wallpaper.wallpaper_properties not allowed. Command not found`
+# 而 wallpaper_list / config_get 等同一批命令都正常 —— 说明命令本身注册了，
+# 只是 ACL 里没有它的 allow 项，于是被拒。
+#
+# 自动生成的 `out/plugins/wallpaper/` 里缺 wallpaper_properties.toml
+# （大概率因为它的返回类型是 `serde_json::Value`，生成器解析不了就跳过）。
+# 这里按生成物的结构手写一份，并在 capabilities/plugins.json 里显式启用。
+
+[[permission]]
+identifier = "allow-wallpaper-properties"
+description = "Enables the wallpaper_properties command without any pre-configured scope."
+commands.allow = ["wallpaper_properties"]
+
+[[permission]]
+identifier = "deny-wallpaper-properties"
+description = "Denies the wallpaper_properties command without any pre-configured scope."
+commands.deny = ["wallpaper_properties"]
