@@ -1,183 +1,121 @@
 <div align="center">
-  <img src="./apps/app/icons/128x128.png" width="128" height="128" alt="HaYenai Logo" />
-  <h1>HaYenai</h1>
-  <p><strong>次世代 Minecraft 桌面客户端，全能、美观、全平台覆盖。</strong></p>
 
-  <p>液态玻璃界面 · Wallpaper Engine 壁纸引擎 · 壁纸取色 · AI 助手 · 中文优化</p>
-  <p><sub>派生自 <a href="https://github.com/Mystic-Stars/Axolotl">Axolotl</a>（GPL-3.0-only），本仓库为独立维护的 fork。</sub></p>
+<img src="https://raw.githubusercontent.com/bananaikun/HaYenai-Luncher/main/apps/app/icons/128x128.png" width="120" height="120" alt="HaYenai" />
 
-  <p>
-    <a href="https://github.com/bananaikun/HaYenai-Luncher/releases">
-      <img src="https://img.shields.io/github/downloads/bananaikun/HaYenai-Luncher/total?style=for-the-badge&logo=github" alt="Downloads" />
-    </a>
-    <a href="https://github.com/bananaikun/HaYenai-Luncher/stargazers">
-      <img src="https://img.shields.io/github/stars/bananaikun/HaYenai-Luncher?style=for-the-badge&logo=github&color=ffb800" alt="Stars" />
-    </a>
-    <a href="COPYING.md">
-      <img src="https://img.shields.io/badge/License-GPL_3.0-blue.svg?style=for-the-badge" alt="License" />
-    </a>
-  </p>
+# HaYenai
 
-  <p>
-    <a href="https://www.axlmc.org">官方网站</a> ｜
-    <a href="https://github.com/bananaikun/HaYenai-Luncher/releases/latest">下载最新版</a> ｜
-    <a href="CONTRIBUTING.md">参与贡献</a>
-    ｜ <a href="CODE_OF_CONDUCT.md">行为准则</a>
-  </p>
+**Minecraft Java 版桌面客户端 —— 液态玻璃界面，壁纸即皮肤。**
+
+<p>
+  <a href="https://github.com/bananaikun/HaYenai-Luncher/releases"><img src="https://img.shields.io/github/v/release/bananaikun/HaYenai-Luncher?style=for-the-badge&logo=github" alt="Release" /></a>
+  <a href="https://github.com/bananaikun/HaYenai-Luncher/stargazers"><img src="https://img.shields.io/github/stars/bananaikun/HaYenai-Luncher?style=for-the-badge&logo=github&color=ffb800" alt="Stars" /></a>
+  <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License" />
+</p>
+
+<p>
+  <a href="#下载">下载</a> ｜
+  <a href="#特性">特性</a> ｜
+  <a href="#本地构建">构建</a> ｜
+  <a href="CONTRIBUTING.md">参与贡献</a>
+</p>
+
 </div>
 
-<details open>
-<summary><strong>赞助与合作</strong></summary>
-
-感谢以下赞助商与合作伙伴对 HaYenai 的支持。
-
-<table>
-  <tr>
-    <td><img src="./.github/assets/codeflow-logo.png" width="72" alt="Codeflow Logo" /></td>
-    <td><strong>Codeflow</strong><br>更稳、更省地调用顶级 AI 模型<br>原生协议转发 · 无需海外网络 · 支付宝即充即用</td>
-    <td><a href="https://codeflow.asia/register?invite=4UHP2KYH">访问 Codeflow</a></td>
-  </tr>
-</table>
-
-<a href="https://www.netlify.com">
-  <img src="https://www.netlify.com/assets/badges/netlify-badge-color-accent.svg" alt="Deploys by Netlify" />
-</a>
-
-- [在爱发电支持 HaYenai](https://ifdian.net/a/Mystic-Stars) — 你的支持将帮助项目持续维护与改进
-
-</details>
-
 ---
 
-**HaYenai（美西螈启动器）** 是一款免费、开源、跨平台的 Minecraft Java 版第三方启动器，支持在一个客户端中搜索、安装和更新来自 Modrinth 与 CurseForge 的模组、整合包、资源包和光影，并提供实例管理、多种账户认证、个性化外观与实验性工具集。
+## 这是什么
 
-本项目是对 [Axolotl](https://github.com/Mystic-Stars/Axolotl) 的**二次修改**（fork），
-而 Axolotl 自身又是 [Modrinth App](https://github.com/modrinth/code) 的衍生。
-按上游的授权，本仓库同样以 **GPL-3.0-only** 发布，并保留全部上游署名与许可声明（见 [COPYING.md](COPYING.md)）。
+HaYenai 是一个开源的 Minecraft Java 版第三方启动器：在一个客户端里搜索、安装、更新来自
+Modrinth 与 CurseForge 的模组、整合包、资源包和光影，并管理实例、账户与个性化外观。
 
-本仓库在上游基础上主要做了：液态玻璃材质系统、Wallpaper Engine 本地壁纸引擎与画质档、
-壁纸取色主题、中文界面与国内网络适配。功能、结构与上游保持高度一致。
+**本项目是对 [Axolotl](https://github.com/Mystic-Stars/Axolotl) 的二次修改（fork）**，
+而 Axolotl 自身是 [Modrinth App](https://github.com/modrinth/code) 的衍生。按上游授权，
+本仓库同样以 **GPL-3.0-only** 发布，并保留全部上游署名与许可声明（见 [COPYING.md](COPYING.md)）。
 
-本仓库与上游 Axolotl 项目、以及 Modrinth 官方团队**没有隶属关系**，是独立的社区 fork；
-上游不对本仓库的内容负责，本仓库也不代表上游立场。
+本仓库与上游 Axolotl、Modrinth 官方团队**没有隶属关系**。上游不对本仓库的内容负责，
+本仓库也不代表上游立场。
 
-_(注：本项目调用 Modrinth 公开 API，与 Rinth, Inc. 无任何关联，也未获其背书。)_
+## 在上游基础上做了什么
 
-## 核心优势
+fork 后的改动集中在**界面材质**和**壁纸引擎**两块，功能与结构与上游保持高度一致：
 
-- **真跨平台体验**：告别繁琐的环境配置，原生支持 Windows、macOS（完美兼容 Intel 与 Apple Silicon）及各类主流 Linux 发行版。
-- **现代化内容生态**：集成 Modrinth 和 CurseForge，可在启动器中一键浏览。游戏实例、整合包、模组、资源包及光影均可一键安装与升级，彻底告别手动管理依赖的痛苦。
-- **高度定制化**：无论是主题色调、背景图片，还是离线皮肤，核心功能与视觉展现均由你自由支配。
-- **All in one 全新体验**：启动器内置 “实验室” 功能，囊括种子地图、投影工坊等海量使用工具，带来全新原生轮椅体验。
+**界面**
 
-## 下载与安装
+- 统一的玻璃材质系统：侧栏、标题栏、卡片、面板共用一套配方（压暗 / 模糊 / 饱和三档可调），壁纸能真正透出来
+- 主题色跟随壁纸取色，深浅色可独立跟随或手动锁定；提供强调色的对比度钳位，浅壁纸下文字不会糊
+- 自绘标题栏，无系统边框；路由切换无黑屏闪烁
 
-请前往 [GitHub Releases](https://github.com/bananaikun/HaYenai-Luncher/releases/latest) 下载适合你操作系统的最新安装包。
-更新检查走本仓库的 GitHub Releases。当前版本仍需手动下载安装包覆盖（自动更新未接入，见 Issue 区）。
+**壁纸引擎**
 
-| 系统平台                | 推荐下载文件                              |
-| ----------------------- | ----------------------------------------- |
-| **Windows** (10/11 x64) | 下载 `.exe` (NSIS) 安装程序               |
-| **macOS**               | 下载 `通用 .dmg` 镜像文件                 |
-| **Linux** (x64)         | 提供 `.AppImage`，`.deb`，`.rpm` 多种格式 |
+- 导入本地 Wallpaper Engine 包（场景 / 视频 / 网页），或从 Steam 库扫描导入
+- 壁纸轮播：关闭 / 按顺序 / 随机，间隔 5–90 秒滑块可调，可多选参与轮播的壁纸
+- **可调项面板**：读取包内 `project.json` 的 `general.properties`，按类型渲染滑块 / 开关 / 颜色 / 分组，
+  支持 `condition` 条件显隐（例如「只在媒体播放器开启时才显示音量位置」），改动实时热更
+- **画质四档**（低 / 中 / 高 / 超高）：帧率、抗锯齿（关闭 / FXAA / MSAA ×2 / MSAA ×4）、
+  后处理、粒子、纹理分辨率
+- 音乐频谱可视化：宿主把分析器的左右各 64 段频谱，以 `setAudio({ snapshot })` 拉模型喂给壁纸
 
-<details>
-<summary><b>Linux 包管理器快捷安装指令</b></summary>
-<br>
+**其他**
 
-**Arch Linux (AUR)**：
+- AI 助手（可配置多家供应商）
+- 音乐播放器、歌词与频谱条
+- 服务器状态探测，显示在线人数与服务器图标
+- 中文界面，国内镜像与 DoH 默认可用
 
-```bash
-# 源码构建版
-yay -S axolotl-launcher
+## 下载
 
-# 预编译二进制版
-yay -S axolotl-launcher-bin
-```
+前往 [Releases](https://github.com/bananaikun/HaYenai-Luncher/releases) 下载对应平台的安装包。
 
-**Debian / Ubuntu (APT)**：
+| 平台 | 文件 |
+| --- | --- |
+| Windows 10/11 (x64) | `HaYenai-*-x64-setup.exe` |
+| macOS | 暂未提供 |
+| Linux | 暂未提供 |
 
-```bash
-curl -fsSL https://ppa.axlmc.org/setup.sh | sudo bash
-sudo apt install axolotl-launcher
-```
+更新检查已指向本仓库的 Releases，但**自动更新尚未接入**，目前需要手动下载安装包覆盖安装。
 
-**使用 Nix(启用Flake功能) 的任意发行版**：
+## 本地构建
 
-> 小提示：
-> 由于 HaYenai 的主分支代码更新较快，可以在下面用到的网址后面加上`/?`和参数来锁定，以免过于频繁地更新。多个参数用`&`连接。
-> + 使用`shallow=1`避免克隆历史代码 \
->   `git+https://github.com/bananaikun/HaYenai-Luncher/?shallow=1`
-> + 使用`ref=`指定分支（例如`experiment/linux-cef-runtime`分支）\
->   `git+https://github.com/bananaikun/HaYenai-Luncher/?ref=experiment/linux-cef-runtime`
-> + 使用`ref=`指定版本标签（例如`v1.9.7-beta.2`）\
->   `git+https://github.com/bananaikun/HaYenai-Luncher/?ref=refs/tags/v1.9.7-beta.2`
-> + 使用`rev=`指定提交（例如`10827ade74f49958cefaa6fda05961c7502741ef`）\
->   `git+https://github.com/bananaikun/HaYenai-Luncher/?rev=10827ade74f49958cefaa6fda05961c7502741ef`
+**环境要求**
+
+- Node.js **≥ 24.15.0**（仓库锁定 `pnpm@10.x`，用 corepack 即可）
+- pnpm（`corepack enable` 后自动可用）
+- Rust 工具链（stable）
+- JDK **21**（Rust 构建脚本会调 Gradle 编译 Java 侧组件）
+
+**步骤**
 
 ```bash
-nix profile add 'git+https://github.com/bananaikun/HaYenai'
+corepack pnpm install
+
+# 开发模式
+corepack pnpm app:dev
+
+# 打安装包
+corepack pnpm app:build
 ```
 
-**使用 Home-Manager 的任意发行版**
+**已知构建注意**
 
-将此 Flake 加入你的 `flake.nix`
-```nix
-# flake.nix
-{
-  nixConfig = {
-    # 使用 HaYenai 的 Cachix 缓存。对安全性有疑问可以审查：
-    # axlmc.cachix.org 以及 github.com/Axolotl-Launcher/Axolotl-Cachix
-    extra-substituters = [
-      "https://axlmc.cachix.org"
-    ];
-    extra-trusted-public-keys = [
-      "axlmc.cachix.org-1:dmsRJqFQqLMfvRveerHV3DxDCW1wq1N+TX1+dryYWZU="
-    ];
-  };
+- 打包前确认 `JAVA_HOME` 指向 JDK 21
+- 内存不足的机器加 `CARGO_BUILD_JOBS=1`，否则链接 Rust 主程序时可能触发 LLVM OOM
+- Rust 依赖走 crates.io 索引，国内网络不佳时可用 `CARGO_NET_OFFLINE=true`（依赖已缓存的前提下）
 
-  inputs = {
-    # nixpkgs home-manager 等其他输入...
-    axolotl-launcher = {
-      url = "git+https://github.com/bananaikun/HaYenai";
-    # inputs.nixpkgs.follows = "nixpkgs";
-    # ↑ 通常不建议跟随本地nixpkgs，因为nixpkgs版本不一致会难以命中缓存、从下载缓存回退成本地编译。
-    };
-  };
-  outputs = { axolotl-launcher, <其他输入>, ... }: {
-    homeConfigurations = {
-      <用户名> = home-manager.lib.homeManagerConfiguration {
-        modules = [
-          home.nix
-          axolotl-launcher.homeModules
-          # 其他模块
-        ];
-      };
-    };
-  };
-}
-```
-然后在 `home.nix` 中配置
-```nix
-# home.nix
-{
-  programs.axolotl-launcher = {
-    enable = true;
-  };
-}
-```
-可选属性
-| 键        | 类型    | 默认值  | 说明 |
-|-----------|---------|---------|--------------------------------------|
-| enable    | `bool`  | `false` | 设置为`true`以启用 HaYenai。 |
-| launchEnv | `attrs` | `{ }`   | HaYenai 启动时额外的环境变量。例如`{ HELLO = 1; world = "two"; }`能为 HaYenai 设置额外的环境变量`HELLO=1`和`world=two`。 |
+## 许可
 
-</details>
+**GPL-3.0-only**。
 
-## 参与项目开发
+派生自 Axolotl（GPL-3.0-only），因此本项目必须同样以 GPL-3.0 发布。
+许可证全文见 [LICENSE](LICENSE)，上游与第三方组件的归属见 [COPYING.md](COPYING.md) 与 `third-party/licenses/`。
 
-HaYenai 的进步离不开社区的反馈与贡献。
-如果遇到 Bug 或有新的功能点子，欢迎提交 Issue。如需搭建本地开发环境或查阅打包发布规范，请阅读详细的 [贡献指南 (CONTRIBUTING.md)](CONTRIBUTING.md)。
-参与社区和贡献代码前，也请先阅读[行为准则 (CODE_OF_CONDUCT.md)](CODE_OF_CONDUCT.md)。
+Modrinth 的商标、Logo、封面图等受限品牌资源不随本项目分发。
 
----
+## 致谢
+
+本项目的绝大部分工作来自上游与这些项目：
+
+- [Axolotl](https://github.com/Mystic-Stars/Axolotl) —— 直接基座
+- [Modrinth App](https://github.com/modrinth/code) —— 上游的上游
+- [webwallgl](https://github.com/oneincase/webwallgl) —— Wallpaper Engine 壁纸渲染
+- [Plain Craft Launcher](https://github.com/Meloong-Git/PCL) —— 中文项目名快照
+- [LogShare-Web-UI](https://github.com/NingZeStudio/LogShare-Web-UI) —— 日志查看器
