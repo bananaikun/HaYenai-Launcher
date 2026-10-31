@@ -572,26 +572,37 @@ export async function getWallpaperConfig(): Promise<WallpaperConfig> {
 
     /* 2026-11-01 修「每次切壁纸画质就重置」。
 
-       旧指纹迁移是这轮事故的放大器：Rust 侧 `WallpaperQuality` 少了 `particles`、
-       且 `antialiasing` 拼写对不上前端的 `antiAliasing`，**存盘时这两个键都被丢掉**。
-       于是用户按 WE 设成 60/high/1.0 之后，落盘的正好是「旧默认指纹」，
-       每次读配置都被判定成"从没改过" → 覆盖回 30fps/medium。
-       （Rust 侧字段已补齐，存盘不再丢数据；这里把误判的指纹一起换掉。）
+       事故链条：Rust 侧 `WallpaperQuality` 少了 `particles`、`antialiasing` 又拼不对前端的
+       `antiAliasing` ⇒ **存盘时这两个键都被丢掉**，磁盘上只剩下
+       `{fps, postProcessing, antialiasing:false, textureScale}`。
+       再叠上旧版「旧默认指纹」迁移（无 particles + 60fps + high + 贴图 1.0），
+       用户按 WE 设成这一套之后落盘值恰好命中全部条件 ⇒ 每次读配置都被判成
+       「从没改过」⇒ 覆盖回 30fps/medium。切壁纸必然重读配置，所以每次都重置。
 
-       现在的判据只认一件事：**这份配置是不是被那个会丢字段的旧 store 写出来的**
-       —— 缺 `particles` 或 缺 `antiAliasing` 就必然是。那种值不可能是用户选的
-       （UI 上根本没有对应的形状），一律覆盖成新默认。
-       迁移完这两个键就存在了，下次不会再触发，天然幂等。 */
-    const raw = (config.quality ?? {}) as Record<string, unknown>
-    const writtenByLossyStore = raw.particles === undefined || raw.antiAliasing === undefined
-    if (writtenByLossyStore) {
-        const migrated: WallpaperConfig = {
-            ...config,
-            quality: { ...DEFAULT_WALLPAPER_QUALITY },
+       Rust 侧字段已补齐（存盘不再丢数据），这里只需要**把已经被写坏的那一份修回来一次**。
+
+       ⚠ 判据不能用「字段缺失」：Rust 的 `#[serde(default)]` 会把缺的字段填成默认值再返回，
+       前端拿到的 `particles` / `antiAliasing` 永远是存在的（哪怕文件里根本没有）。
+       所以用**一次性修复标记**：没修过就整块覆盖成新默认（= 主人 WE 那套），修完打标记。
+       只动 `quality`，`selected` / `properties` 一律不碰。 */
+    const QUALITY_REPAIR_KEY = 'hayenai:wallpaper-quality-repair-1.0.33'
+    let alreadyRepaired = false
+    try {
+        alreadyRepaired = localStorage.getItem(QUALITY_REPAIR_KEY) === '1'
+    } catch {
+        // 隐私模式拿不到 localStorage：宁可不动，也不要每次启动都重置一遍
+        alreadyRepaired = true
+    }
+    if (!alreadyRepaired) {
+        const repaired: WallpaperConfig = { ...config, quality: { ...DEFAULT_WALLPAPER_QUALITY } }
+        // 写失败不阻断读取：本次仍按新默认跑
+        await setWallpaperConfig(repaired).catch(() => undefined)
+        try {
+            localStorage.setItem(QUALITY_REPAIR_KEY, '1')
+        } catch {
+            // 存不住就算了
         }
-        // 写失败不阻断读取：本次仍按新默认跑，下次再试
-        await setWallpaperConfig(migrated).catch(() => undefined)
-        return migrated
+        return repaired
     }
 
     return { ...config, quality: normalized }
