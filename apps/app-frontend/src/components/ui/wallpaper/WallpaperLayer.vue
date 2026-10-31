@@ -288,11 +288,15 @@ function onVisibilityChange(): void {
 function onFirstFrame(): void {
     engineReady.value = true
     failure.value = null
+    // 新画面已经出来了，旧帧快照可以撤（若还在的话）
+    if (wipeStage.value === 'idle') dropSnapshot()
 }
 
 function onFail(reason: string): void {
     failure.value = reason
     engineReady.value = false
+    // 画不出来就交回海报/底色，别把旧帧钉在屏幕上骗人
+    dropSnapshot()
 }
 
 onMounted(() => {
@@ -302,6 +306,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+    dropSnapshot()
     document.removeEventListener('visibilitychange', onVisibilityChange)
     motionQuery?.removeEventListener('change', onMotionChange)
     motionQuery = null
@@ -316,6 +321,8 @@ watch(
         // 首次挂载（previous === undefined）不盖：启动时本来就有一层海报，
         // 再盖一次只是多闪一下。真正换包才值得遮挡。
         if (!previous || !next || previous === next) return
+        // 先把旧帧拷下来顶住，再让子组件重挂（顺序很重要）
+        if (!reducedMotion.value) captureOldFrame()
         void runPixelWipe()
     },
 )
@@ -334,7 +341,10 @@ const WIPE_COLS = 14
 const WIPE_ROWS = 9
 const WIPE_BLOCK_MS = 200
 const WIPE_STAGGER_MS = 360
-const WIPE_HOLD_MAX_MS = 2500
+/* 2026-10-31 主人报「切换时出现空占位壁纸」：旧值 2500ms 短于实测 mount（38MB 包 2986ms），
+   遮盖先撤、画面还没出来 ⇒ 露出底色。改成 10s（mount 失败/超时仍有 failure 与 deadline 兜底），
+   并且撤块后如果引擎还没出首帧，保留旧帧快照顶着，绝不露底。 */
+const WIPE_HOLD_MAX_MS = 10_000
 const WIPE_TOTAL_MS = WIPE_BLOCK_MS + WIPE_STAGGER_MS
 
 type WipeStage = 'idle' | 'cover' | 'reveal'
@@ -353,6 +363,42 @@ function wipeBlockStyle(weight: number): Record<string, string> {
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+
+/* ---------------- 换包期间的「旧帧快照」 ----------------
+   换包瞬间新 canvas 是空的（要重新解 38MB 的 scene.pkg），而像素块要 600ms 才盖满、
+   海报又要等新包地址——中间这段就是主人看到的「空占位壁纸」。
+   做法：换包**之前**把当前场景 canvas 直接拷进一块 2D canvas 顶在最上层
+   （drawImage 即可，不编码、不产生 data URL、不额外占内存），
+   等新引擎交出首帧（或失败）再撤。这样从点击到新画面出现，屏幕上一直有东西。
+   ⚠ WebGL 未开 preserveDrawingBuffer，但实时渲染中读回是有效的（实测平均亮度 152）。 */
+const rootEl = ref<HTMLElement | null>(null)
+let snapshotEl: HTMLCanvasElement | null = null
+
+function captureOldFrame(): void {
+    const host = rootEl.value
+    if (!host) return
+    const src = host.querySelector<HTMLCanvasElement>('canvas[data-webwallgl]')
+    if (!src || !src.width || !src.height) return
+    const snap = document.createElement('canvas')
+    snap.width = src.width
+    snap.height = src.height
+    snap.className = 'wallpaper-layer__snapshot'
+    const ctx = snap.getContext('2d')
+    if (!ctx) return
+    try {
+        ctx.drawImage(src, 0, 0)
+    } catch {
+        return
+    }
+    dropSnapshot()
+    host.appendChild(snap)
+    snapshotEl = snap
+}
+
+function dropSnapshot(): void {
+    if (snapshotEl?.parentNode) snapshotEl.parentNode.removeChild(snapshotEl)
+    snapshotEl = null
+}
 
 /** 每次换包自增：上一轮的 await 醒来发现 token 变了就直接退出。 */
 let wipeToken = 0
@@ -377,6 +423,8 @@ async function runPixelWipe(): Promise<void> {
     await sleep(WIPE_TOTAL_MS + 40)
     if (token !== wipeToken) return
     wipeStage.value = 'idle'
+    // 引擎还没出首帧（比如 mount 超过 deadline）：快照继续顶着，等 onFirstFrame 再撤。
+    if (engineReady.value || failure.value) dropSnapshot()
 }
 
 
@@ -390,7 +438,7 @@ defineExpose({
 </script>
 
 <template>
-    <div class="wallpaper-layer" aria-hidden="true">
+    <div ref="rootEl" class="wallpaper-layer" aria-hidden="true">
         <SceneWallpaper
             v-if="mode === 'scene' && meta && propertiesReady"
             :key="`scene:${meta.id}`"
@@ -487,6 +535,19 @@ defineExpose({
     transition: opacity 320ms ease;
 }
 
+/* 换包期间的旧帧快照：与容器同尺寸铺满。
+   它是运行时 appendChild 进来的（DOM 顺序排在像素块之后），所以必须显式给层级：
+   快照 z=2 压住 canvas/海报，像素块 z=3 压住快照 —— 否则遮盖动画会被快照挡住。 */
+.wallpaper-layer__snapshot {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    z-index: 2;
+}
+
 .wallpaper-poster-leave-to {
     opacity: 0;
 }
@@ -496,6 +557,7 @@ defineExpose({
     position: absolute;
     inset: 0;
     display: grid;
+    z-index: 3;
     /* 与 runPixelWipe 里的 WIPE_COLS / WIPE_ROWS 对应 */
     grid-template-columns: repeat(14, 1fr);
     grid-template-rows: repeat(9, 1fr);
