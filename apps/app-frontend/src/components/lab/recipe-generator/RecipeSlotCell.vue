@@ -137,7 +137,6 @@ function onDrop(event: DragEvent) {
         @drop="onDrop"
     >
         <button
-            v-tooltip="wheelHint"
             type="button"
             class="recipe-slot-button"
             :class="{ 'recipe-result-button': result }"
