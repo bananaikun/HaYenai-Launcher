@@ -925,6 +925,9 @@ fn main() {
         .manage(PendingUpdateData::default())
         .invoke_handler(tauri::generate_handler![
             netease::netease_request,
+            netease::netease_open_login,
+            netease::netease_read_cookie,
+            netease::netease_close_login,
             initialize_state,
             get_update_channel,
             get_current_app_database_path,

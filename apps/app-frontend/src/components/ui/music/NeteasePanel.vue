@@ -1,17 +1,20 @@
 <!--
   网易云面板（音乐页内的登录 + 我的歌单）
   ------------------------------------------------------------
-  数据层在 `helpers/music/netease.ts`（走 Tauri plugin-http 直连官方接口）。
-  这里只负责两件事：把人登录进来、把一个歌单的曲目交回父组件去播。
+  数据层在 `helpers/music/netease.ts`（请求经 Rust 命令 `netease_request` 转发）。
 
-  为什么同时给「扫码」和「粘贴 Cookie」两条路：
-  网易云已经对扫码整体收紧（8821 = 要求行为验证码），单靠扫码必然会有一部分人
-  怎么扫都进不来；粘贴 Cookie 是官方的登录凭证，永远可用。两条都给，不赌。
+  登录方式（2026-11-01 改）：**拉官网的登录页**，在子窗口里用网易云 App 扫码 ——
+  扫的是官网自己的码、走官网自己的会话，不存在「模拟客户端」那一层风控
+  （自己调 `/api/login/qrcode/*` 实测会被 8821 拒）。
+  登录成功后从 WebView 的 cookie 存储里读 `MUSIC_U`（HttpOnly，JS 读不到），
+  再用它换账号信息并落盘。
+
+  「粘贴 Cookie」保留：官网窗口万一加载不出来（断网 / CDN 抽风），这是最后一条稳路。
 -->
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import { useVIntl } from '@modrinth/ui'
-import QRCode from 'qrcode'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import {
     loginState,
@@ -19,8 +22,6 @@ import {
     logoutNetease,
     myPlaylists,
     playlistSongs,
-    qrPoll,
-    qrStart,
     type NeteaseLoginState,
     type NeteasePlaylist,
     type NeteaseSong,
@@ -34,14 +35,17 @@ const emit = defineEmits<{
 
 useVIntl()
 
-type Channel = 'qr' | 'cookie'
+type Channel = 'official' | 'cookie'
+/** 官网登录的轮询状态 */
+type OfficialStatus = 'idle' | 'opening' | 'waiting' | 'checking' | 'timeout'
+
+const OFFICIAL_POLL_MS = 1500
+/** 官网窗口最多等 5 分钟，之后停止轮询（窗口留着，用户还能继续操作） */
+const OFFICIAL_TIMEOUT_MS = 5 * 60 * 1000
 
 const state = ref<NeteaseLoginState>(loginState())
-const channel = ref<Channel>('qr')
-const qrCanvas = ref<HTMLCanvasElement | null>(null)
-const qrKey = ref('')
-const qrStatus = ref<'idle' | 'loading' | 'waiting' | 'scanned' | 'expired' | 'ok'>('idle')
-const qrMessage = ref('')
+const channel = ref<Channel>('official')
+const official = ref<OfficialStatus>('idle')
 const cookieInput = ref('')
 const busy = ref(false)
 const error = ref('')
@@ -50,6 +54,7 @@ const loadingPlaylists = ref(false)
 const pickingId = ref<number | null>(null)
 
 let pollTimer: number | null = null
+let pollStartedAt = 0
 
 const loggedIn = computed(() => state.value.loggedIn)
 
@@ -60,78 +65,45 @@ function stopPoll() {
     }
 }
 
-async function drawQr(url: string) {
-    const canvas = qrCanvas.value
-    if (!canvas) return
-    await QRCode.toCanvas(canvas, url, {
-        width: 176,
-        margin: 1,
-        errorCorrectionLevel: 'M',
-        color: { dark: '#11131a', light: '#ffffff' },
-    })
-}
-
-async function refreshQr() {
-    if (busy.value) return
-    busy.value = true
-    error.value = ''
-    stopPoll()
-    qrStatus.value = 'loading'
-    qrMessage.value = ''
+/**
+ * 轮询官网窗口的 cookie：出现 `MUSIC_U=` 就说明登录完成。
+ * 单次失败不打断轮询（窗口可能还在加载、cookie 还没落地）。
+ */
+async function pollCookieOnce() {
+    if (official.value !== 'waiting' && official.value !== 'checking') return
+    if (Date.now() - pollStartedAt > OFFICIAL_TIMEOUT_MS) {
+        stopPoll()
+        official.value = 'timeout'
+        return
+    }
     try {
-        const { key, url } = await qrStart()
-        qrKey.value = key
-        qrStatus.value = 'waiting'
-        await drawQr(url)
-        pollTimer = window.setInterval(() => void pollOnce(), 2000)
+        const cookie = await invoke<string | null>('netease_read_cookie')
+        if (!cookie || !/(^|;\s*)MUSIC_U=/.test(cookie)) return
+
+        official.value = 'checking'
+        stopPoll()
+        // 拿 cookie 换账号信息（顺带验证它有效），通过才落盘
+        state.value = await loginWithCookie(cookie)
+        void invoke('netease_close_login').catch(() => undefined)
+        official.value = 'idle'
+        await loadPlaylists()
     } catch (e) {
-        qrStatus.value = 'idle'
-        error.value = (e as Error).message || '生成二维码失败'
-    } finally {
-        busy.value = false
+        error.value = (e as Error).message || '读取登录状态失败'
     }
 }
 
-async function pollOnce() {
-    if (!qrKey.value) return
+async function openOfficialLogin() {
+    error.value = ''
+    official.value = 'opening'
     try {
-        const result = await qrPoll(qrKey.value)
-        if (result.status === 'waiting') return
-        if (result.status === 'scanned') {
-            qrStatus.value = 'scanned'
-            qrMessage.value = '已扫码，请在手机上确认登录'
-            return
-        }
-        if (result.status === 'expired') {
-            stopPoll()
-            qrStatus.value = 'expired'
-            qrMessage.value = '二维码已过期，点「刷新」重新获取'
-            return
-        }
-        if (result.status === 'error') {
-            stopPoll()
-            qrStatus.value = 'expired'
-            /* 2026-11-01（实测，见 netease.ts 文件头）：
-               8821 = 网易风控拒了这次扫码会话。我们这边有一个结构性劣势 ——
-               Tauri 的 http 插件**不把 `Set-Cookie` 交给 JS**（已用 https://music.163.com/
-               验证：响应头里没有 set-cookie），所以「签发 unikey 时的会话 cookie」
-               带不进轮询，网易就会在确认那一刻拒掉。
-               结论：扫码这条路在当前架构下不可靠，直接把用户送到**粘贴 Cookie** 那一页，
-               不要让他对着一个永远不会成功的二维码反复扫。 */
-            qrMessage.value = result.message
-                ? `扫码被网易拒绝（code ${result.code}）：${result.message}`
-                : `扫码被网易拒绝（code ${result.code}）`
-            channel.value = 'cookie'
-            return
-        }
+        await invoke('netease_open_login')
+        official.value = 'waiting'
+        pollStartedAt = Date.now()
         stopPoll()
-        qrStatus.value = 'ok'
-        state.value = result.session
-        await loadPlaylists()
+        pollTimer = window.setInterval(() => void pollCookieOnce(), OFFICIAL_POLL_MS)
     } catch (e) {
-        stopPoll()
-        qrStatus.value = 'expired'
-        error.value = (e as Error).message || '轮询失败'
+        official.value = 'idle'
+        error.value = (e as Error).message || '打开登录窗口失败'
     }
 }
 
@@ -180,19 +152,17 @@ async function pickPlaylist(playlist: NeteasePlaylist) {
 function signOut() {
     state.value = logoutNetease()
     playlists.value = []
-    qrStatus.value = 'idle'
+    official.value = 'idle'
 }
-
-watch(channel, (next) => {
-    if (next === 'qr' && qrStatus.value === 'idle') void refreshQr()
-})
 
 onMounted(() => {
     if (loggedIn.value) void loadPlaylists()
-    else void refreshQr()
 })
 
-onBeforeUnmount(stopPoll)
+onBeforeUnmount(() => {
+    // 面板关了不关官网窗口：用户可能正在扫码，只是不能再自动检测
+    stopPoll()
+})
 </script>
 
 <template>
@@ -209,35 +179,45 @@ onBeforeUnmount(stopPoll)
 
         <template v-if="!loggedIn">
             <div class="net-seg">
-                <button type="button" :class="{ on: channel === 'qr' }" @click="channel = 'qr'">
-                    扫码登录
+                <button
+                    type="button"
+                    :class="{ on: channel === 'official' }"
+                    @click="channel = 'official'"
+                >
+                    官网登录
                 </button>
-                <button type="button" :class="{ on: channel === 'cookie' }" @click="channel = 'cookie'">
+                <button
+                    type="button"
+                    :class="{ on: channel === 'cookie' }"
+                    @click="channel = 'cookie'"
+                >
                     粘贴 Cookie
                 </button>
             </div>
 
-            <div v-if="channel === 'qr'" class="net-qr">
-                <canvas ref="qrCanvas" class="net-qr-canvas" />
-                <div class="net-qr-side">
-                    <p class="net-line">
-                        {{
-                            qrStatus === 'loading'
-                                ? '正在生成二维码…'
-                                : qrStatus === 'scanned'
-                                  ? qrMessage || '已扫码，请在手机上确认'
-                                  : qrStatus === 'expired'
-                                    ? qrMessage || '二维码已过期'
-                                    : qrMessage || '打开网易云音乐 App → 扫一扫'
-                        }}
-                    </p>
-                    <p class="net-hint">
-                        扫码可能被网易风控拒绝（8821）；一旦被拒会自动切到「粘贴 Cookie」。
-                    </p>
-                    <button type="button" class="net-btn" :disabled="busy" @click="refreshQr">
-                        刷新二维码
-                    </button>
-                </div>
+            <div v-if="channel === 'official'" class="net-official">
+                <p class="net-line">
+                    {{
+                        official === 'waiting' || official === 'checking'
+                            ? '官网登录窗口已打开，用网易云音乐 App 扫码，登录成功会自动带回来'
+                            : official === 'timeout'
+                              ? '等了 5 分钟还没登录；窗口仍开着，登录后点「继续检测」'
+                              : '打开网易云官网登录窗口，扫码登录后 cookie 会自动读回来'
+                    }}
+                </p>
+                <p class="net-hint">
+                    用的是网易云自己的登录页与二维码，不经过任何第三方；只读取
+                    <code>MUSIC_U</code> 这类登录凭证，存在本机。
+                </p>
+                <button type="button" class="net-btn" @click="openOfficialLogin">
+                    {{
+                        official === 'waiting' || official === 'checking'
+                            ? '重新打开登录窗口'
+                            : official === 'timeout'
+                              ? '继续检测'
+                              : '打开官网登录'
+                    }}
+                </button>
             </div>
 
             <div v-else class="net-cookie">
@@ -367,25 +347,11 @@ onBeforeUnmount(stopPoll)
     color: var(--text-0);
 }
 
-.net-qr {
-    display: flex;
-    gap: 18px;
-    align-items: flex-start;
-}
-
-.net-qr-canvas {
-    width: 176px;
-    height: 176px;
-    border-radius: 12px;
-    background: #fff;
-    padding: 6px;
-}
-
-.net-qr-side {
+.net-official {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    min-width: 0;
+    max-width: 560px;
 }
 
 .net-line {

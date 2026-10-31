@@ -1,21 +1,20 @@
 /**
- * 网易云客户端（应用内自建，B 方案）
+ * 网易云客户端（应用内自建）
  * ------------------------------------------------------------
- * 所有请求都经 Rust 命令 `netease_request`（`apps/app/src/netease.rs`）转发。
- * 为什么不用 `@tauri-apps/plugin-http`：它**不把 `Set-Cookie` 交给 JS**（已实测：
- * 响应头里没有 set-cookie），而扫码协议要求把签发 unikey 时的会话 cookie 带进轮询，
- * 否则手机确认后服务端直接以 `8821` 拒掉。reqwest 在 Rust 侧能读到，这一条路才成立。
+ * 所有 API 请求都经 Rust 命令 `netease_request`（`apps/app/src/netease.rs`）转发：
+ * webview 自己的 fetch 会被 CORS/CSP 拦，而 `@tauri-apps/plugin-http` **不把
+ * `Set-Cookie` 交给 JS**（实测响应头里没有 set-cookie）。走 Rust 就都绕开了。
  *
- * 接口与风控结论照抄后台已验证的实现（`HaYenai-服务器端/lib/netease.cjs`），
- * 那边踩过的坑这里一条都没重新踩：
+ * 登录：**不自己调扫码接口**。2026-11-01 起改为打开网易云官网登录页
+ * （Rust 命令 `netease_open_login`），用户在官网窗口里扫码，登录成功后从
+ * WebView 的 cookie 存储读 `MUSIC_U`（HttpOnly，JS 读不到）——
+ * 见 `netease_read_cookie`。自己调 `/api/login/qrcode/*` 会被 8821 拒，别再加回来。
+ *
+ * 接口结论沿用后台已验证的实现（`HaYenai-服务器端/lib/netease.cjs`）：
  *   · 账号密码登录（`/api/login/cellphone`、`/api/login`）返回 `401 无权限访问. ENC`
- *     —— 网易要 weapi/eapi 的 AES+RSA 链，还得过短信二次验证。所以只做**扫码**。
- *   · `/api/login/qrcode/*` 有单独风控：`Referer` 必须是 `…/login`、UA 必须是移动端，
- *     否则手机扫了码轮询永远停在 801，最后 8821。见 `QR_HEADERS`。
- *   · 签发 unikey 那次的会话 cookie 要带进轮询，否则同样一直 801。
+ *     —— 网易要 weapi/eapi 的 AES+RSA 链，还得过短信二次验证。
  *   · 网关会把「接口不存在」包成 200 + `code: 404`，必须按 code 判断。
- *   · 扫码整体已被网易收紧（8821 = 要行为验证码），所以界面**必须**保留
- *     「粘贴 Cookie」这条稳的路，不能只有扫码。
+ *   · 「粘贴 Cookie」永远保留：官网窗口加载不出来时这是唯一稳路。
  *
  * cookie 只落 localStorage（与启动器其他本地状态同处），不进日志、不进 IPC 明文。
  */
@@ -23,12 +22,9 @@
 import { invoke } from '@tauri-apps/api/core'
 
 const BASE = 'https://music.163.com'
-const TIMEOUT_MS = 15_000
 
 const DESKTOP_UA =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
-const MOBILE_UA =
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1'
 
 const headersFor = (cookie?: string): Record<string, string> => ({
     'User-Agent': DESKTOP_UA,
@@ -37,14 +33,6 @@ const headersFor = (cookie?: string): Record<string, string> => ({
     Accept: 'application/json, text/plain, */*',
     ...(cookie ? { Cookie: cookie } : {}),
 })
-
-/** 扫码接口专用：移动端 UA + `/login` 的 Referer（见文件头「风控」） */
-const QR_HEADERS: Record<string, string> = {
-    'User-Agent': MOBILE_UA,
-    Referer: `${BASE}/login`,
-    Origin: BASE,
-    Accept: 'application/json, text/plain, */*',
-}
 
 export const NETESE_SESSION_KEY = 'hayenai:netease-session'
 
@@ -362,69 +350,9 @@ export async function myPlaylists(): Promise<NeteasePlaylist[]> {
     }))
 }
 
-/* ---------------- 扫码登录 ---------------- */
-
-/** 二维码里编码的内容：官方协议规定为登录页 + codekey */
-const QR_CONTENT = (key: string) => `${BASE}/login?codekey=${key}`
-export const QR_TTL_SEC = 180
-
-/**
- * 签发 unikey 时带回来的会话 cookie。
- * 轮询必须**同一个会话**，否则服务端把 unikey 当成「未签发」，永远停在 801
- * （表现：手机明明扫了也确认了，界面一直说「请扫描二维码」）。
- */
-let qrSessionCookie = ''
-
-export async function qrStart(): Promise<{ key: string; url: string; expireIn: number }> {
-    const res = await raw(`/api/login/qrcode/unikey?type=1&timestamp=${Date.now()}`, { headers: QR_HEADERS })
-    let json: { code?: number; message?: string; unikey?: string }
-    try {
-        json = JSON.parse(res.text)
-    } catch {
-        throw new Error('网易云返回了非 JSON 内容，请稍后重试')
-    }
-    if (json.code !== 200 || !json.unikey) throw new Error(json.message || '生成二维码失败，请稍后重试')
-    const key = String(json.unikey)
-    qrSessionCookie = normalizeCookie(res.setCookie)
-    return { key, url: QR_CONTENT(key), expireIn: QR_TTL_SEC }
-}
-
-export type QrPollResult =
-    | { status: 'waiting' }
-    | { status: 'scanned' }
-    | { status: 'expired' }
-    | { status: 'ok'; session: NeteaseLoginState }
-    | { status: 'error'; code: number; message: string }
-
-export async function qrPoll(key: string): Promise<QrPollResult> {
-    const k = String(key ?? '').trim()
-    if (!k) throw new Error('缺少二维码 key')
-
-    const res = await raw(`/api/login/qrcode/client/login?key=${encodeURIComponent(k)}&type=1&timestamp=${Date.now()}`, {
-        cookie: qrSessionCookie,
-        headers: QR_HEADERS,
-    })
-    let json: { code?: number; message?: string; cookie?: string }
-    try {
-        json = JSON.parse(res.text)
-    } catch {
-        throw new Error('轮询返回了非 JSON 内容，请重新获取二维码')
-    }
-
-    const code = json.code
-    if (code === 801) return { status: 'waiting' }
-    if (code === 802) return { status: 'scanned' }
-    if (code === 800) return { status: 'expired' }
-
-    if (code === 803) {
-        const cookie = normalizeCookie(json.cookie || res.setCookie || '')
-        if (!/(^|;\s*)MUSIC_U=/.test(cookie)) {
-            // 「扫上了」和「拿到凭证」是两件事，文案必须分开，否则用户反复重扫
-            throw new Error('扫码已确认，但没拿到登录凭证（MUSIC_U）。请改用「粘贴 Cookie」登录。')
-        }
-        return { status: 'ok', session: await loginWithCookie(cookie) }
-    }
-
-    // 未知 code 如实交回界面（8821 = 网易要求行为验证码），不要吞成一句笼统错误
-    return { status: 'error', code: Number(code) || -1, message: String(json.message || '').slice(0, 120) }
-}
+/* ---------------- 扫码相关（已下线） ----------------
+   2026-11-01：登录改成「拉官网登录页 → 从 WebView 的 cookie 存储里读 MUSIC_U」
+   （Rust 命令 `netease_open_login` / `netease_read_cookie`）。
+   自己调 `/api/login/qrcode/*` 那条路即使能拿到 Set-Cookie，手机确认后仍会被 8821 拒，
+   代码已删，别再加回来 —— 官网登录页才是官方维护的正常入口。
+   ---------------- */
