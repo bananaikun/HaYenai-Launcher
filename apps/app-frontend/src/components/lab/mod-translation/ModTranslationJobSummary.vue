@@ -75,7 +75,7 @@ function formatDuration(seconds: number): string {
     <header class="job-header">
         <span class="file-badge" :class="badgeClass"><FileArchiveIcon /></span>
         <div class="job-title">
-            <strong :title="job.inputPath">{{ fileName }}</strong>
+            <strong v-tooltip="job.inputPath">{{ fileName }}</strong>
             <span>{{ elapsed }}</span>
         </div>
         <span v-if="job.status === 'running'" class="job-percent">{{ job.percent }}%</span>

@@ -1347,7 +1347,7 @@ function slotEditorSlots(type: RecipeType): RecipeSlot[] {
                         <span class="recipe-row-actions">
                             <button
                                 type="button"
-                                :title="formatMessage(messages.cloneRecipe)"
+                                v-tooltip="formatMessage(messages.cloneRecipe)"
                                 :aria-label="formatMessage(messages.cloneRecipe)"
                                 @click.stop="cloneRecipe(recipe.id)"
                             >
@@ -1355,7 +1355,7 @@ function slotEditorSlots(type: RecipeType): RecipeSlot[] {
                             </button>
                             <button
                                 type="button"
-                                :title="formatMessage(messages.deleteRecipe)"
+                                v-tooltip="formatMessage(messages.deleteRecipe)"
                                 :aria-label="formatMessage(messages.deleteRecipe)"
                                 @click.stop="deleteRecipe(recipe.id)"
                             >
@@ -1646,7 +1646,7 @@ function slotEditorSlots(type: RecipeType): RecipeSlot[] {
                                 :class="{
                                     active: currentRecipe.smithing.trimPattern === option.id,
                                 }"
-                                :title="option.display.label"
+                                v-tooltip="option.display.label"
                                 :aria-label="option.display.label"
                                 @click="selectTrimPattern(option.id)"
                             >
@@ -1784,7 +1784,7 @@ function slotEditorSlots(type: RecipeType): RecipeSlot[] {
                         <button
                             type="button"
                             class="recipe-delete-custom"
-                            :title="formatMessage(messages.editCustomItemAction)"
+                            v-tooltip="formatMessage(messages.editCustomItemAction)"
                             :aria-label="formatMessage(messages.editCustomItemAction)"
                             @click="openCustomItemModal(item)"
                         >
@@ -1793,7 +1793,7 @@ function slotEditorSlots(type: RecipeType): RecipeSlot[] {
                         <button
                             type="button"
                             class="recipe-delete-custom"
-                            :title="formatMessage(messages.deleteCustomItem)"
+                            v-tooltip="formatMessage(messages.deleteCustomItem)"
                             :aria-label="formatMessage(messages.deleteCustomItem)"
                             @click="deleteCustomItem(item.uid)"
                         >

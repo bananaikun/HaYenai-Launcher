@@ -111,13 +111,13 @@
                         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                             <span
                                 class="truncate font-medium text-[var(--color-text-primary)]"
-                                :title="item.expectedRelativePath"
+                                v-tooltip="item.expectedRelativePath"
                             >
                                 {{ fileNameFromPath(item.expectedRelativePath) }}
                             </span>
                             <code
                                 class="truncate text-xs text-[var(--color-text-tertiary)]"
-                                :title="item.expectedRelativePath"
+                                v-tooltip="item.expectedRelativePath"
                             >
                                 {{ item.expectedRelativePath }}
                             </code>

@@ -12,7 +12,9 @@
 		"copyright": "",
 		"targets": "all",
 		"externalBin": [],
-		"resources": ["resources/blockbench-skin"],
+		"resources": [
+			"resources/blockbench-skin"
+		],
 		"icon": [
 			"icons/128x128.png",
 			"icons/128x128@2x.png",
@@ -23,7 +25,7 @@
 			"nsis": {
 				"installMode": "currentUser",
 				"installerHooks": "./nsis/hooks.nsi",
-					"installerIcon": "icons/icon.ico"
+				"installerIcon": "icons/icon.ico"
 			}
 		},
 		"longDescription": "",
@@ -51,12 +53,18 @@
 		"shortDescription": "",
 		"linux": {
 			"deb": {
-				"depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libayatana-appindicator3-1"]
+				"depends": [
+					"libwebkit2gtk-4.1-0",
+					"libgtk-3-0",
+					"libayatana-appindicator3-1"
+				]
 			}
 		},
 		"fileAssociations": [
 			{
-				"ext": ["mrpack"],
+				"ext": [
+					"mrpack"
+				],
 				"mimeType": "application/x-modrinth-modpack+zip"
 			}
 		]
@@ -68,7 +76,9 @@
 	"plugins": {
 		"deep-link": {
 			"desktop": {
-				"schemes": ["hayenai"]
+				"schemes": [
+					"hayenai"
+				]
 			},
 			"mobile": []
 		}
@@ -107,28 +117,43 @@
 				],
 				"enable": true
 			},
-			"capabilities": ["core", "plugins"],
+			"capabilities": [
+				"core",
+				"plugins"
+			],
 			"devCsp": {
 				"default-src": "'self' customprotocol: asset:",
 				"connect-src": "ipc: http://ipc.localhost https://api.github.com http://localhost:5201 ws://localhost:5201 https://modrinth.com https://*.modrinth.com https://api.mclo.gs http://textures.minecraft.net https://textures.minecraft.net https://fill.papermc.io https://api.papermc.io https://piston-meta.mojang.com https://launchermeta.mojang.com https://meta.fabricmc.net https://files.minecraftforge.net https://maven.minecraftforge.net https://api.purpurmc.org https://mod.mcimirror.top https://admin.hayenai.local http://hayenai-we.localhost 'self' data: blob: https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net",
-				"font-src": ["'self'", "data:", "blob:", "https://cdn-raw.modrinth.com/fonts/"],
+				"font-src": [
+					"'self'",
+					"data:",
+					"blob:",
+					"https://cdn.modrinth.com/fonts/",
+					"https://cdn-raw.modrinth.com/fonts/"
+				],
 				"img-src": "https: 'unsafe-inline' 'self' asset: http://asset.localhost http://hayenai-we.localhost http://textures.minecraft.net blob: data: https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net",
 				"style-src": "'unsafe-inline' 'self'",
 				"script-src": "'self' 'unsafe-eval' 'wasm-unsafe-eval'",
 				"worker-src": "'self' blob:",
 				"frame-src": "https://www.youtube.com https://www.youtube-nocookie.com https://discord.com 'self' http://axolotl-skin.localhost axolotl-skin://localhost http://hayenai-we.localhost",
-				"media-src": "'self' data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net"
+				"media-src": "'self' blob: data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net"
 			},
 			"csp": {
 				"default-src": "'self' customprotocol: asset:",
 				"connect-src": "ipc: http://ipc.localhost https://api.github.com https://modrinth.com https://*.modrinth.com https://api.mclo.gs http://textures.minecraft.net https://textures.minecraft.net https://fill.papermc.io https://api.papermc.io https://piston-meta.mojang.com https://launchermeta.mojang.com https://meta.fabricmc.net https://files.minecraftforge.net https://maven.minecraftforge.net https://api.purpurmc.org https://mod.mcimirror.top https://admin.hayenai.local http://hayenai-we.localhost 'self' data: blob: https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net",
-				"font-src": ["'self'", "data:", "blob:", "https://cdn-raw.modrinth.com/fonts/"],
+				"font-src": [
+					"'self'",
+					"data:",
+					"blob:",
+					"https://cdn.modrinth.com/fonts/",
+					"https://cdn-raw.modrinth.com/fonts/"
+				],
 				"img-src": "https: 'unsafe-inline' 'self' asset: http://asset.localhost http://hayenai-we.localhost http://textures.minecraft.net blob: data: https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net",
 				"style-src": "'unsafe-inline' 'self'",
 				"script-src": "'self' 'unsafe-eval' 'wasm-unsafe-eval'",
 				"worker-src": "'self' blob:",
 				"frame-src": "https://www.youtube.com https://www.youtube-nocookie.com https://discord.com 'self' axolotl-skin://localhost http://axolotl-skin.localhost http://hayenai-we.localhost",
-				"media-src": "'self' data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net"
+				"media-src": "'self' blob: data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net"
 			}
 		}
 	}

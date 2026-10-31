@@ -163,7 +163,7 @@ defineExpose({ show })
                             selectedStateKey === schematicBlockStateKey(block),
                     }"
                     :aria-selected="selectedStateKey === schematicBlockStateKey(block)"
-                    :title="`${displayName(block.name)}\n${block.name}${stateProperties(block) ? ` [${stateProperties(block)}]` : ''}`"
+                    v-tooltip="`${displayName(block.name)}\n${block.name}${stateProperties(block) ? ` [${stateProperties(block)}]` : ''}`"
                     role="option"
                     @click="selectedStateKey = schematicBlockStateKey(block)"
                     @dblclick="confirm"

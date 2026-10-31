@@ -23,7 +23,7 @@ import {
     setUpdatePreferences,
     type UpdateChannel,
 } from '@/helpers/settings.ts'
-import { fetchLatestManifest } from '@/helpers/update-service'
+import { fetchLatestChannelVersions } from '@/helpers/github-latest'
 import { isDev, restartApp } from '@/helpers/utils.js'
 import { type AppUpdateCheckResult, checkForAppUpdate } from '@/providers/app-update.ts'
 
@@ -282,17 +282,10 @@ const messages = defineMessages({
 })
 
 async function loadLatestChannelVersions() {
-    const versions = await Promise.all(
-        (['release', 'beta'] as const).map(async (channel) => {
-            // The manifest lives behind the SRV-resolved base, which the webview
-            // is not allowed to contact directly; Rust proxies it. `null` means
-            // offline or unreadable, and simply leaves the hint blank.
-            const payload = await fetchLatestManifest(channel)
-            const version = typeof payload?.version === 'string' ? payload.version : undefined
-            return [channel, version] as const
-        }),
-    )
-    latestChannelVersions.value = Object.fromEntries(versions.filter(([, version]) => version))
+    // 版本号来自本仓库的 GitHub Releases（更新源已经换成 GitHub）。
+    // 拿不到就留空 ⇒ 卡片显示「最新版本暂不可用」，不会瞎编一个版本号。
+    const versions = await fetchLatestChannelVersions()
+    latestChannelVersions.value = versions
     latestChannelVersionsLoaded.value = true
 }
 
@@ -828,9 +821,12 @@ function onDatabaseOperationModalHide() {
     align-items: center;
     gap: 0.2rem;
     padding: var(--gap-sm);
-    border: 1px solid var(--surface-4);
+    /* 2026-10-31：`--surface-3` 在这次构建里解析成**不透明** #232833 —— 玻璃面板上
+       像贴了两块黑砖（主人截图圈的就是这两块）。改成内层玻璃：极淡白 + 发丝描边，
+       **不额外压暗**。 */
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-1);
     color: var(--color-text-primary);
     text-align: center;
 }

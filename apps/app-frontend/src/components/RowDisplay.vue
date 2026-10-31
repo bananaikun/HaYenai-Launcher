@@ -229,48 +229,75 @@ const maxInstancesPerCompactRow = ref(1)
 const maxInstancesPerRow = ref(1)
 const maxProjectsPerRow = ref(1)
 
-const calculateCardsPerRow = () => {
-    if (rows.value.length === 0) {
-        return
-    }
+/**
+ * 每行卡片数。
+ *
+ * 2026-10-31：原来每次调用都读 `clientWidth` + `getComputedStyle(html).fontSize`，
+ * 而且被 ResizeObserver 直接注册 —— 回调里读布局、写响应式、再触发重排，
+ * 首页挂载时就是「读→写→再读」的抖动环（实机采样：`get clientWidth` 占 72ms，
+ * 回首页那次长任务 534ms）。
+ *
+ * 现在：
+ * - 只认**宽度**：`lastKey` 用「宽度 + 根字号」做键，值没变就直接返回，
+ *   不发新值（卡片数不变就不会再触发一轮重渲染）；
+ * - 观察回调统一进 rAF，一次重排里只量一次，不再在 RO 回调里同步读布局。
+ */
+let measureFrame = 0
+let lastKey = ''
 
-    // Calculate how many cards fit in one row
-    const containerWidth = rows.value[0].clientWidth
-    // Convert container width from pixels to rem
-    const containerWidthInRem =
-        containerWidth / parseFloat(getComputedStyle(document.documentElement).fontSize)
+function applyCardsPerRow() {
+    measureFrame = 0
+    if (rows.value.length === 0) return
 
-    maxInstancesPerCompactRow.value = Math.floor((containerWidthInRem + 0.75) / 18.75)
-    maxInstancesPerRow.value = Math.floor((containerWidthInRem + 0.75) / 20.75)
-    maxProjectsPerRow.value = Math.floor((containerWidthInRem + 0.75) / 18.75)
+    const row = rows.value[0]
+    const containerWidth = row?.clientWidth ?? 0
+    if (containerWidth <= 0) return
 
-    if (maxInstancesPerRow.value < 5) {
-        maxInstancesPerRow.value *= 2
-    }
-    if (maxInstancesPerCompactRow.value < 5) {
-        maxInstancesPerCompactRow.value *= 2
-    }
-    if (maxProjectsPerRow.value < 3) {
-        maxProjectsPerRow.value *= 2
-    }
+    // 根字号只在用户改界面缩放时变，但读一次就是一次样式解析，跟着宽度一起进缓存键
+    const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+    const key = `${containerWidth}@${rootFontSize}`
+    if (key === lastKey) return
+    lastKey = key
+
+    const containerWidthInRem = containerWidth / rootFontSize
+
+    let compact = Math.floor((containerWidthInRem + 0.75) / 18.75)
+    let full = Math.floor((containerWidthInRem + 0.75) / 20.75)
+    let projects = Math.floor((containerWidthInRem + 0.75) / 18.75)
+
+    if (full < 5) full *= 2
+    if (compact < 5) compact *= 2
+    if (projects < 3) projects *= 2
+
+    if (compact !== maxInstancesPerCompactRow.value) maxInstancesPerCompactRow.value = compact
+    if (full !== maxInstancesPerRow.value) maxInstancesPerRow.value = full
+    if (projects !== maxProjectsPerRow.value) maxProjectsPerRow.value = projects
+}
+
+/** ResizeObserver / window.resize 都走这里：同一帧内多次触发只量一次。 */
+function scheduleCardsPerRow() {
+    if (measureFrame) return
+    measureFrame = requestAnimationFrame(applyCardsPerRow)
 }
 
 const rowContainer = ref(null)
 const resizeObserver = ref(null)
 
 onMounted(() => {
-    calculateCardsPerRow()
-    resizeObserver.value = new ResizeObserver(calculateCardsPerRow)
+    scheduleCardsPerRow()
+    resizeObserver.value = new ResizeObserver(scheduleCardsPerRow)
     if (rowContainer.value) {
         resizeObserver.value.observe(rowContainer.value)
     }
-    window.addEventListener('resize', calculateCardsPerRow)
+    window.addEventListener('resize', scheduleCardsPerRow)
 })
 
 onUnmounted(() => {
-    window.removeEventListener('resize', calculateCardsPerRow)
+    window.removeEventListener('resize', scheduleCardsPerRow)
+    if (measureFrame) cancelAnimationFrame(measureFrame)
+    measureFrame = 0
     if (rowContainer.value) {
-        resizeObserver.value.unobserve(rowContainer.value)
+        resizeObserver.value?.unobserve(rowContainer.value)
     }
 })
 </script>

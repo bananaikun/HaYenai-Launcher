@@ -67,7 +67,12 @@ html.has-custom-background body :is(
        它们的原件都是 `background: var(--surface-3)`（组件 CSS，不走 Tailwind 类）。 */
     .ai-provider-card,
     .about-panel,
-    .update-channel-card
+    .update-channel-card,
+    /* 悬浮提示气泡（2026-10-31 主人：「不要给悬浮框单独保留一块更实的底」）。
+       它是 `packages/ui` 里 `v-tooltip` 生成的 `.tooltip-surface`，原来被
+       `--color-tooltip-bg: var(--surface-3-opaque)` 钉成**不透明** #232833，
+       在玻璃面板上就是一块黑砖。现在与其它卡片同一个配方，不多一分不透明度。 */
+    .tooltip-surface
 ) {
     background-color: color-mix(in srgb, #0a0b10 var(--ui-dim, 25%), transparent) !important;
     background-image: linear-gradient(180deg, var(--glass-2) 0%, var(--glass-1) 100%) !important;
@@ -75,6 +80,47 @@ html.has-custom-background body :is(
     backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(var(--ui-saturate, 105%)) !important;
     border-color: var(--stroke-1) !important;
     box-shadow: var(--inset-1) !important;
+    /* 箭头（`.tooltip-popper-arrow` 的 border-color）取同一档颜色，
+       气泡与箭头永远一致；`--ui-dim` 拖大时一起变实，不单独特殊化。 */
+    --color-tooltip-bg: color-mix(in srgb, #0a0b10 var(--ui-dim, 25%), transparent);
+}
+
+/* ---- 长列表行：只留渐变，不逐行模糊 ---------------------------------------
+   2026-10-31（主人：实例里的内容列表「滚动很卡、掉帧」）：
+   `.bg-surface-content` 在玻璃名单里 ⇒ 每一行都吃到 `backdrop-filter: blur(16px)`。
+   实例页 105 条内容、可见 22 行 = 22 个模糊层叠在一起，滚动时合成器每帧要重算
+   22 次 74px 高的模糊。实机测量：平均帧 **50ms（20fps）**、p90 68ms、51/59 帧超 33ms。
+   面板本身已经模糊过，行再模糊一次在视觉上看不出差别（行底色本来就近乎全透明），
+   所以这里只关掉**行的**模糊与 `saturate`，渐变与发丝描边保留。
+   规则只命中「表格里的行」，不影响别处的 `bg-surface-content` 卡片。 */
+html.has-custom-background body [data-content-card-table] [role='row'],
+html.has-custom-background body [role='table'] > [role='rowgroup'] > [role='row'] > * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+/* ---- 气泡箭头 -------------------------------------------------------------
+   气泡本身换成了玻璃配方（几乎透明 + 模糊），但箭头是两片 CSS 三角，
+   颜色取的是 `--surface-5` / `--color-tooltip-bg` —— 前者仍是深色实面，
+   于是气泡下方挂着一个**深灰三角**，比气泡本身显眼得多。
+   三角做不出「模糊 + 7% 白渐变」，留它就是一块异色补丁；气泡与触发器只隔 5px，
+   `aria-describedby` 也已经挂好，所以这层直接不画。 */
+html.has-custom-background body .tooltip-surface .tooltip-popper-arrow {
+    display: none;
+}
+
+/* ---- 原生表单控件（2026-10-31）--------------------------------------------
+   壁纸属性面板里有 7 个**原生** `input[type=range]` / `checkbox`，轨道底色是
+   `--surface-3`（= 不透明 #232833），在玻璃卡片上就是一条条黑砖。
+   这里只改 appearance 层：强调色换成品牌色、轨道透明，形状完全交给浏览器，
+   不动宽高与布局（改了会让面板抖）。 */
+html.has-custom-background {
+    input[type='range'],
+    input[type='checkbox'],
+    input[type='radio'] {
+        accent-color: var(--color-brand);
+        background-color: transparent;
+    }
 }
 
 /* ---- 首页卡片：清掉 `global.scss:838` 那套「浅色 62% 白」的令牌覆盖 -------

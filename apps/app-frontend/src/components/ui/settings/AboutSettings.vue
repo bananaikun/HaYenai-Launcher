@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import {
-    CheckIcon,
     ChevronDownIcon,
     CodeIcon,
-    CopyIcon,
     ExternalIcon,
     GithubIcon,
     HeartHandshakeIcon,
@@ -16,7 +14,6 @@ import { getVersion } from '@tauri-apps/api/app'
 import { inject, onMounted, ref } from 'vue'
 
 import AfdianIcon from '@/assets/external/afdian.png'
-import QqIcon from '@/assets/external/qq.svg?component'
 import appLogo from '@/assets/hayenai.png'
 import { BrandConfig } from '@/config'
 import { contributors } from '@/data/about'
@@ -27,7 +24,6 @@ import SettingsSection from './SettingsSection.vue'
 
 const { formatMessage } = useVIntl()
 const version = ref('')
-const copied = ref(false)
 const replayOnboarding = inject<(mode: 'main' | 'instance') => Promise<void>>('replayOnboarding')
 
 /**
@@ -78,14 +74,6 @@ onMounted(() => {
         })
 })
 
-async function copyQqGroupNumber() {
-    await navigator.clipboard.writeText(BrandConfig.qqGroupNumber)
-    copied.value = true
-    setTimeout(() => {
-        copied.value = false
-    }, 3000)
-}
-
 const messages = defineMessages({
     productTitle: {
         id: 'app.settings.about.product-title',
@@ -132,21 +120,9 @@ const messages = defineMessages({
         id: 'app.settings.about.upstream-project',
         defaultMessage: 'Upstream project',
     },
-    qqGroup: {
-        id: 'app.settings.about.qq-group',
-        defaultMessage: 'Player QQ group',
-    },
     qqChannel: {
         id: 'app.settings.about.qq-channel',
         defaultMessage: 'QQ channel',
-    },
-    copyQqGroup: {
-        id: 'app.settings.about.copy-qq-group',
-        defaultMessage: 'Copy group number',
-    },
-    copiedQqGroup: {
-        id: 'app.settings.about.copied-qq-group',
-        defaultMessage: 'Group number copied',
     },
     afdian: {
         id: 'app.settings.about.afdian',
@@ -314,43 +290,6 @@ const projectLinks = [
                     </span>
                     <ExternalIcon class="size-5 shrink-0 text-[var(--color-text-tertiary)]" />
                 </a>
-
-                <button
-                    type="button"
-                    :disabled="copied"
-                    :aria-label="
-                        copied
-                            ? formatMessage(messages.copiedQqGroup)
-                            : formatMessage(messages.copyQqGroup)
-                    "
-                    class="flex w-full min-w-0 items-center gap-3 rounded-xl bg-surface-4 p-4 text-left transition-colors hover:bg-surface-5 disabled:cursor-default"
-                    @click="copyQqGroupNumber"
-                >
-                    <span
-                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-[var(--color-text-primary)]"
-                    >
-                        <QqIcon class="size-6" />
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="block font-semibold text-[var(--color-text-primary)]">
-                            {{ formatMessage(messages.qqGroup) }}
-                        </span>
-                        <span class="block text-sm text-[var(--color-text-tertiary)]">
-                            {{ BrandConfig.qqGroupNumber }}
-                        </span>
-                    </span>
-                    <span class="shrink-0" aria-live="polite">
-                        <CheckIcon v-if="copied" class="size-5 text-green" />
-                        <CopyIcon v-else class="size-5 text-[var(--color-text-tertiary)]" />
-                        <span class="sr-only">
-                            {{
-                                copied
-                                    ? formatMessage(messages.copiedQqGroup)
-                                    : formatMessage(messages.copyQqGroup)
-                            }}
-                        </span>
-                    </span>
-                </button>
 
                 <!-- No donation page exists yet; an empty `href` would be a dead
 				     link, so the card only renders once one is configured. -->

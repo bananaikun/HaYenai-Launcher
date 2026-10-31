@@ -141,7 +141,7 @@ function onDrop(event: DragEvent) {
             type="button"
             class="recipe-slot-button"
             :class="{ 'recipe-result-button': result }"
-            :title="wheelHint ?? slotLabel"
+            v-tooltip="wheelHint ?? slotLabel"
             :aria-label="wheelHint ?? slotLabel"
             @click="emit('clear')"
             @wheel="onResultWheel(recipeSlot, $event)"

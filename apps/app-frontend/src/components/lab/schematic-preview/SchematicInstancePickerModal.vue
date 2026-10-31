@@ -410,7 +410,7 @@ defineExpose({ show })
                                     role="listitem"
                                     class="flex h-16 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-surface-5 bg-transparent py-2 pr-3 text-left text-[var(--color-text-default)] transition-colors last:border-b-0 hover:bg-surface-4 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-shadow"
                                     :style="rowPadding(row.depth)"
-                                    :title="row.path"
+                                    v-tooltip="row.path"
                                     :aria-expanded="row.expanded"
                                     :aria-label="
                                         formatMessage(
@@ -455,7 +455,7 @@ defineExpose({ show })
                                     role="listitem"
                                     class="flex h-16 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-surface-5 bg-transparent py-2 pr-3 text-left text-[var(--color-text-default)] transition-colors last:border-b-0 hover:bg-surface-4 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-shadow"
                                     :style="rowPadding(row.depth)"
-                                    :title="row.file.relativePath"
+                                    v-tooltip="row.file.relativePath"
                                     :aria-label="
                                         formatMessage(messages.openSchematic, {
                                             name: row.file.relativePath,

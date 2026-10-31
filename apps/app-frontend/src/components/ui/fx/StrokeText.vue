@@ -151,3 +151,62 @@ function charStyle(index: number): Record<string, string> {
         </svg>
     </span>
 </template>
+
+<style scoped>
+/* 2026-10-31：这个组件从后台搬过来时**漏了整块 CSS** —— 模板里
+   `--stx-len / --stx-delay / --stx-dur / --stx-fill-delay` 四个变量都算好了、
+   也在内联 style 上写着，但没有任何 keyframes 去用它们，所以「逐笔写出」从来没跑过：
+   每句歌词都是一次性整行出现。这里把后台那套补回来。
+
+   `stroke-dasharray/dashoffset` 是元素级属性，所以只能逐字符（`<tspan>` 无法各自错峰），
+   这也是这个组件拆成「一字符一枚 svg」的原因。 */
+.stx,
+.stx-measuring {
+    display: inline-flex;
+    align-items: flex-end;
+    white-space: pre;
+}
+
+.stx-c {
+    overflow: visible;
+    flex: none;
+}
+
+.stx-c text {
+    /* 描边先走、填充后到：`paint-order` 让填充压在描边之上，字形边缘才干净 */
+    paint-order: stroke fill;
+    fill: currentColor;
+    stroke: currentColor;
+    fill-opacity: 0;
+    stroke-dasharray: var(--stx-len, 0);
+    stroke-dashoffset: var(--stx-len, 0);
+    animation:
+        stx-draw var(--stx-dur, 460ms) cubic-bezier(0.33, 0, 0.2, 1) var(--stx-delay, 0ms)
+            both,
+        stx-fill 260ms ease var(--stx-fill-delay, 0ms) both;
+}
+
+@keyframes stx-draw {
+    from {
+        stroke-dashoffset: var(--stx-len, 0);
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes stx-fill {
+    to {
+        fill-opacity: 1;
+    }
+}
+
+/* 系统开了「减少动态效果」就直出，不要写字动画 */
+@media (prefers-reduced-motion: reduce) {
+    .stx-c text {
+        animation: none;
+        fill-opacity: 1;
+        stroke-dashoffset: 0;
+    }
+}
+</style>

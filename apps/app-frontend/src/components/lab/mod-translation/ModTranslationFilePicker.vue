@@ -39,7 +39,7 @@ async function pickFile() {
         <span
             v-if="path"
             class="selected-path min-w-0 overflow-hidden flex-1 text-[var(--color-text-primary)] text-[0.78rem] truncate"
-            :title="path"
+            v-tooltip="path"
             >{{ path }}</span
         >
         <span

@@ -89,6 +89,70 @@ const launching = ref(false)
 
 const song = computed(() => currentSong())
 const instanceLabel = computed(() => instance.value?.name ?? formatMessage(messages.noInstance))
+
+/* ---------------- 长句歌词横向滚动 ----------------
+   2026-10-31（主人：① 长句要横向滚动 ② 每句要有逐字书写/高亮动画）
+   ① `.mb-title` 原来是 `text-overflow: ellipsis` —— 超过一行的歌词直接被省略号吃掉。
+      这里改成量出「文字宽度 − 可见宽度」，超了才跑跑马灯：
+        先停 0.6s（等逐字书写跑完）→ 匀速左移 → 末尾停 0.8s → 回到开头。
+      速度按距离算（28px/s），所以短句不动、长句不会一闪而过。
+   ② 逐字书写由 `StrokeText` 自己负责；关键是要**每句重新挂载**
+      （`:key="music.activeLyric"`）—— 之前组件实例被复用，CSS 动画只在第一句
+      播过一次，后面每句都是"已经写完"的状态，看起来就是歌词不会动。 */
+const lyricTrackRef = ref<HTMLElement | null>(null)
+const lyricTitleRef = ref<HTMLElement | null>(null)
+const marquee = ref({ active: false, shift: 0, duration: 0 })
+
+const marqueeStyle = computed(() => {
+    if (!marquee.value.active) return undefined
+    return {
+        '--mb-marquee-shift': `${marquee.value.shift}px`,
+        '--mb-marquee-dur': `${marquee.value.duration}ms`,
+    }
+})
+
+let marqueeTimer: number | null = null
+
+function measureMarquee(): void {
+    const track = lyricTrackRef.value
+    const box = lyricTitleRef.value
+    if (!track || !box) {
+        marquee.value = { active: false, shift: 0, duration: 0 }
+        return
+    }
+    const overflow = Math.ceil(track.scrollWidth - box.clientWidth)
+    if (overflow <= 4) {
+        marquee.value = { active: false, shift: 0, duration: 0 }
+        return
+    }
+    // 往返一次的距离 ≈ overflow；28px/s 是读长中文句子不费劲的下限
+    const distance = overflow + 8
+    marquee.value = {
+        active: true,
+        shift: -distance,
+        duration: Math.round(1400 + (distance / 28) * 1000),
+    }
+}
+
+function scheduleMarqueeMeasure(): void {
+    if (marqueeTimer !== null) window.clearTimeout(marqueeTimer)
+    marquee.value = { active: false, shift: 0, duration: 0 }
+    // StrokeText 要先量字宽、还可能等字体加载，所以延后两帧再测
+    marqueeTimer = window.setTimeout(() => {
+        marqueeTimer = null
+        requestAnimationFrame(() => requestAnimationFrame(measureMarquee))
+    }, 80)
+}
+
+watch(
+    () => music.activeLyric,
+    () => scheduleMarqueeMeasure(),
+)
+watch(
+    () => music.settings.lyrics,
+    () => scheduleMarqueeMeasure(),
+)
+
 const versionLabel = computed(() => {
     const row = instance.value
     if (!row) return ''
@@ -105,16 +169,41 @@ const waveRef = ref<HTMLElement | null>(null)
 const bandRef = ref<HTMLElement | null>(null)
 const bands = new Float32Array(BAND_COUNT)
 let waveRaf = 0
+let waveLevel = ''
+
 function pulse() {
+    waveRaf = 0
+    // 没在放音乐就别占一帧：原来无论放不放都每帧读一次频谱、写两次 CSS 变量，
+    // 等于给全站多加一条常驻 rAF（滚动时和列表渲染抢同一帧）。
+    if (!music.playing) return
     readBands(bands)
     let sum = 0
     for (let i = 0; i < BAND_COUNT; i++) sum += bands[i]
     const level = (sum / BAND_COUNT).toFixed(3)
-    waveRef.value?.style.setProperty('--a', level)
-    // 底边那条振幅带（后台 LyricBar 的 .lyric-bg 同款）：用 scaleX 而不是宽度，避免每帧重排
-    bandRef.value?.style.setProperty('--a', level)
+    // 只在肉眼能看出差别时才写 DOM（千分位抖动没必要触发样式重算）
+    if (level !== waveLevel) {
+        waveLevel = level
+        waveRef.value?.style.setProperty('--a', level)
+        // 底边那条振幅带（后台 LyricBar 的 .lyric-bg 同款）：用 scaleX 而不是宽度，避免每帧重排
+        bandRef.value?.style.setProperty('--a', level)
+    }
     waveRaf = requestAnimationFrame(pulse)
 }
+
+/** 播放态驱动循环开关：播放开始起表、暂停停表（幂等）。 */
+function syncWaveLoop(): void {
+    if (music.playing) {
+        if (!waveRaf) waveRaf = requestAnimationFrame(pulse)
+    } else if (waveRaf) {
+        cancelAnimationFrame(waveRaf)
+        waveRaf = 0
+        waveLevel = ''
+        waveRef.value?.style.setProperty('--a', '0')
+        bandRef.value?.style.setProperty('--a', '0')
+    }
+}
+
+watch(() => music.playing, syncWaveLoop)
 
 /* ---------------- 系统资源：定长环形缓冲 + 曲线 ---------------- */
 const SAMPLES = 48
@@ -326,7 +415,10 @@ onMounted(async () => {
     window.addEventListener('pointercancel', onDragEnd)
     void loadInstances()
     void loadPlaylist()
-    waveRaf = requestAnimationFrame(pulse)
+    syncWaveLoop()
+    // 窗口宽度变了，可见宽度跟着变 ⇒ 跑马灯要重新判定（短句变长句、长句变短句）
+    window.addEventListener('resize', scheduleMarqueeMeasure)
+    scheduleMarqueeMeasure()
     try {
         unlistenJobs = await install_job_listener((payload: unknown) => {
             const job = payload as {
@@ -351,6 +443,8 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     window.removeEventListener('pointerup', onDragEnd)
     window.removeEventListener('pointercancel', onDragEnd)
+    window.removeEventListener('resize', scheduleMarqueeMeasure)
+    if (marqueeTimer !== null) window.clearTimeout(marqueeTimer)
     stopStats()
     if (typeTimer !== null) window.clearInterval(typeTimer)
     if (waveRaf) cancelAnimationFrame(waveRaf)
@@ -384,12 +478,20 @@ onBeforeUnmount(() => {
                         <span class="mb-kicker">
                             {{ song?.name ?? formatMessage(messages.noLyrics) }}
                         </span>
-                        <strong class="mb-title">
+                        <strong
+                            ref="lyricTitleRef"
+                            class="mb-title"
+                            :class="{ 'is-marquee': marquee.active }"
+                        >
                             <template v-if="!music.settings.lyrics">纯音乐</template>
                             <template v-else-if="music.activeLyric">
-                                <StrokeText class="mb-title-stx" :text="music.activeLyric" /><i
-                                    class="mb-caret"
-                                />
+                                <span ref="lyricTrackRef" class="mb-title-track" :style="marqueeStyle">
+                                    <StrokeText
+                                        :key="music.activeLyric"
+                                        class="mb-title-stx"
+                                        :text="music.activeLyric"
+                                    /><i class="mb-caret" />
+                                </span>
                             </template>
                             <template v-else-if="music.playing">♪ ♪</template>
                             <template v-else-if="music.error">音乐源不可用</template>
@@ -484,7 +586,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="mb-dot"
                 :class="{ on: item === mode }"
-                :title="formatMessage(messages[item])"
+                v-tooltip="formatMessage(messages[item])"
                 :aria-label="formatMessage(messages[item])"
                 @click="mode = item"
             />
@@ -494,7 +596,7 @@ onBeforeUnmount(() => {
             <button
                 type="button"
                 class="mb-ctl"
-                :title="formatMessage(messages.previous)"
+                v-tooltip="formatMessage(messages.previous)"
                 @click="musicPrev"
             >
                 <ChevronLeftIcon class="size-3.5" />
@@ -502,7 +604,7 @@ onBeforeUnmount(() => {
             <button
                 type="button"
                 class="mb-ctl is-main"
-                :title="
+                v-tooltip="
                     music.playing ? formatMessage(messages.pause) : formatMessage(messages.play)
                 "
                 @click="musicToggle"
@@ -513,7 +615,7 @@ onBeforeUnmount(() => {
             <button
                 type="button"
                 class="mb-ctl"
-                :title="formatMessage(messages.nextTrack)"
+                v-tooltip="formatMessage(messages.nextTrack)"
                 @click="musicNext"
             >
                 <ChevronRightIcon class="size-3.5" />
@@ -632,14 +734,48 @@ onBeforeUnmount(() => {
     font-weight: 700;
     line-height: 1.25;
     letter-spacing: -0.01em;
+    /* 2026-10-31：去掉 `text-overflow: ellipsis` —— 长句不再被省略号截断，
+       改由 `.mb-title-track` 跑马灯（见下）。`overflow: hidden` 保留用于裁切。 */
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
     /* 后台 LyricBar 的当前行是"描边书写"：字有轮廓、再填色。
        这里用一层描边 + 主题色微光近似（同一套观感，不必搬 canvas 字形）。 */
     -webkit-text-stroke: 0.35px color-mix(in srgb, currentColor 55%, transparent);
     text-shadow: 0 0 14px rgba(var(--c-a-rgb), 0.45);
     animation: mb-write 520ms var(--ease-out);
+}
+
+/* 歌词跑马灯：文字超出可见宽度时，先停 0.6s（等逐字书写跑完）→ 左移 → 停 0.8s → 回位。
+   `--mb-marquee-shift` 由脚本按「溢出多少像素」写入，速度也是按距离算的。 */
+.mb-title-track {
+    display: inline-flex;
+    align-items: baseline;
+    will-change: transform;
+}
+
+.mb-title.is-marquee .mb-title-track {
+    animation: mb-marquee var(--mb-marquee-dur, 6000ms) ease-in-out infinite;
+}
+
+@keyframes mb-marquee {
+    0%,
+    10% {
+        transform: translateX(0);
+    }
+    88%,
+    96% {
+        transform: translateX(var(--mb-marquee-shift, 0));
+    }
+    100% {
+        transform: translateX(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mb-title.is-marquee .mb-title-track {
+        animation: none;
+    }
+}
 
 /* 当前行歌词 = 后台 `.lyr-line.on` 的口径：纯白填充 + 纯白描边，且描边压细到 0.02em
    —— 0.07em 是常规字号调的，放大行上会与填充糊成一团（后台实测的结论）。 */
@@ -648,8 +784,6 @@ onBeforeUnmount(() => {
     stroke: #fff;
     stroke-width: 0.02em;
     filter: drop-shadow(0 0 10px rgba(var(--c-a-rgb), 0.45));
-}
-
 }
 
 @keyframes mb-write {

@@ -605,7 +605,7 @@ function goCreate() {
                         :to="node.to"
                         :label="collapsed ? undefined : node.label"
                         :en="collapsed ? undefined : node.en"
-                        :title="collapsed ? node.label : undefined"
+                        v-tooltip.right="collapsed ? node.label : undefined"
                         :is-primary="() => node.id === activeId"
                         :class="{ 'is-open': isOpen(node), 'has-sub': node.children?.length }"
                         @click="onNodeClick(node)"
@@ -646,7 +646,7 @@ function goCreate() {
                     <button
                         type="button"
                         class="nav-add"
-                        :title="formatMessage(messages.newInstance)"
+                        v-tooltip.top="formatMessage(messages.newInstance)"
                         :aria-label="formatMessage(messages.newInstance)"
                         @click="goCreate"
                     >
@@ -663,7 +663,7 @@ function goCreate() {
                 <button
                     type="button"
                     class="icon-btn side-toggle"
-                    :title="
+                    v-tooltip.top="
                         collapsed ? formatMessage(messages.expand) : formatMessage(messages.collapse)
                     "
                     :aria-label="

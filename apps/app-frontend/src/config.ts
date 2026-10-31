@@ -11,9 +11,9 @@ export const BrandConfig = Object.freeze({
     productName: 'HaYenai',
     shortProductName: 'HaYenai',
     /** HaYenai has no separate marketing site; the repository is the site. */
-    website: 'https://github.com/Bananaikun/HaYenai',
-    repositoryUrl: 'https://github.com/Bananaikun/HaYenai',
-    supportUrl: 'https://github.com/Bananaikun/HaYenai/issues',
+    website: 'https://github.com/bananaikun/HaYenai-Launcher',
+    repositoryUrl: 'https://github.com/bananaikun/HaYenai-Launcher',
+    supportUrl: 'https://github.com/bananaikun/HaYenai-Launcher/issues',
     /** Upstream project this launcher is a modified version of (GPL-3.0). */
     upstreamName: 'Axolotl Launcher',
     upstreamUrl: 'https://github.com/Mystic-Stars/Axolotl',

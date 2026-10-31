@@ -198,7 +198,13 @@ html.transparent-window body {
         var(--surface-5-opaque) var(--opacity-ratio-5),
         transparent
     );
-    --color-tooltip-bg: var(--surface-3-opaque);
+    /* 2026-10-31（主人："不要给悬浮框单独保留一块更实的底"）：
+       原先是 `var(--surface-3-opaque)` —— 把气泡钉死在**不透明** #232833 上，
+       于是它在玻璃面板上调出来就是一块黑砖；再叠加 `--color-tooltip-text`
+       跟着壁纸明暗翻成深色（亮壁纸 → #14161c），就成了「深底深字、啥也看不见」。
+       现在跟随 `--surface-3` 的同一档半透明，和卡片/控件完全同一个令牌，
+       不为气泡留任何更实的底。 */
+    --color-tooltip-bg: var(--surface-3);
 
     // The tint families need the same treatment as the surfaces above, and for
     // the same reason: the mix that turns an opaque base into a tint lives in
@@ -318,7 +324,16 @@ html.has-custom-background body {
     // is a much worse failure than a momentarily opaque UI. The transparent
     // window path above uses the same guard for the same reason.
     --custom-bg-page-alpha: var(--custom-bg-page-alpha-setting, 100%);
-    --custom-bg-component-alpha: var(--custom-bg-component-alpha-setting, 100%);
+    /* 2026-10-31（主人拍板「接上滑杆，全局变透」）：
+       组件层基线原来是 `--custom-bg-component-alpha-setting`（默认 100% ⇒ 全站卡片
+       实心），而外观页那根「卡片不透明度」滑杆写的是 `--ui-card-alpha` —— 两个变量
+       谁也不管谁，所以滑杆怎么拖都没反应，卡片也一直是实底。
+       现在这一层直接由滑杆算出来：
+         baseline = 24% + 卡片不透明度 × 0.76
+       24% 是「卡片必须还能看出是张卡」的下限（0% 会让所有 `--surface-*` 归零，
+       界面直接消失）；往上完全跟手，100% 就是全不透明。
+       ⚠ 这是**卡片底色的不透明度**，不是压暗 —— 没有额外加任何黑色。 */
+    --custom-bg-component-alpha: calc(24% + var(--ui-card-alpha, 55%) * 0.76);
 
     /* 面板（设置页、首页卡、.home-glass-card）读的是 `--surface-1`。
        它的原定义挂在**页面层** alpha 上；壁纸模式把页面层归零（为了不压暗壁纸）之后，
@@ -326,12 +341,12 @@ html.has-custom-background body {
        这里把 `--surface-1/-1-5` 改挂到**卡片层**：页面层归零不影响面板，"卡片不透明度"滑杆照旧管用。 */
     --surface-1: color-mix(
         in srgb,
-        var(--surface-1-opaque) var(--ui-card-alpha, 55%),
+        var(--surface-1-opaque) var(--opacity-baseline),
         transparent
     );
     --surface-1-5: color-mix(
         in srgb,
-        var(--surface-1-5-opaque) var(--ui-card-alpha, 55%),
+        var(--surface-1-5-opaque) var(--opacity-baseline),
         transparent
     );
 
@@ -426,7 +441,13 @@ html.has-custom-background body {
         var(--surface-5-opaque) var(--opacity-ratio-5),
         transparent
     );
-    --color-tooltip-bg: var(--surface-3-opaque);
+    /* 2026-10-31（主人："不要给悬浮框单独保留一块更实的底"）：
+       原先是 `var(--surface-3-opaque)` —— 把气泡钉死在**不透明** #232833 上，
+       于是它在玻璃面板上调出来就是一块黑砖；再叠加 `--color-tooltip-text`
+       跟着壁纸明暗翻成深色（亮壁纸 → #14161c），就成了「深底深字、啥也看不见」。
+       现在跟随 `--surface-3` 的同一档半透明，和卡片/控件完全同一个令牌，
+       不为气泡留任何更实的底。 */
+    --color-tooltip-bg: var(--surface-3);
 
     // The tint families need the same treatment as the surfaces above, and for
     // the same reason: the mix that turns an opaque base into a tint lives in

@@ -19,18 +19,22 @@ import { METING_SOURCES, resolveSongs, type RawSong } from '@/helpers/music/musi
 export type LyricLine = { at: number; text: string }
 
 const SPEC_KEY = 'hayenai:music-spec'
-/** 默认歌单：网易云热歌榜（Meting 的 playlist 接口实测可用） */
-const DEFAULT_SPEC = '3778678'
+/**
+ * 默认歌单 / 默认播放器偏好 —— 主人 2026-10-31 拍板：「默认就按我现在用的这套」。
+ * 原来这里是「网易云热歌榜 + 音量 0.8 + 顺序播放 + 不自动播」，现在固化成他实际在用的：
+ * 自己的歌单 18376629143（41 首）、音量 1、随机、开机自动播、显示歌词。
+ */
+const DEFAULT_SPEC = '18376629143'
 
 export type PlayMode = 'loop' | 'single' | 'random'
 
 export const music = reactive({
     songs: [] as RawSong[],
-    volume: 0.8,
+    volume: 1,
     muted: false,
-    mode: 'loop' as PlayMode,
+    mode: 'random' as PlayMode,
     /** 功能开关：歌词是否显示、打开启动器是否自动播放 */
-    settings: { lyrics: true, autoplay: false } as { lyrics: boolean; autoplay: boolean },
+    settings: { lyrics: true, autoplay: true } as { lyrics: boolean; autoplay: boolean },
     index: 0,
     playing: false,
     loading: false,
@@ -71,6 +75,11 @@ export function currentSong(): RawSong | undefined {
 
 function ensureAudio(): HTMLAudioElement {
     if (audio) return audio
+    // 关窗/切后台时补存一次进度（节流会漏掉最后几秒）
+    window.addEventListener('pagehide', () => saveProgress(true))
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) saveProgress(true)
+    })
     const el = new Audio()
     // 音源与 CDN 都带 CORS 头；不设这一项 Web Audio 会静默输出静音
     el.crossOrigin = 'anonymous'
@@ -101,6 +110,7 @@ function onTimeUpdate(): void {
     const el = audio
     if (!el) return
     music.currentTime = el.currentTime
+    saveProgress()
     const lines = music.lyrics
     if (!lines.length) return
     // 从后往前找第一个已到时间的行；歌词通常几十行，线性扫也够快
@@ -236,6 +246,85 @@ export function toggleMute(): void {
     persistSettings()
 }
 
+/* ---------------- 播放进度（2026-10-31 主人要求） ----------------
+   以前每次开启动器都从歌单第一首 0:00 重新放。现在把「哪首歌 + 播到第几秒」
+   存 localStorage，下次进来接着放：
+   - 只在 `timeupdate` 里**节流 5 秒**写一次，且 `hidden` / `pagehide` 时立刻补一次
+     （节流是为了不每 250ms 写一次 localStorage）；
+   - 歌曲用 `id`（缺省 `url`）标识，**不用下标** —— 歌单顺序变了也能对上；
+   - 恢复时若那首歌已不在歌单里，退回第一首，不报错。
+   契约：恢复「位置」不强制「播放」；播不播由 `settings.autoplay` 决定。 */
+const PROGRESS_KEY = 'hayenai:music-progress'
+const PROGRESS_THROTTLE_MS = 5000
+
+type SavedProgress = { key: string; position: number; index: number; savedAt: number }
+
+function songKey(song: { id?: number | string; url?: string } | undefined): string {
+    if (!song) return ''
+    if (song.id !== undefined && song.id !== null && `${song.id}`.length) return `id:${song.id}`
+    return song.url ? `url:${song.url}` : ''
+}
+
+function readProgress(): SavedProgress | null {
+    try {
+        const raw = localStorage.getItem(PROGRESS_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw) as Partial<SavedProgress>
+        if (typeof parsed.key !== 'string' || !parsed.key) return null
+        const position = Number(parsed.position)
+        if (!Number.isFinite(position) || position < 0) return null
+        return {
+            key: parsed.key,
+            position,
+            index: Number.isFinite(Number(parsed.index)) ? Number(parsed.index) : 0,
+            savedAt: Number.isFinite(Number(parsed.savedAt)) ? Number(parsed.savedAt) : 0,
+        }
+    } catch {
+        return null
+    }
+}
+
+let lastSavedAt = 0
+
+function saveProgress(force = false): void {
+    const el = audio
+    const song = music.songs[music.index]
+    if (!el || !song) return
+    const now = Date.now()
+    if (!force && now - lastSavedAt < PROGRESS_THROTTLE_MS) return
+    lastSavedAt = now
+    try {
+        localStorage.setItem(
+            PROGRESS_KEY,
+            JSON.stringify({
+                key: songKey(song),
+                position: el.currentTime || 0,
+                index: music.index,
+                savedAt: now,
+            } satisfies SavedProgress),
+        )
+    } catch {
+        // 写不进去就算了，下次还是从头放
+    }
+}
+
+/** 把上次的进度套到当前音轨上（元数据好了才设，否则 currentTime 会被重置）。 */
+function restoreProgress(): boolean {
+    const saved = readProgress()
+    if (!saved) return false
+    const key = songKey(music.songs[music.index])
+    if (key !== saved.key) return false
+    const el = ensureAudio()
+    const apply = () => {
+        if (saved.position > 0 && Number.isFinite(el.duration) && el.duration > 0) {
+            el.currentTime = Math.min(saved.position, Math.max(0, el.duration - 1))
+        }
+    }
+    if (el.readyState >= 1) apply()
+    else el.addEventListener('loadedmetadata', apply, { once: true })
+    return true
+}
+
 const SETTINGS_KEY = 'hayenai:music-settings'
 
 /** 改功能开关并落盘（设置 → 音乐与歌词） */
@@ -271,9 +360,10 @@ function restoreSettings(): void {
             settings?: { lyrics?: boolean; autoplay?: boolean }
         }
         if (saved.settings) {
+            // 缺字段时回落到**当前默认**（跟着 DEFAULT 走，别再写死第二份）
             music.settings = {
-                lyrics: saved.settings.lyrics ?? true,
-                autoplay: saved.settings.autoplay ?? false,
+                lyrics: saved.settings.lyrics ?? music.settings.lyrics,
+                autoplay: saved.settings.autoplay ?? music.settings.autoplay,
             }
         }
         if (typeof saved.volume === 'number') music.volume = Math.max(0, Math.min(1, saved.volume))
@@ -318,12 +408,21 @@ export async function loadPlaylist(spec = readSpec()): Promise<void> {
             music.error = '歌单里没有可播放的曲目'
             return
         }
-        applySong(0, false)
+        // 上次播到哪首/第几秒：能对上就接着放那首，对不上退回第一首
+        const saved = readProgress()
+        const resumeIndex =
+            saved && music.songs.findIndex((song) => songKey(song) === saved.key) >= 0
+                ? music.songs.findIndex((song) => songKey(song) === saved.key)
+                : 0
+        applySong(resumeIndex, false)
+        const restored = restoreProgress()
         // 只在第一次成功拉到歌单时自动开播；之后换歌单不会突然出声
         if (!autoplayed && music.settings.autoplay && music.songs.length) {
             autoplayed = true
-            playIndex(0)
+            void play()
         }
+        // `restored` 时进度条已经在 restoreProgress 里摆回上次的位置了（只是不放声）
+        void restored
     } catch (error) {
         music.error = (error as Error).message || '取歌单失败'
     } finally {

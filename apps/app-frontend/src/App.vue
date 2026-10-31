@@ -75,10 +75,8 @@ import { saveWindowState, StateFlags } from '@tauri-apps/plugin-window-state'
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { type RouteLocationNormalizedLoaded, RouterView, useRoute, useRouter } from 'vue-router'
 
-import { getAnnouncementByVersion } from '@/announcements/catalog'
 import InstanceExportModal from '@/components/lab/recipe-generator/InstanceExportModal.vue'
 import AccountsCard from '@/components/ui/AccountsCard.vue'
-import UpdateAnnouncementModal from '@/components/ui/announcement/UpdateAnnouncementModal.vue'
 import AppActionBar from '@/components/ui/AppActionBar.vue'
 import AppLogo from '@/components/ui/AppLogo.vue'
 import Breadcrumbs from '@/components/ui/Breadcrumbs.vue'
@@ -357,9 +355,21 @@ watch(
 )
 
 /* 壁纸轮播（主人 06:44）：启动后跑计时器，卸载时停表。
-   池子里不足两张时 startRotation 自己会返回，不留空转计时器。 */
+   池子里不足两张时 startRotation 自己会返回，不留空转计时器。
+
+   ⚠ 2026-10-31 修「轮播根本没生效」：`onMounted` 时壁纸库还没读出来
+   （`ensureWallpapersLoaded()` 在 requestIdleCallback 里跑），此时
+   `pool().length === 0` ⇒ startRotation 直接 return，之后再没有人叫它，
+   于是整场都不轮播。必须在**列表到位后**重新起表。 */
 onMounted(() => startRotation())
 onUnmounted(() => stopRotation())
+
+watch(
+    () => wallpaperState.items.length,
+    (count, previous) => {
+        if (count !== previous && count > 0) startRotation()
+    },
+)
 
 // 壁纸在场时，界面要切到「有自定义背景」那套半透明调色板，否则铺满的 UI 会把
 // 壁纸整块盖住（`.launcher-background` 在最底层）。主题 store 里这一位就是给它用的。
@@ -385,7 +395,7 @@ watch(
  */
 function scheduleWallpaperLoad() {
     const load = () => {
-        void ensureWallpapersLoaded()
+        void ensureWallpapersLoaded().then(() => startRotation())
     }
     const idle = (window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number })
         .requestIdleCallback
@@ -599,7 +609,6 @@ function onSplashReady() {
 }
 const privacyConsentModal = ref<InstanceType<typeof PrivacyConsentModal>>()
 const privacyConsentPending = ref(false)
-const updateAnnouncementModal = ref()
 const closeChoiceModal = ref<InstanceType<typeof NewModal>>()
 const backupExitModal = ref<InstanceType<typeof NewModal>>()
 const activeBackupOperations = ref<BackupOperation[]>([])
@@ -615,8 +624,6 @@ let unlistenWindowResize: (() => void) | undefined
 let stopNativeEditMenu: (() => void) | undefined
 const minecraftCrashModal = ref()
 const javaDownloadConfirmationModal = ref()
-const pendingUpdateAnnouncementVersion = ref(null)
-const updateAnnouncementShowing = ref(false)
 
 const mojangAuthSourceReady = ref(false)
 
@@ -1697,7 +1704,6 @@ async function setupApp() {
     os.value = await getOS()
     const dev = await isDev()
     isDevEnvironment.value = dev
-    pendingUpdateAnnouncementVersion.value = pending_update_toast_for_version
     if (!onboarded && route.path !== '/') await router.replace('/')
     privacyConsentPending.value = telemetry_consent_version < 1
     showOnboarding.value = false
@@ -1942,35 +1948,13 @@ async function closeOnboardingSettings() {
     if (route.path === '/settings') await router.replace('/')
 }
 
-async function handleUpdateAnnouncementClosed(version) {
-    if (pendingUpdateAnnouncementVersion.value !== version) return
-
-    const settings = await getSettings()
-    if (settings.pending_update_toast_for_version === version) {
-        settings.pending_update_toast_for_version = null
-        await updateSettings({ pending_update_toast_for_version: null })
-    }
-    pendingUpdateAnnouncementVersion.value = null
-    updateAnnouncementShowing.value = false
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    await scheduleStartupDialogs()
-}
-
 async function scheduleStartupDialogs() {
     if (
         !stateInitialized.value ||
         privacyConsentPending.value ||
-        showOnboarding.value ||
-        updateAnnouncementShowing.value
+        showOnboarding.value
     )
         return
-
-    if (pendingUpdateAnnouncementVersion.value && updateAnnouncementModal.value) {
-        updateAnnouncementShowing.value = true
-        await nextTick()
-        updateAnnouncementModal.value.show(pendingUpdateAnnouncementVersion.value)
-        return
-    }
 }
 
 async function handlePrivacyConsentSaved(privacy: PrivacySettings) {
@@ -2022,10 +2006,6 @@ provide('previewRemoteAnnouncement', (type: 'modal' | 'notification', withAction
     remoteAnnouncementPreview.value?.preview(type, withAction)
 })
 provide('previewPrivacyConsentModal', previewPrivacyConsentModal)
-provide('previewUpdateAnnouncement', (version = null) => {
-    const previewVersion = version ?? pendingUpdateAnnouncementVersion.value
-    if (previewVersion) updateAnnouncementModal.value?.show(previewVersion)
-})
 
 const stateFailed = ref(false)
 stateInitialization
@@ -3046,12 +3026,13 @@ setAppUpdateActions({
     check: manualUpdateCheck,
     download: downloadAvailableUpdate,
     install: installUpdate,
+    // 「查看更新日志」= 打开这个版本在 GitHub 上的 release 页（公告的唯一真源）
     changelog: (version) => {
-        if (version && getAnnouncementByVersion(version)) {
-            updateAnnouncementModal.value?.show(version)
-        } else {
-            openUrl(BrandConfig.website)
-        }
+        openUrl(
+            version
+                ? `${BrandConfig.repositoryUrl}/releases/tag/v${version}`
+                : `${BrandConfig.repositoryUrl}/releases`,
+        )
     },
 })
 
@@ -3503,8 +3484,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
         :ready="
             stateInitialized &&
             !privacyConsentPending &&
-            !showOnboarding &&
-            !updateAnnouncementShowing
+            !showOnboarding
         "
     />
     <RemoteAnnouncements
@@ -3513,13 +3493,8 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
         :ready="
             stateInitialized &&
             !privacyConsentPending &&
-            !showOnboarding &&
-            !updateAnnouncementShowing
+            !showOnboarding
         "
-    />
-    <UpdateAnnouncementModal
-        ref="updateAnnouncementModal"
-        @closed="handleUpdateAnnouncementClosed"
     />
     <NewModal
         ref="closeChoiceModal"

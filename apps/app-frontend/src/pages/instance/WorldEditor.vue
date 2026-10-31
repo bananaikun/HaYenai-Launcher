@@ -223,7 +223,7 @@
                                 />
                                 <span
                                     class="truncate font-medium text-[var(--color-text-primary)]"
-                                    :title="rule.key"
+                                    v-tooltip="rule.key"
                                 >
                                     {{ rule.label }}
                                 </span>

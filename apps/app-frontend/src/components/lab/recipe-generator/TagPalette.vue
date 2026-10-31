@@ -238,7 +238,7 @@ function draftText(tag: CustomTag) {
                                 type="button"
                                 :draggable="!isTauriRuntime"
                                 class="recipe-tag-row"
-                                :title="formatMessage(messages.useTag)"
+                                v-tooltip="formatMessage(messages.useTag)"
                                 :aria-label="`${formatMessage(messages.useTag)}: ${item}`"
                                 :style="{ touchAction: isTauriRuntime ? 'none' : undefined }"
                                 @click="pickFromClick($event, { kind: 'vanilla_tag', id: item })"
@@ -305,7 +305,7 @@ function draftText(tag: CustomTag) {
                             <button
                                 type="button"
                                 class="recipe-delete-button"
-                                :title="formatMessage(messages.deleteTag)"
+                                v-tooltip="formatMessage(messages.deleteTag)"
                                 :aria-label="formatMessage(messages.deleteTag)"
                                 @click="emit('deleteCustomTag', tag.uid)"
                             >
@@ -315,7 +315,7 @@ function draftText(tag: CustomTag) {
                                 type="button"
                                 class="recipe-add-button"
                                 :draggable="!isTauriRuntime"
-                                :title="formatMessage(messages.useTag)"
+                                v-tooltip="formatMessage(messages.useTag)"
                                 :aria-label="formatMessage(messages.useTag)"
                                 :style="{ touchAction: isTauriRuntime ? 'none' : undefined }"
                                 @click="pickFromClick($event, { kind: 'custom_tag', uid: tag.uid })"

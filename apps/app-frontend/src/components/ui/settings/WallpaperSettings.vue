@@ -1034,7 +1034,7 @@ onBeforeUnmount(() => {
                     <div class="min-w-0 flex-1">
                         <p
                             class="m-0 truncate text-sm font-semibold text-[var(--color-text-primary)]"
-                            :title="current.title"
+                            v-tooltip="current.title"
                         >
                             {{ current.title }}
                         </p>
@@ -1236,7 +1236,7 @@ onBeforeUnmount(() => {
                                 type="button"
                                 class="wp-tile"
                                 :class="{ 'is-selected': isSelected(item) }"
-                                :title="tileTooltip(item)"
+                                v-tooltip="tileTooltip(item)"
                                 :aria-label="`${formatMessage(messages.use)}: ${item.title}`"
                                 :aria-pressed="isSelected(item)"
                                 :disabled="(!canUse(item) && !item.damaged) || switching !== null"
@@ -1271,7 +1271,7 @@ onBeforeUnmount(() => {
                                         :key="flag.text"
                                         class="wp-dot"
                                         :class="`wp-dot--${flag.tone}`"
-                                        :title="flag.text"
+                                        v-tooltip="flag.text"
                                     />
                                 </span>
                             </button>
@@ -1280,7 +1280,7 @@ onBeforeUnmount(() => {
                                 type="button"
                                 class="wp-tile__delete"
                                 :aria-label="`${formatMessage(messages.delete)}: ${item.title}`"
-                                :title="formatMessage(messages.delete)"
+                                v-tooltip="formatMessage(messages.delete)"
                                 @click.stop="askDelete(item)"
                             >
                                 <TrashIcon class="size-4" />
@@ -1370,7 +1370,7 @@ onBeforeUnmount(() => {
                 <p
                     v-if="steamSkipped > 0 && (steamPhase === 'ready' || steamPhase === 'empty')"
                     class="m-0 text-xs leading-relaxed text-orange"
-                    :title="steamSkippedTooltip"
+                    v-tooltip="steamSkippedTooltip"
                 >
                     {{ formatMessage(messages.steamSkippedNotice, { skipped: steamSkipped }) }}
                 </p>
@@ -1395,7 +1395,7 @@ onBeforeUnmount(() => {
                             v-for="item in steamVisible"
                             :key="item.workshopId"
                             class="group relative"
-                            :title="steamTooltip(item)"
+                            v-tooltip="steamTooltip(item)"
                         >
                             <button
                                 type="button"
@@ -1429,7 +1429,7 @@ onBeforeUnmount(() => {
                                 <span v-if="steamStateLabel(item)" class="wp-tile__marks">
                                     <span
                                         class="wp-dot wp-dot--warn"
-                                        :title="steamStateLabel(item) ?? undefined"
+                                        v-tooltip="steamStateLabel(item) ?? undefined"
                                     />
                                 </span>
                             </button>
@@ -1742,7 +1742,9 @@ onBeforeUnmount(() => {
     overflow: hidden;
     border: 2px solid transparent;
     border-radius: var(--radius-md, 0.5rem);
-    background: var(--surface-3);
+    /* 2026-10-31：`--surface-3` 在这里解析成不透明 #232833，59 个瓦片就是 59 块实心砖。
+       缩略图本身铺满整格，底色只在图没加载出来的空档可见 ⇒ 直接透明。 */
+    background: var(--glass-1);
     text-align: left;
     cursor: pointer;
     transition:
@@ -1755,11 +1757,18 @@ onBeforeUnmount(() => {
     transform: translateY(-3px);
 }
 
-/* 选中：2px 强调边框 + 3px 光环（光环用项目的 `--color-brand-shadow` 令牌，
-   与 `HomeDashboard` / `global.scss` 里的焦点环同一口径）。 */
+/* 选中：强调边框 + 外光环 + 内白描边。
+   2026-10-31：原来只有 2px 边框 + 3px 光环，缩略图本身是亮图时边界糊成一片
+   （主人报「已选择的壁纸边框不明显」）。加两道对比：
+   - 外侧光环仍用 `--color-brand-shadow`（与焦点环同口径）；
+   - 内侧 1.5px 白描边，亮壁纸/暗壁纸都能咬住边界。
+   只改视觉，不动 2px 边框宽度（改宽度会让整格抖 1px）。 */
 .wp-tile.is-selected {
     border-color: var(--color-brand);
-    box-shadow: 0 0 0 3px var(--color-brand-shadow);
+    box-shadow:
+        0 0 0 3px var(--color-brand-shadow),
+        inset 0 0 0 1.5px rgba(255, 255, 255, 0.78);
+    z-index: 1;
 }
 
 /* Steam 那边「已经进过库」的条目：淡一点的边框，表示无操作可做 */

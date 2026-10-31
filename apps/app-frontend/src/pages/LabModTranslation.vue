@@ -182,7 +182,7 @@ onMounted(() => {
             <div
                 v-if="store.activeJobs.length"
                 class="background-badge"
-                :title="formatMessage(messages.backgroundRunning)"
+                v-tooltip="formatMessage(messages.backgroundRunning)"
             >
                 <span class="live-dot" />
                 <span>{{ formatMessage(messages.backgroundRunning) }}</span>
@@ -251,7 +251,7 @@ onMounted(() => {
                                 :key="source.sourcePath"
                                 class="source-row"
                             >
-                                <span class="source-path" :title="source.sourcePath">
+                                <span class="source-path" v-tooltip="source.sourcePath">
                                     {{ source.sourcePath }}
                                 </span>
                                 <span class="source-count"

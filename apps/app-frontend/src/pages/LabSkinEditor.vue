@@ -197,7 +197,7 @@ onUnmounted(() => {
             v-if="editorUrl"
             :key="`${frameKey}:${editorUrl}`"
             ref="frame"
-            :title="formatMessage(messages.title)"
+            v-tooltip="formatMessage(messages.title)"
             :src="editorUrl"
             class="h-full min-h-0 w-full flex-1 border-0 transition-opacity duration-150"
             :class="editorState === 'ready' ? 'opacity-100' : 'pointer-events-none opacity-0'"

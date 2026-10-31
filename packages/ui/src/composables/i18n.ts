@@ -280,7 +280,22 @@ export function buildLocaleMessages(
 /**
  * Creates a vue-i18n message compiler that uses IntlMessageFormat for ICU syntax support.
  * This enables pluralization, select, and other ICU message features.
+ *
+ * ⚠ 2026-10-31（实例内容列表「滚动卡、掉帧」的根因）：
+ * 这个编译器每次被调用都会 `new IntlMessageFormat(...)` —— 一次完整的 ICU 解析。
+ * vue-i18n 在**每次解析消息**时都会走这里（`intlify message compilation` 的
+ * `performance.mark`/`measure` 在滚动采样里占了 **73%** 的 CPU 时间），
+ * 于是「一次滚动 = 每行每字段重新解析一遍 ICU」。
+ *
+ * 消息文本在运行期是常量，所以按 `locale + 原文` 缓存编译结果。
+ * 缓存上限 5000 条（本项目两套语言共约 1.2 万条，实际渲染到的远少于这个数），
+ * 超限时整表清空 —— 比实现 LRU 便宜，且不会无限增长。
  */
+const COMPILED_MESSAGES = new Map<string, (ctx: MessageContext) => string>()
+const COMPILED_LIMIT = 5000
+/** `formatMessage` 兜底路径的 IntlMessageFormat 实例缓存（同上）。 */
+const COMPILED_FALLBACKS = new Map<string, IntlMessageFormat>()
+
 export function createMessageCompiler(): MessageCompiler {
     return (msg, { locale, key, onError }) => {
         let messageString: string
@@ -294,15 +309,22 @@ export function createMessageCompiler(): MessageCompiler {
             return () => key
         }
 
+        const cacheKey = `${locale}\u0000${messageString}`
+        const cached = COMPILED_MESSAGES.get(cacheKey)
+        if (cached) return cached
+
         try {
             const formatter = new IntlMessageFormat(messageString, locale)
-            return (ctx: MessageContext) => {
+            const compiled = (ctx: MessageContext) => {
                 try {
                     return formatter.format(ctx.values as Record<string, unknown>) as string
                 } catch {
                     return messageString
                 }
             }
+            if (COMPILED_MESSAGES.size >= COMPILED_LIMIT) COMPILED_MESSAGES.clear()
+            COMPILED_MESSAGES.set(cacheKey, compiled)
+            return compiled
         } catch (e) {
             onError?.(e as CompileError)
             return () => key
@@ -338,10 +360,26 @@ export function useVIntl(): VIntlFormatters & { locale: Ref<string> } {
         } else {
             // Fallback to defaultMessage if key not found
             const defaultMsg = descriptor.defaultMessage ?? key
-            try {
-                const formatter = new IntlMessageFormat(defaultMsg, locale.value)
-                result = formatter.format(values ?? {}) as string
-            } catch {
+            // 同 `createMessageCompiler`：这份兜底同样在**每次渲染**跑一次 ICU 解析，
+            // 缺译的 key（zh-CN 里不少）就等于每帧重建一个 IntlMessageFormat。
+            const cacheKey = `${locale.value}\u0000${defaultMsg}`
+            let formatter = COMPILED_FALLBACKS.get(cacheKey)
+            if (!formatter) {
+                try {
+                    formatter = new IntlMessageFormat(defaultMsg, locale.value)
+                    if (COMPILED_FALLBACKS.size >= COMPILED_LIMIT) COMPILED_FALLBACKS.clear()
+                    COMPILED_FALLBACKS.set(cacheKey, formatter)
+                } catch {
+                    formatter = undefined
+                }
+            }
+            if (formatter) {
+                try {
+                    result = formatter.format(values ?? {}) as string
+                } catch {
+                    result = defaultMsg
+                }
+            } else {
                 result = defaultMsg
             }
         }

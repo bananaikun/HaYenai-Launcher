@@ -72,7 +72,7 @@ function formatWeight(value: number): string {
                 <span
                     class="step"
                     :class="`step--${stepState(step.id)}`"
-                    :title="formatMessage(step.label)"
+                    v-tooltip="formatMessage(step.label)"
                 >
                     <component :is="step.icon" />
                 </span>
@@ -113,9 +113,9 @@ function formatWeight(value: number): string {
                 ><SparklesIcon />{{ formatMessage(messages.recentlyWritten) }}</span
             >
             <div class="sample-row">
-                <span :title="job.sample.source">{{ job.sample.source }}</span>
+                <span v-tooltip="job.sample.source">{{ job.sample.source }}</span>
                 <span class="sample-arrow">→</span>
-                <strong :title="job.sample.translation">{{ job.sample.translation }}</strong>
+                <strong v-tooltip="job.sample.translation">{{ job.sample.translation }}</strong>
             </div>
         </div>
     </section>

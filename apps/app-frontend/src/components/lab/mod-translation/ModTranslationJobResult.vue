@@ -87,7 +87,7 @@ function joinPaths(paths: readonly string[]): string {
             <ul v-if="job.report?.warnings?.length" class="warnings">
                 <li v-for="warning in job.report.warnings" :key="warning">{{ warning }}</li>
             </ul>
-            <span class="path" :title="job.outputPath">{{ job.outputPath }}</span>
+            <span class="path" v-tooltip="job.outputPath">{{ job.outputPath }}</span>
         </template>
         <template v-else>
             <p>{{ job.error?.message || job.message }}</p>

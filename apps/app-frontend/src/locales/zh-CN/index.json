@@ -10104,10 +10104,16 @@
     "message": "查看当前版本的更新内容和历史版本公告。"
   },
   "app.settings.updates.announcements.empty": {
-    "message": "当前没有内置的更新公告。"
+    "message": "暂时还没有更新日志。"
   },
   "app.settings.updates.announcements.history": {
     "message": "历史版本"
+  },
+  "app.settings.updates.announcements.loading": {
+    "message": "正在读取更新日志…"
+  },
+  "app.settings.updates.announcements.open-release": {
+    "message": "打开版本页面"
   },
   "app.settings.updates.announcements.title": {
     "message": "更新公告"

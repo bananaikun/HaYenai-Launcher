@@ -136,7 +136,7 @@ onMounted(() => {
             <button
                 type="button"
                 class="mu-iconbtn"
-                :title="formatMessage(messages.reload)"
+                v-tooltip="formatMessage(messages.reload)"
                 @click="loadPlaylist()"
             >
                 <RefreshCwIcon class="size-3.5" />
@@ -258,13 +258,13 @@ onMounted(() => {
                 </div>
 
                 <div class="mu-ctrl">
-                    <button type="button" class="mu-btn" :title="modeLabel" @click="cycleMode">
+                    <button type="button" class="mu-btn" v-tooltip="modeLabel" @click="cycleMode">
                         <span class="mu-glyph">{{ modeIcon }}</span>
                     </button>
                     <button
                         type="button"
                         class="mu-btn"
-                        :title="formatMessage(messages.previous)"
+                        v-tooltip="formatMessage(messages.previous)"
                         @click="musicPrev"
                     >
                         <span class="mu-glyph">⏮</span>
@@ -272,7 +272,7 @@ onMounted(() => {
                     <button
                         type="button"
                         class="mu-play"
-                        :title="
+                        v-tooltip="
                             music.playing
                                 ? formatMessage(messages.pause)
                                 : formatMessage(messages.play)
@@ -285,7 +285,7 @@ onMounted(() => {
                     <button
                         type="button"
                         class="mu-btn"
-                        :title="formatMessage(messages.nextTrack)"
+                        v-tooltip="formatMessage(messages.nextTrack)"
                         @click="musicNext"
                     >
                         <span class="mu-glyph">⏭</span>
@@ -295,7 +295,7 @@ onMounted(() => {
                         <button
                             type="button"
                             class="mu-btn sm"
-                            :title="
+                            v-tooltip="
                                 music.muted
                                     ? formatMessage(messages.unmute)
                                     : formatMessage(messages.mute)
@@ -311,7 +311,7 @@ onMounted(() => {
                             max="1"
                             step="0.01"
                             :value="music.muted ? 0 : music.volume"
-                            :title="formatMessage(messages.volume)"
+                            v-tooltip="formatMessage(messages.volume)"
                             @input="onVolume"
                         />
                         <span class="mu-meta num">
