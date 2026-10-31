@@ -14833,5 +14833,89 @@
   },
   "app.home.servers.remove": {
     "message": "移除"
+  },
+  "app.action-bar.feedback": {
+    "message": "反馈"
+  },
+  "app.feedback.trigger": {
+    "message": "反馈"
+  },
+  "app.feedback.title": {
+    "message": "反馈"
+  },
+  "app.feedback.intro": {
+    "message": "崩溃、功能异常或建议 —— 这里会打开一个已经填好的 GitHub Issue。内容在浏览器里由你确认后再提交，不会背着你发任何东西。"
+  },
+  "app.feedback.kind.crash": {
+    "message": "启动器崩溃"
+  },
+  "app.feedback.kind.bug": {
+    "message": "功能异常"
+  },
+  "app.feedback.kind.suggestion": {
+    "message": "功能建议"
+  },
+  "app.feedback.summary": {
+    "message": "一句话概括"
+  },
+  "app.feedback.summary.placeholder": {
+    "message": "用一句话说清出了什么问题"
+  },
+  "app.feedback.detail": {
+    "message": "详细描述"
+  },
+  "app.feedback.detail.placeholder": {
+    "message": "当时在做什么？期望是什么、实际发生了什么？能复现的步骤最有价值。"
+  },
+  "app.feedback.attach": {
+    "message": "附带诊断信息"
+  },
+  "app.feedback.attach.env": {
+    "message": "系统与环境信息"
+  },
+  "app.feedback.attach.env.hint": {
+    "message": "版本、系统、CPU、内存、显卡、屏幕、运行时。"
+  },
+  "app.feedback.attach.log": {
+    "message": "启动器日志尾部"
+  },
+  "app.feedback.attach.log.hint": {
+    "message": "只取 info 及以上。令牌、Minecraft token、IP 会自动替换成占位符。"
+  },
+  "app.feedback.attach.error": {
+    "message": "最近一次报错"
+  },
+  "app.feedback.attach.error.hint": {
+    "message": "报错弹窗时已记录，不需要你再复现一次。"
+  },
+  "app.feedback.attach.error.empty": {
+    "message": "本次启动还没有捕获到报错。"
+  },
+  "app.feedback.log.state": {
+    "message": "已取 {file} 的 {lines} 行"
+  },
+  "app.feedback.log.empty": {
+    "message": "还没有找到启动器日志。"
+  },
+  "app.feedback.copy": {
+    "message": "复制诊断信息"
+  },
+  "app.feedback.save": {
+    "message": "另存完整日志包"
+  },
+  "app.feedback.open": {
+    "message": "在 GitHub 上提交"
+  },
+  "app.feedback.copied": {
+    "message": "诊断信息已复制到剪贴板。"
+  },
+  "app.feedback.opened": {
+    "message": "已在浏览器打开预填好的 Issue，登录后点提交即可。"
+  },
+  "app.feedback.trimmed": {
+    "message": "正文因链接长度被精简，完整内容请用「复制诊断信息」。"
+  },
+  "app.feedback.saved": {
+    "message": "日志包已保存到 {path}"
   }
 }

@@ -5463,12 +5463,14 @@ function makeVec3(v) {
     set z(n) {
       base.z = Number(n) || 0;
     },
+    // [we-scene patch] add 必须返回**新向量**（WE 语义：纯运算不变异左值）。
+    // 旧实现就地变异 base 且 return api：3357524180（4K miku 向日葵）的
+    // `og = baseOG.add(ogOff.multiply(cos))` 每帧把 baseOG 自身再推一次 50px，
+    // 根层 localOrigin 逐帧下坠 → 整棵角色子树滑出画面（主人报的「人物丢失」）。
+    // 与 subtract / divide 的既有补丁同一族：WE 的 Vec3 运算符全部是纯函数。
     add(o) {
       const b = normVec(o);
-      base.x += b[0];
-      base.y += b[1];
-      base.z += b[2];
-      return api;
+      return makeVec3([base.x + b[0], base.y + b[1], base.z + b[2]]);
     },
     // [we-scene patch] subtract 必须返回**新向量**（WE 语义：纯运算不变异左值）。
     // 旧实现就地变异 base：1712475860 Dino Run 每帧
@@ -5486,19 +5488,16 @@ function makeVec3(v) {
       const safe = (a2, d) => d === 0 ? 0 : a2 / d;
       return makeVec3([safe(base.x, b[0]), safe(base.y, b[1]), safe(base.z, b[2])]);
     },
+    // [we-scene patch] multiply 同 add：返回新向量，不改左值。
+    // 就地变异时 `ogOff.multiply(cos)` 会逐帧吃掉 ogOff（0,-50 → -25 → …），
+    // 摆动幅度一路衰减到 0，且配合 add 的变异把坐标整条推走。
     multiply(k) {
       if (k && typeof k === "object") {
         const b = normVec(k);
-        base.x *= b[0];
-        base.y *= b[1];
-        base.z *= b[2];
-      } else {
-        const n = Number(k) || 0;
-        base.x *= n;
-        base.y *= n;
-        base.z *= n;
+        return makeVec3([base.x * b[0], base.y * b[1], base.z * b[2]]);
       }
-      return api;
+      const n = Number(k) || 0;
+      return makeVec3([base.x * n, base.y * n, base.z * n]);
     },
     // 3789604238 Simple Visualizer：`baseOrigin = thisLayer.origin` 再 `baseOrigin.copy()`。
     // 旧 api 没有 copy，update 被 try/catch 吃掉 → 64 根条 origin/scale 永不更新。

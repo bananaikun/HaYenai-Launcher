@@ -2,6 +2,7 @@ use crate::api::Result;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::http::HeaderValue;
@@ -46,6 +47,139 @@ pub struct UpdateMetadata {
 
 #[derive(Default)]
 pub struct PendingUpdateData(pub Mutex<Option<(Arc<Update>, Vec<u8>)>>);
+
+// ── 更新包磁盘缓存 ───────────────────────────────────────────────
+
+/// 已下载但还没装的更新包，落在 `<设置目录>/updates/<version>/` 下。
+///
+/// 这些字节原来只活在 [`PendingUpdateData`] 里：关掉启动器就没了，于是**每次
+/// 启动都白下一遍**（几十到上百 MB）。缓存命中时直接复用，界面表现与刚下完
+/// 一致（仍是「等用户点安装」，不自动装）。
+const UPDATE_CACHE_DIR: &str = "updates";
+/// 缓存条目旁边的元数据；`sha256` 用来判定文件是否被改过/截断。
+const UPDATE_CACHE_MANIFEST: &str = "artifact.json";
+/// 包体文件名（不沿用远端文件名：不同镜像给的名字可能不一样）。
+const UPDATE_CACHE_PACKAGE: &str = "package.bin";
+
+#[derive(Serialize, Deserialize)]
+struct CachedArtifactManifest {
+    version: String,
+    url: String,
+    size: u64,
+    sha256: String,
+    created_at: u64,
+}
+
+struct CachedArtifact {
+    file: PathBuf,
+    manifest: CachedArtifactManifest,
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// 版本号当目录名用：只留安全字符，防止 `../` 之类的版本串跑出缓存根。
+fn version_dir_name(version: &str) -> String {
+    let cleaned: String = version
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+        .collect();
+    // `.` / `..` 会被 `Path::join` 当成当前/上级目录，必须挡掉。
+    if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
+        "unknown".to_string()
+    } else {
+        cleaned
+    }
+}
+
+fn update_cache_root<R: Runtime>(webview: &Webview<R>) -> Option<PathBuf> {
+    let identifier = webview.app_handle().config().identifier.clone();
+    theseus::DirectoryInfo::initial_settings_dir_path(&identifier)
+        .map(|dir| dir.join(UPDATE_CACHE_DIR))
+}
+
+/// 找一个版本号对得上的缓存条目（只核实「文件在且长度对」，不烧 CPU）。
+fn read_cached_artifact(root: &Path, version: &str) -> Option<CachedArtifact> {
+    let dir = root.join(version_dir_name(version));
+    let manifest: CachedArtifactManifest = serde_json::from_slice(
+        &std::fs::read(dir.join(UPDATE_CACHE_MANIFEST)).ok()?,
+    )
+    .ok()?;
+    if manifest.version != version {
+        return None;
+    }
+    let file = dir.join(UPDATE_CACHE_PACKAGE);
+    let size = std::fs::metadata(&file).ok()?.len();
+    if size != manifest.size {
+        return None;
+    }
+    Some(CachedArtifact { file, manifest })
+}
+
+/// 校验缓存包体：长度 + sha256 都要对得上才敢用。
+fn cached_artifact_bytes(artifact: &CachedArtifact) -> Option<Vec<u8>> {
+    let bytes = std::fs::read(&artifact.file).ok()?;
+    if bytes.len() as u64 != artifact.manifest.size {
+        return None;
+    }
+    if sha256_hex(&bytes) != artifact.manifest.sha256 {
+        return None;
+    }
+    Some(bytes)
+}
+
+/// 写入缓存：先落到 `.part` 再改名，下载被打断时不会留下半个包。
+fn store_cached_artifact(
+    root: &Path,
+    version: &str,
+    url: &str,
+    bytes: &[u8],
+) -> std::io::Result<()> {
+    let dir = root.join(version_dir_name(version));
+    std::fs::create_dir_all(&dir)?;
+    let tmp = dir.join(format!("{UPDATE_CACHE_PACKAGE}.part"));
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, dir.join(UPDATE_CACHE_PACKAGE))?;
+    let manifest = CachedArtifactManifest {
+        version: version.to_string(),
+        url: url.to_string(),
+        size: bytes.len() as u64,
+        sha256: sha256_hex(bytes),
+        created_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+    };
+    let encoded = serde_json::to_vec(&manifest).map_err(std::io::Error::other)?;
+    std::fs::write(dir.join(UPDATE_CACHE_MANIFEST), encoded)
+}
+
+/// 清理：只留 `keep` 那一个版本（没有待装版本就全清）。
+///
+/// 口径（主人 2026-10-31 定）：装完或版本落后就清，最多占一份包的空间。
+fn prune_update_cache(root: &Path, keep: Option<&str>) {
+    let keep_dir = keep.map(version_dir_name);
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if keep_dir.as_deref() == Some(name.as_str()) {
+            continue;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            if let Err(error) = std::fs::remove_dir_all(&path) {
+                tracing::warn!("Failed to prune cached update {name}: {error}");
+            }
+        }
+    }
+}
+
 
 // ── Update Server API types ─────────────────────────────────────
 
@@ -392,9 +526,22 @@ async fn check_with_updater<R: Runtime>(
     channel: &str,
 ) -> Result<Option<UpdateMetadata>> {
     let Some(mut update) = check_with_endpoints(webview, channel).await? else {
+        // 没有待装版本 ⇒ 缓存里的老包都是废的（含刚装完那一个），清掉。
+        if let Some(root) = update_cache_root(webview) {
+            prune_update_cache(&root, None);
+        }
         return Ok(None);
     };
     update.timeout = Some(UPDATE_DOWNLOAD_TIMEOUT);
+
+    // 本轮待装的版本就是唯一该留的缓存条目。
+    let cache_root = update_cache_root(webview);
+    let cached_artifact = cache_root
+        .as_deref()
+        .and_then(|root| read_cached_artifact(root, &update.version));
+    if let Some(root) = cache_root.as_deref() {
+        prune_update_cache(root, Some(&update.version));
+    }
 
     // On Debian and derivatives the plugin's minisign signature check cannot
     // validate the unsigned .deb, so point the download at the deb from the
@@ -402,8 +549,9 @@ async fn check_with_updater<R: Runtime>(
     // is verified with the catalog's sha256/size during the download.
     if is_apt_linux() {
         update.download_url = fetch_apt_deb_asset(&update.version).await?.url;
-    } else {
+    } else if cached_artifact.is_none() {
         // 直连 GitHub 只有几十 KB/s；换成一个实测够快的镜像（都不行就保持原样）。
+        // 缓存命中时不探速：这次根本不会下载，探速那 6 秒纯属白等。
         update.download_url = fastest_download_url(&update.download_url).await;
     }
 
@@ -498,6 +646,33 @@ pub async fn enqueue_update_for_installation<R: Runtime>(
 
     let update = webview.resources_table().get::<Update>(rid)?;
 
+    // 缓存命中：这个版本已经下过且校验通过 —— 不再走网络。校验失败就当没缓存
+    // （顺手删掉），退回正常下载。
+    let cache_root = update_cache_root(&webview);
+    let cached_bytes = cache_root.as_deref().and_then(|root| {
+        let artifact = read_cached_artifact(root, &update.version)?;
+        match cached_artifact_bytes(&artifact) {
+            Some(bytes) => {
+                tracing::info!(
+                    "Reusing cached update package {} ({} bytes)",
+                    update.version,
+                    bytes.len()
+                );
+                Some(bytes)
+            }
+            None => {
+                tracing::warn!(
+                    "Cached update package for {} failed verification, re-downloading",
+                    update.version
+                );
+                if let Some(dir) = artifact.file.parent() {
+                    let _ = std::fs::remove_dir_all(dir);
+                }
+                None
+            }
+        }
+    });
+
     let progress = init_loading(
         LoadingBarType::LauncherUpdate {
             version: update.version.clone(),
@@ -507,6 +682,16 @@ pub async fn enqueue_update_for_installation<R: Runtime>(
         "Downloading update...",
     )
     .await?;
+
+    // 命中也把进度条推到 100% 再收尾：前端照常收到「下载完成」，不会留一个
+    // 半截的加载层（它只在 invoke 返回时才收监听，跳过一个事件反而更脆）。
+    if let Some(bytes) = cached_bytes {
+        if let Err(e) = emit_loading(&progress, 1.0, None) {
+            tracing::error!("Failed to update download progress bar: {e}");
+        }
+        pending_data.0.lock().unwrap().replace((update, bytes));
+        return Ok(());
+    }
 
     let download_start = Instant::now();
     let update_data = if is_apt_linux() {
@@ -611,6 +796,18 @@ pub async fn enqueue_update_for_installation<R: Runtime>(
     };
     let download_duration = download_start.elapsed();
     tracing::info!("Downloaded update in {download_duration:?}");
+
+    // 落盘，下次启动直接复用（写失败不影响本次安装，只是下次还得再下）。
+    if let Some(root) = cache_root.as_deref() {
+        if let Err(error) = store_cached_artifact(
+            root,
+            &update.version,
+            update.download_url.as_str(),
+            &update_data,
+        ) {
+            tracing::warn!("Failed to cache update package: {error}");
+        }
+    }
 
     pending_data
         .0
@@ -721,5 +918,84 @@ impl Drop for TempDebFile {
                 "Failed to remove temporary deb file"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod update_cache_tests {
+    use super::*;
+
+    fn temp_root(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "hayenai-update-cache-{tag}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn roundtrip_reuses_the_same_bytes() {
+        let root = temp_root("roundtrip");
+        let payload = b"installer-bytes".to_vec();
+        store_cached_artifact(&root, "1.0.29", "https://example.invalid/a.exe", &payload)
+            .unwrap();
+
+        let artifact = read_cached_artifact(&root, "1.0.29").expect("hit");
+        assert_eq!(artifact.manifest.size, payload.len() as u64);
+        assert_eq!(artifact.manifest.version, "1.0.29");
+        assert_eq!(cached_artifact_bytes(&artifact).unwrap(), payload);
+        // 别的版本号不能命中
+        assert!(read_cached_artifact(&root, "1.0.30").is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn truncated_package_is_a_miss() {
+        let root = temp_root("truncated");
+        store_cached_artifact(&root, "1.0.29", "u", b"0123456789").unwrap();
+        let file = root.join(version_dir_name("1.0.29")).join(UPDATE_CACHE_PACKAGE);
+        std::fs::write(&file, b"01234").unwrap();
+        assert!(read_cached_artifact(&root, "1.0.29").is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn same_size_but_tampered_package_fails_sha256() {
+        let root = temp_root("tampered");
+        store_cached_artifact(&root, "1.0.29", "u", b"0123456789").unwrap();
+        let file = root.join(version_dir_name("1.0.29")).join(UPDATE_CACHE_PACKAGE);
+        std::fs::write(&file, b"012345678X").unwrap();
+        let artifact = read_cached_artifact(&root, "1.0.29").expect("size ok");
+        assert!(cached_artifact_bytes(&artifact).is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn prune_keeps_only_the_pending_version() {
+        let root = temp_root("prune");
+        store_cached_artifact(&root, "1.0.27", "u", b"a").unwrap();
+        store_cached_artifact(&root, "1.0.28", "u", b"b").unwrap();
+        store_cached_artifact(&root, "1.0.29", "u", b"c").unwrap();
+
+        prune_update_cache(&root, Some("1.0.29"));
+        assert!(read_cached_artifact(&root, "1.0.27").is_none());
+        assert!(read_cached_artifact(&root, "1.0.28").is_none());
+        assert!(read_cached_artifact(&root, "1.0.29").is_some());
+
+        // 没有待装版本时全清（装完之后走这条）
+        prune_update_cache(&root, None);
+        assert!(read_cached_artifact(&root, "1.0.29").is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn version_dir_name_cannot_escape_the_cache_root() {
+        assert_eq!(version_dir_name("1.0.29"), "1.0.29");
+        assert_eq!(version_dir_name(".."), "unknown");
+        assert_eq!(version_dir_name("."), "unknown");
+        assert_eq!(version_dir_name("../../etc"), "....etc");
+        assert_eq!(version_dir_name(""), "unknown");
     }
 }

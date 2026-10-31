@@ -100,6 +100,16 @@
             />
         </Button>
         <DownloadCenterButton />
+        <Button
+            v-tooltip="formatMessage(messages.feedback)"
+            type="quiet"
+            circular
+            icon-only
+            :aria-label="formatMessage(messages.feedback)"
+            @click="feedbackModal?.show()"
+        >
+            <SupportChatIcon />
+        </Button>
         <PopoutMenu v-if="activeBackupOperations.length > 0" placement="bottom-end">
             <template #trigger>
                 <Button
@@ -270,6 +280,7 @@
                 </span>
             </template>
         </div>
+        <FeedbackModal ref="feedbackModal" />
     </div>
 </template>
 
@@ -282,6 +293,7 @@ import {
     OnlineIndicatorIcon,
     StarIcon,
     StopCircleIcon,
+    SupportChatIcon,
     TerminalSquareIcon,
     UnplugIcon,
     XIcon,
@@ -303,6 +315,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import AppUpdateButton from '@/components/ui/app-update-button/index.vue'
 import DownloadCenterButton from '@/components/ui/DownloadCenterButton.vue'
+import FeedbackModal from '@/components/ui/feedback/FeedbackModal.vue'
 import { useInstallJobNotifications } from '@/composables/browse/install-job-notifications'
 import { useNetworkStatus } from '@/composables/useNetworkStatus'
 import { trackEvent } from '@/helpers/analytics'
@@ -447,6 +460,8 @@ const isDownloadsPage = computed(
 const showInstances = ref(false)
 const notificationCenterShown = ref(false)
 const announcementUnreadCount = ref(0)
+/** 反馈面板（崩溃 / 功能异常 / 建议）。 */
+const feedbackModal = ref<InstanceType<typeof FeedbackModal> | null>(null)
 
 function openAnnouncementCenter() {
     window.dispatchEvent(new CustomEvent(OPEN_REMOTE_ANNOUNCEMENT_CENTER_EVENT))
@@ -478,6 +493,10 @@ interface LoadingEventPayload {
 }
 
 const messages = defineMessages({
+    feedback: {
+        id: 'app.action-bar.feedback',
+        defaultMessage: 'Send feedback',
+    },
     offline: {
         id: 'app.action-bar.offline',
         defaultMessage: 'Offline',

@@ -14752,5 +14752,89 @@
   },
   "unknown-pack-warning-modal.warning.title": {
     "message": "Unknown file warning"
+  },
+  "app.action-bar.feedback": {
+    "message": "Send feedback"
+  },
+  "app.feedback.trigger": {
+    "message": "Send feedback"
+  },
+  "app.feedback.title": {
+    "message": "Send feedback"
+  },
+  "app.feedback.intro": {
+    "message": "Crash, bug, or an idea — this opens a pre-filled GitHub issue. You review and submit it in the browser, so nothing is sent without you seeing it first."
+  },
+  "app.feedback.kind.crash": {
+    "message": "Crash"
+  },
+  "app.feedback.kind.bug": {
+    "message": "Bug"
+  },
+  "app.feedback.kind.suggestion": {
+    "message": "Suggestion"
+  },
+  "app.feedback.summary": {
+    "message": "Summary"
+  },
+  "app.feedback.summary.placeholder": {
+    "message": "One line: what went wrong?"
+  },
+  "app.feedback.detail": {
+    "message": "Details"
+  },
+  "app.feedback.detail.placeholder": {
+    "message": "What were you doing? What did you expect, and what happened instead? Steps that reproduce it help the most."
+  },
+  "app.feedback.attach": {
+    "message": "Attach diagnostics"
+  },
+  "app.feedback.attach.env": {
+    "message": "System & environment"
+  },
+  "app.feedback.attach.env.hint": {
+    "message": "Version, OS, CPU, memory, GPU, screen, runtime."
+  },
+  "app.feedback.attach.log": {
+    "message": "Launcher log tail"
+  },
+  "app.feedback.attach.log.hint": {
+    "message": "Info level and above. Tokens, Minecraft tokens and IPs are replaced automatically."
+  },
+  "app.feedback.attach.error": {
+    "message": "Last error"
+  },
+  "app.feedback.attach.error.hint": {
+    "message": "Captured by the error dialog — no need to reproduce it again."
+  },
+  "app.feedback.attach.error.empty": {
+    "message": "No error has been captured this session."
+  },
+  "app.feedback.log.state": {
+    "message": "{lines} lines from {file}"
+  },
+  "app.feedback.log.empty": {
+    "message": "No launcher log found yet."
+  },
+  "app.feedback.copy": {
+    "message": "Copy diagnostics"
+  },
+  "app.feedback.save": {
+    "message": "Save full log bundle"
+  },
+  "app.feedback.open": {
+    "message": "Open on GitHub"
+  },
+  "app.feedback.copied": {
+    "message": "Diagnostics copied to clipboard."
+  },
+  "app.feedback.opened": {
+    "message": "Opened a pre-filled issue in your browser. Sign in and press Submit."
+  },
+  "app.feedback.trimmed": {
+    "message": "The issue body was shortened to fit the link. Use “Copy diagnostics” for the full text."
+  },
+  "app.feedback.saved": {
+    "message": "Log bundle saved to {path}"
   }
 }

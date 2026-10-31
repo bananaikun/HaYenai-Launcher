@@ -58,13 +58,6 @@ const SRV_FAILURE_TTL: Duration = Duration::from_secs(30);
 /// Upper bound for one SRV lookup, so a silent resolver cannot stall a probe.
 const SRV_LOOKUP_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// Sampling cadence while the service answers.
-const ONLINE_SAMPLE_INTERVAL: Duration = Duration::from_secs(30);
-/// Sampling cadence while the service does not answer.
-const OFFLINE_SAMPLE_INTERVAL: Duration = Duration::from_secs(60);
-/// How often a paused sampler wakes up to check whether it may resume.
-const PAUSED_POLL_INTERVAL: Duration = Duration::from_secs(5);
-
 /// A `/health` request gives up on the TCP/TLS handshake after this long.
 const PROBE_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 /// ...and on the whole request after this long.
@@ -800,7 +793,6 @@ pub struct UpdateService {
     client: OnceLock<Option<reqwest::Client>>,
     api_client: OnceLock<Option<reqwest::Client>>,
     paused: AtomicBool,
-    sampling_started: AtomicBool,
     probing: AtomicBool,
 }
 
@@ -829,7 +821,6 @@ impl UpdateService {
             client: OnceLock::new(),
             api_client: OnceLock::new(),
             paused: AtomicBool::new(false),
-            sampling_started: AtomicBool::new(false),
             probing: AtomicBool::new(false),
         }
     }
@@ -878,6 +869,14 @@ impl UpdateService {
     /// is the highest-priority candidate that has been resolved so far, and it
     /// never triggers a health request of its own.
     pub async fn resolve_base_url(&self) -> Option<String> {
+        // 开源版没有自建更新服务（`brand::UPDATE_SERVICE_SRV` 是空串）。
+        // 此时再走 SRV → AAAA → 隧道三级探测纯属空转：空 SRV 要白等 1.5s 超时，
+        // 之后还会对 `placeholder.invalid` 发健康请求，每轮往日志里灌两行
+        // warn（实测两小时涨 4MB），而结果永远是兜底常量。直接短路。
+        if crate::brand::UPDATE_SERVICE_SRV.trim().is_empty() {
+            return Some(UPDATE_SERVICE_FALLBACK_BASE.to_string());
+        }
+
         let candidate = self.ensure_candidate().await?;
         Some(candidate.base)
     }
@@ -1690,52 +1689,6 @@ impl UpdateService {
         });
     }
 
-    /// Starts the sampling loop once. Later calls are no-ops.
-    ///
-    /// The loop is the only thing that probes on a schedule; commands read the
-    /// in-memory snapshot, so the frontend can poll as often as it likes without
-    /// generating traffic.
-    pub fn spawn_sampling(self: &Arc<Self>) {
-        if self.sampling_started.swap(true, Ordering::AcqRel) {
-            return;
-        }
-
-        let service = Arc::clone(self);
-        tokio::spawn(async move {
-            tracing::debug!(target: LOG_TARGET, "Update service sampling started");
-            loop {
-                if service.is_paused() {
-                    tokio::time::sleep(PAUSED_POLL_INTERVAL).await;
-                    continue;
-                }
-
-                // A manual refresh may already be running; do not stack probes.
-                if service
-                    .probing
-                    .compare_exchange(
-                        false,
-                        true,
-                        Ordering::AcqRel,
-                        Ordering::Acquire,
-                    )
-                    .is_ok()
-                {
-                    let status = service.probe_once().await;
-                    service.probing.store(false, Ordering::Release);
-
-                    let interval = if status.state == UpdateServiceState::Online
-                    {
-                        ONLINE_SAMPLE_INTERVAL
-                    } else {
-                        OFFLINE_SAMPLE_INTERVAL
-                    };
-                    tokio::time::sleep(interval).await;
-                } else {
-                    tokio::time::sleep(PAUSED_POLL_INTERVAL).await;
-                }
-            }
-        });
-    }
 }
 
 /// Body of a `/health` response. Only `ok` is interpreted; the timestamp and

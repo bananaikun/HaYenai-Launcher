@@ -852,6 +852,7 @@ fn main() {
                         "show_launcher_logs_folder",
                         "export_error_logs",
                         "export_launcher_logs",
+                        "feedback_log_tail",
                         "show_app_db_backups_folder",
                         "progress_bars_list",
                         "get_opening_command",

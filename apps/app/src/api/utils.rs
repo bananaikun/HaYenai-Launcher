@@ -26,6 +26,7 @@ pub fn init<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
             show_launcher_logs_folder,
             export_error_logs,
             export_launcher_logs,
+            feedback_log_tail,
             show_app_db_backups_folder,
             progress_bars_list,
             get_opening_command,
@@ -428,6 +429,152 @@ fn build_environment_report() -> String {
         std::env::consts::OS,
         std::env::consts::ARCH,
     )
+}
+
+// ── 反馈：日志尾部 ───────────────────────────────────────────────
+
+/// 日志尾部最多从文件里读这么多字节（够几千行；再大对报告没意义）。
+const FEEDBACK_LOG_TAIL_BYTES: u64 = 8 * 1024 * 1024;
+/// 默认返回多少行，以及上下限。
+const FEEDBACK_LOG_TAIL_LINES: u32 = 200;
+const FEEDBACK_LOG_TAIL_MIN_LINES: u32 = 20;
+const FEEDBACK_LOG_TAIL_MAX_LINES: u32 = 2000;
+
+/// 反馈面板要附带的日志切片。
+///
+/// 走的是**和「导出日志」同一条脱敏管线**（`censor_shared_text`：令牌 / MC
+/// token / IP 换占位符），再额外抹掉家目录里的用户名 —— Issue 是公开的，
+/// `C:\Users\<你的名字>` 不该跟着上墙。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedbackLogTail {
+    /// 取自哪个日志文件（只有文件名，不含目录）。
+    file: Option<String>,
+    text: String,
+    /// 实际返回的行数。
+    lines: usize,
+    /// 为了压缩体积丢掉了前面的内容（用户可以在面板里调大行数重取）。
+    dropped: bool,
+}
+
+/// 把 `$HOME` / `C:\Users\<name>` 换成占位符。
+fn redact_home_paths(text: String) -> String {
+    let mut out = text;
+    let mut needles: Vec<String> = Vec::new();
+    if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
+        let home = PathBuf::from(home);
+        let home_str = home.to_string_lossy().into_owned();
+        if !home_str.is_empty() {
+            needles.push(home_str.clone());
+        }
+        // 只替换用户名本身，其余路径保留可读性：C:\Users\banan\x → %USERPROFILE%\x
+        needles.push(home_str.replace('\\', "/"));
+    }
+    needles.sort_by_key(|n| std::cmp::Reverse(n.len()));
+    for needle in needles {
+        if needle.len() < 4 {
+            continue;
+        }
+        out = out.replace(&needle, "%USERPROFILE%");
+    }
+    out
+}
+
+/// 反着读文件尾部：最多 `max_bytes`，丢掉被截断的第一行。
+async fn read_log_tail(path: &Path, max_bytes: u64) -> Option<(Vec<u8>, bool)> {
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
+    let mut file = tokio::fs::File::open(path).await.ok()?;
+    let len = file.metadata().await.ok()?.len();
+    let truncated = len > max_bytes;
+    if truncated {
+        file.seek(std::io::SeekFrom::Start(len - max_bytes)).await.ok()?;
+    }
+    let mut buffer = Vec::with_capacity(if truncated { max_bytes as usize } else { len as usize });
+    file.read_to_end(&mut buffer).await.ok()?;
+    if truncated
+        && let Some(newline) = buffer.iter().position(|byte| *byte == b'\n')
+    {
+        buffer.drain(..=newline);
+    }
+    Some((buffer, truncated))
+}
+
+/// 反馈面板用的日志尾部（当前会话，info 及以上，已脱敏）。
+#[tauri::command]
+pub async fn feedback_log_tail(lines: Option<u32>) -> Result<FeedbackLogTail> {
+    let wanted = lines
+        .unwrap_or(FEEDBACK_LOG_TAIL_LINES)
+        .clamp(FEEDBACK_LOG_TAIL_MIN_LINES, FEEDBACK_LOG_TAIL_MAX_LINES);
+
+    let empty = FeedbackLogTail {
+        file: None,
+        text: String::new(),
+        lines: 0,
+        dropped: false,
+    };
+
+    let Some(directories) = DirectoryInfo::global_handle_if_ready() else {
+        return Ok(empty);
+    };
+    let Some(logs_dir) = directories.launcher_logs_dir() else {
+        return Ok(empty);
+    };
+
+    // 会话日志名是 `session_<时间戳>.log`，字典序即时间序，取最后一个。
+    let Ok(mut entries) = tokio::fs::read_dir(&logs_dir).await else {
+        return Ok(empty);
+    };
+    let mut newest: Option<PathBuf> = None;
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        let is_session_log = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("session_") && name.ends_with(".log"));
+        if !is_session_log || !entry.file_type().await?.is_file() {
+            continue;
+        }
+        if newest.as_ref().map(|cur| path > *cur).unwrap_or(true) {
+            newest = Some(path);
+        }
+    }
+    let Some(path) = newest else {
+        return Ok(empty);
+    };
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned());
+
+    let Some((bytes, bytes_truncated)) = read_log_tail(&path, FEEDBACK_LOG_TAIL_BYTES).await
+    else {
+        return Ok(FeedbackLogTail {
+            file: file_name,
+            ..empty
+        });
+    };
+
+    // 只要 info 及以上：DEBUG 是同一件事说十遍，塞进 Issue 没人看。
+    let filtered = theseus::filter_log_contents(&bytes, None, Some("info"));
+    let text = String::from_utf8_lossy(&filtered).into_owned();
+    let state = theseus::State::get().await?;
+    let censored = censor_export_text(text, &state).await?;
+    let censored = redact_home_paths(censored);
+
+    let all: Vec<&str> = censored.lines().collect();
+    let dropped = bytes_truncated || all.len() > wanted as usize;
+    let kept: Vec<&str> = all
+        .iter()
+        .skip(all.len().saturating_sub(wanted as usize))
+        .copied()
+        .collect();
+
+    Ok(FeedbackLogTail {
+        file: file_name,
+        lines: kept.len(),
+        text: kept.join("\n"),
+        dropped,
+    })
 }
 
 /// The instance whose log was written most recently, if any.
