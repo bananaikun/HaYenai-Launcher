@@ -288,15 +288,11 @@ function onVisibilityChange(): void {
 function onFirstFrame(): void {
     engineReady.value = true
     failure.value = null
-    // 新画面已经出来了，旧帧快照可以撤（若还在的话）
-    if (wipeStage.value === 'idle') dropSnapshot()
 }
 
 function onFail(reason: string): void {
     failure.value = reason
     engineReady.value = false
-    // 画不出来就交回海报/底色，别把旧帧钉在屏幕上骗人
-    dropSnapshot()
 }
 
 onMounted(() => {
@@ -306,7 +302,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-    dropSnapshot()
     document.removeEventListener('visibilitychange', onVisibilityChange)
     motionQuery?.removeEventListener('change', onMotionChange)
     motionQuery = null
@@ -321,112 +316,147 @@ watch(
         // 首次挂载（previous === undefined）不盖：启动时本来就有一层海报，
         // 再盖一次只是多闪一下。真正换包才值得遮挡。
         if (!previous || !next || previous === next) return
-        // 先把旧帧拷下来顶住，再让子组件重挂（顺序很重要）
-        if (!reducedMotion.value) captureOldFrame()
-        void runPixelWipe()
+        // 旧帧会在 runPixelSwap 里先拷成底图顶住，顺序很重要：先抓，再让子组件重挂。
+        void runPixelSwap()
     },
 )
 
-/* ---------------- 换壁纸的像素块过渡 ----------------
-   换包要重新解析 scene.pkg（这张是 38 MB）再编译着色器，这段空窗期原本直接
-   露出海报甚至底色，观感就是"卡一下再蹦出来"。做法：一整屏像素块按对角线
-   顺序从 0 撑到 1 把画面盖住 → 等新引擎出首帧（或 2.5 s 兜底）→ 反序收回。
+/* ---------------- 换壁纸的「像素交换」过渡 ----------------
+   形状照 reactbits 的 pixel-swap（https://www.reactbits.dev/animations/pixel-swap）：
+   整屏格子里**每格露的都是真画面**，不是一块纯色；格子从中心一波波带弹簧地弹出来，
+   弹完新画面铺满。旧实现用的是灰色块（--surface-3-opaque）—— 那是「遮挡」不是「交换」，
+   主人 2026-10-31 明确要求换掉。
 
-   三条约束：
-   * **只动 transform**：纯粹合成层动画，不触发重排/重绘，60 fps 很稳；
-   * 块数固定 14×9，不随分辨率变 —— 块是"视觉语言"，不是像素级还原；
-   * `prefers-reduced-motion` 直接不做（与海报那套判断共用同一个信号）。
+   实现要点：
+   * 旧帧 / 新帧都从场景 canvas 直接 drawImage 拷成 data URL（jpeg 0.9，约 300KB）；
+   * 底层铺旧帧整图 ⇒ 加载期间屏幕上永远有画面（顺带治「空占位壁纸」）；
+   * 每格一个 `<i>`，背景是新帧整图，background-position 取负偏移 ⇒ 每格显示自己那一块；
+   * 只动 transform + transition-delay，纯合成层动画；
+   * prefers-reduced-motion 直接不做。
    ---------------- */
-const WIPE_COLS = 14
-const WIPE_ROWS = 9
-const WIPE_BLOCK_MS = 200
-const WIPE_STAGGER_MS = 360
-/* 2026-10-31 主人报「切换时出现空占位壁纸」：旧值 2500ms 短于实测 mount（38MB 包 2986ms），
-   遮盖先撤、画面还没出来 ⇒ 露出底色。改成 10s（mount 失败/超时仍有 failure 与 deadline 兜底），
-   并且撤块后如果引擎还没出首帧，保留旧帧快照顶着，绝不露底。 */
-const WIPE_HOLD_MAX_MS = 10_000
-const WIPE_TOTAL_MS = WIPE_BLOCK_MS + WIPE_STAGGER_MS
+const SWAP_COLS = 14
+const SWAP_ROWS = 9
+const SWAP_CELL_MS = 520
+const SWAP_STAGGER_MS = 420
+/** 等新引擎出首帧的上限。38MB 的包 mount 实测约 3s，留足余量。 */
+const SWAP_HOLD_MAX_MS = 12_000
 
-type WipeStage = 'idle' | 'cover' | 'reveal'
-const wipeStage = ref<WipeStage>('idle')
+interface SwapCell {
+    left: number
+    top: number
+    width: number
+    height: number
+    delay: number
+}
 
-/** 每块的归一化对角线延迟（0..1），盖和收共用，收的时候反过来用。 */
-const wipeBlocks = Array.from({ length: WIPE_COLS * WIPE_ROWS }, (_, index) => {
-    const x = (index % WIPE_COLS) / (WIPE_COLS - 1)
-    const y = Math.floor(index / WIPE_COLS) / (WIPE_ROWS - 1)
-    return (x + y) / 2
-})
+interface SwapState {
+    oldUrl: string
+    newUrl: string
+    /** 整图尺寸（像素），每格的背景按它定位。 */
+    imgW: number
+    imgH: number
+    cells: SwapCell[]
+    /** 先全部 scale(0)，下一帧再打开触发过渡。 */
+    popped: boolean
+}
 
-function wipeBlockStyle(weight: number): Record<string, string> {
-    const order = wipeStage.value === 'reveal' ? 1 - weight : weight
-    return { transitionDelay: `${Math.round(order * WIPE_STAGGER_MS)}ms` }
+/** 本组件根节点：`snapCanvas()` 要从它的子树里找场景 canvas。 */
+const rootEl = ref<HTMLElement | null>(null)
+const swap = ref<SwapState | null>(null)
+let swapToken = 0
+
+/** 把场景 canvas 拷成 data URL；拿不到就返回 null（那就不做交换动画）。 */
+function snapCanvas(): string | null {
+    const host = rootEl.value
+    if (!host) return null
+    const src = host.querySelector<HTMLCanvasElement>('canvas[data-webwallgl]')
+    if (!src || !src.width || !src.height) return null
+    const snap = document.createElement('canvas')
+    snap.width = src.width
+    snap.height = src.height
+    const ctx = snap.getContext('2d')
+    if (!ctx) return null
+    try {
+        ctx.drawImage(src, 0, 0)
+        return snap.toDataURL('image/jpeg', 0.9)
+    } catch {
+        return null
+    }
+}
+
+/** 波浪延迟：按「离中心的归一化距离」排，中心先弹、四周后弹。 */
+function buildCells(width: number, height: number): SwapCell[] {
+    const cellW = width / SWAP_COLS
+    const cellH = height / SWAP_ROWS
+    const raw: (SwapCell & { dist: number })[] = []
+    let maxDist = 0
+    for (let row = 0; row < SWAP_ROWS; row += 1) {
+        for (let col = 0; col < SWAP_COLS; col += 1) {
+            const cx = (col + 0.5) / SWAP_COLS - 0.5
+            const cy = (row + 0.5) / SWAP_ROWS - 0.5
+            const dist = Math.hypot(cx, cy)
+            maxDist = Math.max(maxDist, dist)
+            raw.push({
+                left: Math.round(col * cellW),
+                top: Math.round(row * cellH),
+                width: Math.ceil(cellW) + 1,
+                height: Math.ceil(cellH) + 1,
+                dist,
+                delay: 0,
+            })
+        }
+    }
+    return raw.map((cell) => ({
+        left: cell.left,
+        top: cell.top,
+        width: cell.width,
+        height: cell.height,
+        delay: maxDist > 0 ? Math.round((cell.dist / maxDist) * SWAP_STAGGER_MS) : 0,
+    }))
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 
-/* ---------------- 换包期间的「旧帧快照」 ----------------
-   换包瞬间新 canvas 是空的（要重新解 38MB 的 scene.pkg），而像素块要 600ms 才盖满、
-   海报又要等新包地址——中间这段就是主人看到的「空占位壁纸」。
-   做法：换包**之前**把当前场景 canvas 直接拷进一块 2D canvas 顶在最上层
-   （drawImage 即可，不编码、不产生 data URL、不额外占内存），
-   等新引擎交出首帧（或失败）再撤。这样从点击到新画面出现，屏幕上一直有东西。
-   ⚠ WebGL 未开 preserveDrawingBuffer，但实时渲染中读回是有效的（实测平均亮度 152）。 */
-const rootEl = ref<HTMLElement | null>(null)
-let snapshotEl: HTMLCanvasElement | null = null
-
-function captureOldFrame(): void {
-    const host = rootEl.value
-    if (!host) return
-    const src = host.querySelector<HTMLCanvasElement>('canvas[data-webwallgl]')
-    if (!src || !src.width || !src.height) return
-    const snap = document.createElement('canvas')
-    snap.width = src.width
-    snap.height = src.height
-    snap.className = 'wallpaper-layer__snapshot'
-    const ctx = snap.getContext('2d')
-    if (!ctx) return
-    try {
-        ctx.drawImage(src, 0, 0)
-    } catch {
-        return
-    }
-    dropSnapshot()
-    host.appendChild(snap)
-    snapshotEl = snap
-}
-
-function dropSnapshot(): void {
-    if (snapshotEl?.parentNode) snapshotEl.parentNode.removeChild(snapshotEl)
-    snapshotEl = null
-}
-
-/** 每次换包自增：上一轮的 await 醒来发现 token 变了就直接退出。 */
-let wipeToken = 0
-
-async function runPixelWipe(): Promise<void> {
+/** 换包过渡：旧帧立刻顶住 → 等新首帧 → 逐格弹出新帧。 */
+async function runPixelSwap(): Promise<void> {
     if (reducedMotion.value) return
-    const token = ++wipeToken
-    wipeStage.value = 'cover'
-    await sleep(WIPE_TOTAL_MS + 40)
-    if (token !== wipeToken) return
+    const token = ++swapToken
+    const oldUrl = snapCanvas()
+    if (!oldUrl) return
+    swap.value = null
 
-    // 等新壁纸真的画出来；失败/超时也照常收，绝不把画面永久盖死。
-    const deadline = Date.now() + WIPE_HOLD_MAX_MS
+    // 等新引擎画出第一帧（失败/超时也照常收尾，不把画面卡死）
+    const deadline = Date.now() + SWAP_HOLD_MAX_MS
     while (!engineReady.value && !failure.value && Date.now() < deadline) {
         await sleep(80)
-        if (token !== wipeToken) return
+        if (token !== swapToken) return
     }
-    await sleep(120)
-    if (token !== wipeToken) return
+    if (token !== swapToken || failure.value) return
 
-    wipeStage.value = 'reveal'
-    await sleep(WIPE_TOTAL_MS + 40)
-    if (token !== wipeToken) return
-    wipeStage.value = 'idle'
-    // 引擎还没出首帧（比如 mount 超过 deadline）：快照继续顶着，等 onFirstFrame 再撤。
-    if (engineReady.value || failure.value) dropSnapshot()
+    const newUrl = snapCanvas()
+    if (!newUrl) return
+
+    const host = rootEl.value
+    const width = host?.clientWidth || window.innerWidth
+    const height = host?.clientHeight || window.innerHeight
+    swap.value = {
+        oldUrl,
+        newUrl,
+        imgW: width,
+        imgH: height,
+        cells: buildCells(width, height),
+        popped: false,
+    }
+
+    // 下一帧再打开开关，否则 transition 不会触发
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    if (token !== swapToken) return
+    if (swap.value) swap.value.popped = true
+
+    await sleep(SWAP_CELL_MS + SWAP_STAGGER_MS + 80)
+    if (token !== swapToken) return
+    swap.value = null
 }
-
 
 defineExpose({
     /** 调试用：当前渲染方式（`scene` / `video` / `poster`）。 */
@@ -488,19 +518,33 @@ defineExpose({
 
         <p v-if="notice" class="wallpaper-layer__notice">{{ notice }}</p>
 
-        <!-- 换包过渡：一整屏像素块，见 runPixelWipe 的注释 -->
-        <div
-            v-if="wipeStage !== 'idle'"
-            class="wallpaper-layer__wipe"
-            :class="`is-${wipeStage}`"
-            aria-hidden="true"
-        >
+        <!--
+            换包过渡：像素交换。底图是旧帧整图，格子逐格弹出新帧对应的那一块 ——
+            不是纯色块，见 runPixelSwap 的注释。
+        -->
+        <div v-if="swap" class="wallpaper-layer__swap" aria-hidden="true">
+            <img class="wallpaper-layer__swap-base" :src="swap.oldUrl" alt="" draggable="false" />
             <span
-                v-for="(weight, index) in wipeBlocks"
+                v-for="(cell, index) in swap.cells"
                 :key="index"
-                class="wallpaper-layer__wipe-block"
-                :style="wipeBlockStyle(weight)"
-            />
+                class="wallpaper-layer__swap-cell"
+                :class="{ 'is-popped': swap.popped }"
+                :style="{
+                    left: cell.left + 'px',
+                    top: cell.top + 'px',
+                    width: cell.width + 'px',
+                    height: cell.height + 'px',
+                    transitionDelay: cell.delay + 'ms',
+                }"
+            >
+                <i
+                    :style="{
+                        backgroundImage: 'url(' + swap.newUrl + ')',
+                        backgroundPosition: -cell.left + 'px ' + -cell.top + 'px',
+                        backgroundSize: swap.imgW + 'px ' + swap.imgH + 'px',
+                    }"
+                />
+            </span>
         </div>
     </div>
 </template>
@@ -531,58 +575,56 @@ defineExpose({
     filter: saturate(1.02);
 }
 
-.wallpaper-poster-leave-active {
-    transition: opacity 320ms ease;
+/* 像素交换过渡：底图＝旧帧整图；每格一个 <i>，背景是新帧整图按负偏移取自己那一块，
+   弹出时 scale(0)→scale(1)，用带回弹的曲线做出「弹簧波浪」的手感。 */
+.wallpaper-layer__swap {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    overflow: hidden;
+    pointer-events: none;
 }
 
-/* 换包期间的旧帧快照：与容器同尺寸铺满。
-   它是运行时 appendChild 进来的（DOM 顺序排在像素块之后），所以必须显式给层级：
-   快照 z=2 压住 canvas/海报，像素块 z=3 压住快照 —— 否则遮盖动画会被快照挡住。 */
-.wallpaper-layer__snapshot {
+.wallpaper-layer__swap-base {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
+    object-fit: cover;
     display: block;
-    pointer-events: none;
-    z-index: 2;
 }
+
+.wallpaper-layer__swap-cell {
+    position: absolute;
+    overflow: hidden;
+    display: block;
+    transform: scale3d(0, 0, 1);
+    transform-origin: center;
+    transition: transform var(--wp-swap-ms, 520ms) cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: transform;
+}
+
+.wallpaper-layer__swap-cell.is-popped {
+    transform: scale3d(1, 1, 1);
+}
+
+.wallpaper-layer__swap-cell > i {
+    position: absolute;
+    inset: 0;
+    display: block;
+    background-repeat: no-repeat;
+}
+
+.wallpaper-poster-leave-active {
+    transition: opacity 320ms ease;
+}
+
 
 .wallpaper-poster-leave-to {
     opacity: 0;
 }
 
 /* 换包过渡的像素块（14×9）。只动 transform，纯合成层。 */
-.wallpaper-layer__wipe {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    z-index: 3;
-    /* 与 runPixelWipe 里的 WIPE_COLS / WIPE_ROWS 对应 */
-    grid-template-columns: repeat(14, 1fr);
-    grid-template-rows: repeat(9, 1fr);
-    pointer-events: none;
-}
-
-.wallpaper-layer__wipe-block {
-    background: var(--surface-3-opaque);
-    border-radius: 2px;
-    /*
-	   1.02 而不是 1：整数分块在非整数像素宽高下会露出 1px 的发丝缝。
-	   多出来的 2% 被相邻块盖住，看不见。
-	*/
-    transform: scale3d(0, 0, 1);
-    transform-origin: center;
-    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.wallpaper-layer__wipe.is-cover .wallpaper-layer__wipe-block {
-    transform: scale3d(1.02, 1.02, 1);
-}
-
-.wallpaper-layer__wipe.is-reveal .wallpaper-layer__wipe-block {
-    transform: scale3d(0, 0, 1);
-}
 
 .wallpaper-layer__notice {
     position: absolute;

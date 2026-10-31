@@ -31373,6 +31373,14 @@ function mountScene(rt, cfg) {
               // 旧补丁（2026-10-30，TEXT_SHARP=3）在这之上再乘 3：实测 Clock 层纹理
               // 2048×1560 while 屏幕只有 ~561×427 ⇒ 缩 3.6 倍、双线性无 mipmap 取 4 纹素
               // 平均 ⇒ 笔画被抹平（主人报的「时间组件模糊」）。同时白吃 12.8MB 显存。
+              // [we-scene patch 2026-10-31 之二] 2× 超采样保底。
+              // `it.quality` 在 cover 裁切场景里可能被低估（实测富士山 1920px 画布算出 0.26，
+              // 而真实密度是 0.53），按 1:1 栅格化就会再被放大 2 倍 ⇒ 仍然糊。
+              // 有 mipmap 之后，多出来的分辨率只会让缩小时更干净，不会像 2026-10-30 那版
+              // （3× 超采样 + 无 mipmap）那样把笔画平均掉。
+              const TEXT_SHARP = 2;
+              cw = Math.max(1, Math.round(cw * TEXT_SHARP));
+              ch = Math.max(1, Math.round(ch * TEXT_SHARP));
               const shrink = Math.min(1, MAX_TEX / Math.max(cw, ch));
               cw = Math.max(1, Math.round(cw * shrink));
               ch = Math.max(1, Math.round(ch * shrink));
