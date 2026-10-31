@@ -111,8 +111,17 @@ async function pollOnce() {
         if (result.status === 'error') {
             stopPoll()
             qrStatus.value = 'expired'
-            // 8821 = 网易要求行为验证码，如实说，别让用户以为是网络问题
-            qrMessage.value = `登录被拒绝（code ${result.code}）${result.message ? '：' + result.message : ''}，请改用粘贴 Cookie`
+            /* 2026-11-01（实测，见 netease.ts 文件头）：
+               8821 = 网易风控拒了这次扫码会话。我们这边有一个结构性劣势 ——
+               Tauri 的 http 插件**不把 `Set-Cookie` 交给 JS**（已用 https://music.163.com/
+               验证：响应头里没有 set-cookie），所以「签发 unikey 时的会话 cookie」
+               带不进轮询，网易就会在确认那一刻拒掉。
+               结论：扫码这条路在当前架构下不可靠，直接把用户送到**粘贴 Cookie** 那一页，
+               不要让他对着一个永远不会成功的二维码反复扫。 */
+            qrMessage.value = result.message
+                ? `扫码被网易拒绝（code ${result.code}）：${result.message}`
+                : `扫码被网易拒绝（code ${result.code}）`
+            channel.value = 'cookie'
             return
         }
         stopPoll()
@@ -223,7 +232,7 @@ onBeforeUnmount(stopPoll)
                         }}
                     </p>
                     <p class="net-hint">
-                        扫码可能被网易要求行为验证；一直停在「等待扫码」就直接用右边那招。
+                        扫码可能被网易风控拒绝（8821）；一旦被拒会自动切到「粘贴 Cookie」。
                     </p>
                     <button type="button" class="net-btn" :disabled="busy" @click="refreshQr">
                         刷新二维码
