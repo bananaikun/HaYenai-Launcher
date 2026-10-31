@@ -13856,6 +13856,7 @@ function createRenderer(canvas, opts = {}) {
       gl.uniformMatrix4fv(baseUni.mvp, false, layerOrtho);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
+    let fboAClean = true;
     let curInput = fboA;
     let curDraw = fboB;
     const effectFBOs = /* @__PURE__ */ new Map();
@@ -13876,6 +13877,15 @@ function createRenderer(canvas, opts = {}) {
         flatPasses.push({ eff: eff2, mp: passes[pi], ov: eff2.passes && eff2.passes[pi] });
       }
     }
+    /* [we-scene patch 2026-10-31] WE 的「模糊柔光」语义：blurprecise 的第二趟带
+       combos.ENABLEMASK=1 ⇒ 模糊结果是**垫在下面的柔光**，原图层仍然锐利地盖在上面。
+       以前我们把模糊结果当图层本体画出去，文字就真被糊了（富士山 Clock 1.28 / Date 1.33 /
+       D a y 0.43，正好对应「SATURDAY 相对清楚、时钟最糊」）。链末尾补画原图。
+       ⚠ 必须在 flatPasses 填好之后算，否则 TDZ。 */
+    const blurGlowMasked = flatPasses.some((p) => {
+      const c = { ...(p.mp && p.mp.combos) || {}, ...(p.ov && p.ov.combos) || {} };
+      return Number(c.ENABLEMASK) === 1;
+    });
     const chainFragGlsl = [];
     for (let fi = 0; fi < flatPasses.length; fi++) {
       const { eff: eff2, mp, ov } = flatPasses[fi];
@@ -13886,6 +13896,10 @@ function createRenderer(canvas, opts = {}) {
         const mc = mp.combos || {};
         if (oc.WRITEALPHA === void 0 && mc.WRITEALPHA === void 0) combos.WRITEALPHA = 1;
         if (oc.TRANSPARENCY === void 0 && mc.TRANSPARENCY === void 0) combos.TRANSPARENCY = 1;
+      }
+      if (mp && mp.target) {
+        const tgt = effectFBOs.get(mp.target);
+        if (tgt === fboA) fboAClean = false;
       }
       const mpT = mp.textures || [];
       const ovT = ov && ov.textures || [];
@@ -14067,6 +14081,11 @@ function createRenderer(canvas, opts = {}) {
       return;
     }
     compositeLayer(compProg, curInput.tex, [1, 1, 1, 1], layer, cam, viewProj, width, height, !!layer.isContainer && !layer.groupTex && !usePassthrough, null, null);
+    // 带遮罩的模糊：模糊结果已经当柔光垫在下面，这里把**原图层**补画在上面。
+    // fboA 若在链里被复用（target 指向它）就不再补画，避免画出被覆盖的内容。
+    if (blurGlowMasked && fboAClean && fboA && fboA.tex && curInput !== fboA) {
+      compositeLayer(compProg, fboA.tex, [1, 1, 1, 1], layer, cam, viewProj, width, height, false, null, null);
+    }
   }
   return {
     gl,
