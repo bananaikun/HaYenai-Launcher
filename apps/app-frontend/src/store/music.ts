@@ -36,6 +36,9 @@ export const music = reactive({
     /** 功能开关：歌词是否显示、打开启动器是否自动播放 */
     settings: { lyrics: true, autoplay: true } as { lyrics: boolean; autoplay: boolean },
     index: 0,
+    /** 当前队列的来源标签（「网易云 · web」/「Meting · 18376629143」）。
+        只作展示，不持久化 —— 重启后队列会按 musicSpec 重新拉，标签跟着那次拉的结果走。 */
+    queueLabel: '',
     playing: false,
     loading: false,
     error: '',
@@ -404,7 +407,7 @@ export function seek(seconds: number): void {
  * `url` 为空的曲目直接丢掉 —— 与 `loadPlaylist()` 里 `filter(song => song.url)` 同一口径，
  * 免得播放列表里混进点了没反应的条目。
  */
-export function setQueue(next: RawSong[], startIndex = 0, autoplay = true): void {
+export function setQueue(next: RawSong[], startIndex = 0, autoplay = true, label = ''): void {
     const list = (next || []).filter((song) => song && song.url)
     if (!list.length) {
         music.error = '这个歌单里没有可播放的曲目'
@@ -412,6 +415,7 @@ export function setQueue(next: RawSong[], startIndex = 0, autoplay = true): void
     }
     music.songs = list
     music.error = ''
+    music.queueLabel = label
     const at = Math.max(0, Math.min(list.length - 1, Math.trunc(startIndex) || 0))
     music.index = at
     applySong(at, autoplay)
@@ -428,6 +432,7 @@ export async function loadPlaylist(spec = readSpec()): Promise<void> {
     try {
         const resolved = await resolveSongs(METING_SOURCES[0], spec)
         music.songs = resolved.songs.filter((song) => song.url)
+        music.queueLabel = `Meting · ${spec}`
         music.index = 0
         if (!music.songs.length) {
             music.error = '歌单里没有可播放的曲目'

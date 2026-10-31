@@ -298,7 +298,6 @@ export async function loginWithCookie(cookie: string): Promise<NeteaseLoginState
 
 export function logoutNetease(): NeteaseLoginState {
     persist(null)
-    qrSessionCookie = ''
     return loginState()
 }
 

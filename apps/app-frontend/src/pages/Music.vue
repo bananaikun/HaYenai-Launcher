@@ -83,7 +83,7 @@ function onNeteasePick(payload: { playlist: NeteasePlaylist; songs: NeteaseSong[
         url: `${source}?server=netease&type=url&id=${song.id}`,
         lrc: `${source}?server=netease&type=lrc&id=${song.id}`,
     }))
-    setQueue(list, 0, true)
+    setQueue(list, 0, true, `网易云 · ${payload.playlist.name}`)
     netOpen.value = false
     tab.value = 'list'
 }
@@ -152,7 +152,10 @@ onMounted(() => {
     <div class="mu">
         <div class="mu-bar">
             <span class="mu-eyebrow">
-                {{ formatMessage(messages.nowPlaying) }} · {{ hostOf(METING_SOURCES[0]) }}
+                <!-- 队列来源：网易云歌单 / Meting 歌单。以前这里恒显示音源域名，
+                     从网易云进来之后会误导成「放的是 Meting 歌单」。 -->
+                {{ formatMessage(messages.nowPlaying) }} ·
+                {{ music.queueLabel || hostOf(METING_SOURCES[0]) }}
             </span>
             <span class="mu-meta">
                 <template v-if="music.songs.length">

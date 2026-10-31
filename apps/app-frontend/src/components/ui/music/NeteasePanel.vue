@@ -250,6 +250,16 @@ onBeforeUnmount(() => {
                     <strong>{{ state.nickname || '已登录' }}</strong>
                     <span class="net-hint">UID {{ state.uid ?? '—' }}</span>
                 </div>
+                <button
+                    type="button"
+                    class="net-icon"
+                    :disabled="loadingPlaylists"
+                    aria-label="刷新歌单"
+                    v-tooltip="'重新拉取我的歌单'"
+                    @click="loadPlaylists()"
+                >
+                    ↻
+                </button>
                 <button type="button" class="net-btn net-btn--ghost" @click="signOut">退出</button>
             </div>
 
@@ -320,6 +330,11 @@ onBeforeUnmount(() => {
 .net-icon:hover {
     background: var(--glass-2);
     color: var(--text-0);
+}
+
+.net-icon:disabled {
+    opacity: 0.4;
+    cursor: default;
 }
 
 .net-seg {
