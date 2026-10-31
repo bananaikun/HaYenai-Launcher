@@ -341,7 +341,7 @@ defineExpose({ show })
                         circular
                         icon-only
                         :aria-label="formatMessage(messages.back)"
-                        :title="formatMessage(messages.back)"
+                        v-tooltip="formatMessage(messages.back)"
                         @click="backToInstances"
                         ><ChevronLeftIcon />
                     </Button>

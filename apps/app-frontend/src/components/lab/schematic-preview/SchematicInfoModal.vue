@@ -93,7 +93,7 @@ defineExpose({ show: () => modal.value?.show() })
                             circular
                             icon-only
                             :aria-label="formatMessage(messages.focusRegion)"
-                            :title="formatMessage(messages.focusRegion)"
+                            v-tooltip="formatMessage(messages.focusRegion)"
                             @click="emit('focusRegion', region)"
                             ><ScanEyeIcon />
                         </Button>

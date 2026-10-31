@@ -1403,7 +1403,7 @@ onMounted(async () => {
                             </div>
                             <Button
                                 type="quiet"
-                                :title="formatMessage(messages.copyCode)"
+                                v-tooltip="formatMessage(messages.copyCode)"
                                 @click="copyOAuthCode"
                             >
                                 <CopyIcon />
@@ -1411,7 +1411,7 @@ onMounted(async () => {
                             <Button
                                 type="quiet"
                                 :disabled="oauthChecking"
-                                :title="
+                                v-tooltip="
                                     formatMessage(
                                         oauthChecking
                                             ? messages.checkingAuthorization
@@ -1424,7 +1424,7 @@ onMounted(async () => {
                             </Button>
                             <Button
                                 type="quiet"
-                                :title="formatMessage(messages.openAuthorization)"
+                                v-tooltip="formatMessage(messages.openAuthorization)"
                                 @click="openOAuthAuthorization"
                             >
                                 <ExternalIcon />
@@ -1491,7 +1491,7 @@ onMounted(async () => {
                             <Button
                                 v-if="model.source === 'custom'"
                                 type="quiet"
-                                :title="formatMessage(messages.clearKey)"
+                                v-tooltip="formatMessage(messages.clearKey)"
                                 @click="removeModel(model.id)"
                             >
                                 <TrashIcon />
