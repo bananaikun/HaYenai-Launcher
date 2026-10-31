@@ -31406,6 +31406,24 @@ function mountScene(rt, cfg) {
                 backgroundbrightness: layer.textBackgroundbrightness,
                 castshadow: !!layer.textCastshadow
               });
+              // [临时诊断 2026-10-31] 文字几何：一次跑完就能看出 em/盒/纹理谁不对
+              if (typeof location !== 'undefined' && location.search.includes('textdiag')) {
+                const d = window.__wpTextDiag || (window.__wpTextDiag = []);
+                if (d.length < 40) {
+                  d.push({
+                    n: String(layer.name || ""),
+                    pts: pts,
+                    em: em,
+                    box: [it.boxW, it.boxH],
+                    size: [Math.round(layer.size[0]), Math.round(layer.size[1])],
+                    scale: [+(layer.scale[0] || 1).toFixed(3), +(layer.scale[1] || 1).toFixed(3)],
+                    q: +(it.quality || 0).toFixed(4),
+                    tex: [cw, ch],
+                    k: +k.toFixed(4),
+                    lay: layout && layout.width !== void 0 ? [Math.round(layout.width), Math.round(layout.height)] : null,
+                  });
+                }
+              }
               const entry = it.entry;
               renderer.gl.bindTexture(renderer.gl.TEXTURE_2D, entry.glTex);
               if (it.upW === cw && it.upH === ch) {
