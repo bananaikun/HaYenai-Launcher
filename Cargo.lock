@@ -7107,6 +7107,7 @@ dependencies = [
  "paste",
  "quartz_nbt",
  "regex",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "serde_with",

@@ -88,15 +88,6 @@
 				},
 				{
 					"url": "https://mod.mcimirror.top/*"
-				},
-				{
-					"url": "https://music.163.com/*"
-				},
-				{
-					"url": "https://*.music.163.com/*"
-				},
-				{
-					"url": "https://*.music.126.net/*"
 				}
 			]
 		},

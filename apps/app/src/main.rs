@@ -23,6 +23,7 @@ mod api;
 mod error;
 mod lightweight_mode;
 mod mod_translation;
+mod netease;
 mod portable;
 mod seed_map;
 mod we_protocol;
@@ -923,6 +924,7 @@ fn main() {
         .plugin(api::wallpaper::init())
         .manage(PendingUpdateData::default())
         .invoke_handler(tauri::generate_handler![
+            netease::netease_request,
             initialize_state,
             get_update_channel,
             get_current_app_database_path,

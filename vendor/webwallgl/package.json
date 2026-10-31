@@ -1,0 +1,47 @@
+{
+  "name": "webwallgl",
+  "version": "2.1.0",
+  "description": "Wallpaper Engine scene wallpaper renderer for the browser (npm / CDN)",
+  "license": "MIT",
+  "author": "oneincase <462534624@qq.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oneincase/webwallgl.git"
+  },
+  "homepage": "https://github.com/oneincase/webwallgl#readme",
+  "bugs": "https://github.com/oneincase/webwallgl/issues",
+  "type": "module",
+  "keywords": [
+    "wallpaper-engine",
+    "wallpaper",
+    "webgl",
+    "renderer",
+    "scene",
+    "canvas",
+    "animated-background",
+    "particles",
+    "browser"
+  ],
+  "files": [
+    "webwallgl.mjs",
+    "webwallgl.d.ts",
+    "types.d.ts"
+  ],
+  "main": "./webwallgl.global.min.js",
+  "module": "./webwallgl.mjs",
+  "types": "./webwallgl.d.ts",
+  "unpkg": "./webwallgl.global.min.js",
+  "jsdelivr": "./webwallgl.global.min.js",
+  "exports": {
+    ".": {
+      "types": "./webwallgl.d.ts",
+      "import": "./webwallgl.mjs",
+      "default": "./webwallgl.global.min.js"
+    }
+  },
+  "sideEffects": false,
+  "hayenai": {
+    "note": "vendored build（MIT，上游 oneincase/webwallgl 2.1.0 的另一份构建）",
+    "why": "npm 上的 2.1.0 与这份不是同一个构建：这份带 MountOptions.scripts 开关与 scripts disabled 诊断，场景脚本（音频条等）依赖它。补丁在 npm 包上打不上，故改为 vendored。"
+  }
+}

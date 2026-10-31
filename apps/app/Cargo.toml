@@ -44,6 +44,8 @@ tauri-plugin-os = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
 tauri-plugin-updater = { workspace = true }
 tauri-plugin-window-state = { workspace = true }
+# 网易云扫码要读 Set-Cookie（plugin-http 不给 JS），见 src/netease.rs
+reqwest = { workspace = true, features = ["rustls-tls-native-roots", "gzip"] }
 tempfile = { workspace = true }
 theseus = { workspace = true, features = ["tauri"] }
 thiserror = { workspace = true }

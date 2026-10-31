@@ -1,8 +1,10 @@
 /**
  * 网易云客户端（应用内自建，B 方案）
  * ------------------------------------------------------------
- * 数据全部直连 `music.163.com`，走 Tauri 的 `plugin-http`（Rust 侧发请求）：
- * webview 自己的 fetch 会被 CORS 与 CSP 拦，而且读不到 `Set-Cookie`，登录态根本拿不到。
+ * 所有请求都经 Rust 命令 `netease_request`（`apps/app/src/netease.rs`）转发。
+ * 为什么不用 `@tauri-apps/plugin-http`：它**不把 `Set-Cookie` 交给 JS**（已实测：
+ * 响应头里没有 set-cookie），而扫码协议要求把签发 unikey 时的会话 cookie 带进轮询，
+ * 否则手机确认后服务端直接以 `8821` 拒掉。reqwest 在 Rust 侧能读到，这一条路才成立。
  *
  * 接口与风控结论照抄后台已验证的实现（`HaYenai-服务器端/lib/netease.cjs`），
  * 那边踩过的坑这里一条都没重新踩：
@@ -18,7 +20,7 @@
  * cookie 只落 localStorage（与启动器其他本地状态同处），不进日志、不进 IPC 明文。
  */
 
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { invoke } from '@tauri-apps/api/core'
 
 const BASE = 'https://music.163.com'
 const TIMEOUT_MS = 15_000
@@ -157,47 +159,29 @@ export function normalizeCookie(raw: string): string {
 
 type CallResult = { status: number; text: string; setCookie: string }
 
+/** Rust 侧 `netease_request` 的返回结构（见 apps/app/src/netease.rs） */
+type NeteaseRaw = { status: number; body: string; set_cookie: string[] }
+
 async function raw(
     pathname: string,
     options: { method?: string; body?: string; cookie?: string; headers?: Record<string, string> } = {},
 ): Promise<CallResult> {
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), TIMEOUT_MS)
+    const headers: [string, string][] = Object.entries({
+        ...headersFor(options.cookie),
+        ...(options.headers ?? {}),
+        ...(options.body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
+    })
+    let res: NeteaseRaw
     try {
-        const res = await tauriFetch(BASE + pathname, {
-            method: options.method ?? 'GET',
-            headers: {
-                ...headersFor(options.cookie),
-                ...(options.headers ?? {}),
-                ...(options.body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
-            },
-            body: options.body,
-            signal: controller.signal,
-        })
-        const text = await res.text()
-        return { status: res.status, text, setCookie: readSetCookie(res) }
+        res = await invoke<NeteaseRaw>('netease_request', { path: pathname, headers })
     } catch (error) {
-        if ((error as Error)?.name === 'AbortError') throw new Error('请求网易云超时（15s）')
-        throw new Error(`请求网易云失败：${(error as Error)?.message ?? '未知原因'}`)
-    } finally {
-        window.clearTimeout(timer)
+        const message = String((error as Error)?.message ?? error)
+        if (message.includes('timed out') || message.includes('deadline')) throw new Error('请求网易云超时（20s）')
+        throw new Error(`请求网易云失败：${message}`)
     }
-}
-
-/**
- * 读 `Set-Cookie`。plugin-http 把 Rust 侧的响应头原样带回来，
- * 但不同版本对多值头的合并方式不一样，所以两种形态都兜一下。
- */
-function readSetCookie(res: Response): string {
-    const headers = res.headers as Headers & { getSetCookie?: () => string[] }
-    if (typeof headers.getSetCookie === 'function') {
-        const list = headers.getSetCookie()
-        if (list?.length) return list.join('; ')
-    }
-    const flat = headers.get('set-cookie')
-    if (!flat) return ''
-    // `Expires=Wed, 21 Oct 2026 …` 里的逗号会把多个 cookie 粘在一起，这里按 `, k=` 拆
-    return flat
+    // 多条 Set-Cookie 用 "; " 拼起来交给 normalizeCookie：它会把 Expires/Path 这些
+    // 属性剥掉，只留 k=v。不在这里做拼接规则，避免和那边重复实现。
+    return { status: res.status, text: res.body, setCookie: (res.set_cookie ?? []).join('; ') }
 }
 
 async function callJson<T = Record<string, unknown>>(

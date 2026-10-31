@@ -58,7 +58,7 @@
     "vue-i18n": "^10.0.8",
     "vue-router": "^4.6.4",
     "vuedraggable": "^4.1.0",
-    "webwallgl": "2.1.0",
+    "webwallgl": "file:../../vendor/webwallgl",
     "zod": "4.3.6"
   },
   "devDependencies": {
