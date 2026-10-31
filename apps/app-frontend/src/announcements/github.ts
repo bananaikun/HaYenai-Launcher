@@ -41,7 +41,17 @@ type ReleaseLike = {
 }
 
 let cache: ReleaseAnnouncement[] | null = null
+let cacheAt = 0
 let inflight: Promise<ReleaseAnnouncement[]> | null = null
+
+/**
+ * 缓存有效期。
+ *
+ * 2026-11-01 主人：「不会手动拉取最新的更新信息…它还在检测着 1.0.33 的版本」。
+ * 原来 `cache` 一旦有值就**永久**返回 —— 发了新版，公告面板永远显示第一次拉到的旧列表，
+ * 只有重启应用才会变。改成 5 分钟 TTL，并且进设置页时用 `{ force: true }` 直接绕过缓存。
+ */
+const CACHE_TTL_MS = 5 * 60 * 1000
 
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '')
 
@@ -64,17 +74,20 @@ function normalize(entry: ReleaseLike): ReleaseAnnouncement | null {
 }
 
 /** 拉一次并缓存（公告是静态内容，一次会话拉一次足够）。失败返回空数组，不抛错。 */
-export function fetchReleaseAnnouncements(): Promise<ReleaseAnnouncement[]> {
-    if (cache) return Promise.resolve(cache)
+export function fetchReleaseAnnouncements(
+    options: { force?: boolean } = {},
+): Promise<ReleaseAnnouncement[]> {
+    const fresh = cache !== null && Date.now() - cacheAt < CACHE_TTL_MS
+    if (fresh && !options.force) return Promise.resolve(cache as ReleaseAnnouncement[])
     if (inflight) return inflight
     inflight = (async () => {
         try {
             const response = await fetch(RELEASES_API, {
                 headers: { Accept: 'application/vnd.github+json' },
             })
-            if (!response.ok) return []
+            if (!response.ok) return cache ?? []
             const payload: unknown = await response.json()
-            if (!Array.isArray(payload)) return []
+            if (!Array.isArray(payload)) return cache ?? []
             const list: ReleaseAnnouncement[] = []
             for (const entry of payload as ReleaseLike[]) {
                 if (!entry || typeof entry !== 'object' || entry.draft === true) continue
@@ -82,9 +95,11 @@ export function fetchReleaseAnnouncements(): Promise<ReleaseAnnouncement[]> {
                 if (item) list.push(item)
             }
             cache = list
+            cacheAt = Date.now()
             return list
         } catch {
-            return []
+            // 拉失败时退回上次的缓存（比整块空掉好）
+            return cache ?? []
         } finally {
             inflight = null
         }

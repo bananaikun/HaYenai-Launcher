@@ -43,6 +43,8 @@ export function useScrollViewport(options: ScrollViewportOptions = {}) {
     const scrollTop = ref(0)
     const viewportHeight = ref(0)
     const containerOffset = ref(0)
+    /** 滚动回调的 rAF 句柄（合并同一帧内的多次 scroll）。 */
+    let frameHandle: number | null = null
     const relativeScrollTop = computed(() => Math.max(0, scrollTop.value - containerOffset.value))
 
     function updateContainerOffset() {
@@ -77,12 +79,20 @@ export function useScrollViewport(options: ScrollViewportOptions = {}) {
     }
 
     function handleScroll() {
-        if (scrollContainer.value) {
-            scrollTop.value = getScrollTop(scrollContainer.value)
-            updateContainerOffset()
-        }
+        /* 2026-11-01：合并到下一帧。
+           原来每次 scroll 事件都同步算一遍 scrollTop + 读两次 getBoundingClientRect
+           （强制同步布局），滚动密集时一帧里能触发好几次 —— 列表实测只有 21.4fps。
+           现在一帧最多算一次，位置永远取最新值，视觉上看不出差别。 */
+        if (frameHandle !== null) return
+        frameHandle = requestAnimationFrame(() => {
+            frameHandle = null
+            if (scrollContainer.value) {
+                scrollTop.value = getScrollTop(scrollContainer.value)
+                updateContainerOffset()
+            }
 
-        options.onScroll?.()
+            options.onScroll?.()
+        })
     }
 
     function handleResize() {
@@ -115,6 +125,10 @@ export function useScrollViewport(options: ScrollViewportOptions = {}) {
             container.removeEventListener('scroll', handleScroll)
             window.removeEventListener('resize', handleResize)
             resizeObserver?.disconnect()
+            if (frameHandle !== null) {
+                cancelAnimationFrame(frameHandle)
+                frameHandle = null
+            }
         })
     })
 

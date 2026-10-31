@@ -96,7 +96,11 @@ const { listContainer, totalHeight, visibleRange, visibleTop, visibleItems } = u
     toRef(props, 'items'),
     {
         itemHeight: 74,
-        bufferSize: 5,
+        /* 2026-11-01：5 → 8。buffer 是「视口上下各多渲染几行」，滚动时新进视口的行
+           若落在 buffer 里就不用等 patch（掉帧期间露出空白就是这个原因）。
+           ⚠ 不能开太大：每行都带 backdrop-filter，buffer 翻倍等于模糊层翻倍，
+           反而更卡。5 → 8 是「抗空白」与「模糊成本」的折中。 */
+        bufferSize: 8,
         initialItemCount: 20,
         enabled: toRef(props, 'virtualized'),
     },
@@ -262,7 +266,16 @@ function handleItemUpdate(id: string) {
             :class="flat ? '' : 'rounded-b-[20px]'"
             :style="{ minHeight: `${totalHeight}px`, overflowAnchor: 'none' }"
         >
-            <div class="absolute w-full" :style="{ top: `${visibleTop}px` }">
+            <!-- 2026-11-01：`top` → `transform`。
+                 原来每帧改 `top` 会让这个绝对定位容器**重新走布局**，22 个子项全部参与重排；
+                 换成 `translate3d` 只走合成层，布局完全不动。
+                 ⚠ 必须配 `top-0`：去掉 top 后 `position:absolute` 会退回静态位置。
+                 实测依据：345 条列表滚动 2.5s 只有 21.4fps（p95 133ms），
+                 主人截图里"滚动时出现空白"就是掉帧期间新区间还没 patch 上。 -->
+            <div
+                class="absolute top-0 w-full"
+                :style="{ transform: `translate3d(0, ${visibleTop}px, 0)` }"
+            >
                 <ContentCardItem
                     v-for="(item, idx) in visibleItems"
                     :key="item.id"

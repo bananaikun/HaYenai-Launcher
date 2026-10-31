@@ -647,33 +647,38 @@
   backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(180%);
 }
 
-/* 深色档把侧栏文字提亮。
-   后台的层次是"深底 + 中低亮度字"，它的底色是自己控制的近黑色；
-   启动器的底是用户壁纸，同一组灰字压在图案上会直接糊掉。
-   这里只抬亮度不动色相，层级关系（主标签 > 副标签 > 分组标题）保持不变。 */
-.dark-mode .side .nav-item {
-  color: rgba(236, 240, 248, 0.84);
+/* 侧栏文字必须跟「壁纸明暗」走，⛔ 不要再写死颜色。
+   2026-11-01 主人：「侧边栏在亮色壁纸下完全看不清…跟随之前有的统一」。
+   原来这里只有 `.dark-mode` 一支，而且是硬编码白色：
+       .dark-mode .side .nav-item { color: rgba(236,240,248,.84) }   ← 3 个类，压过
+       .nav-item { color: var(--text-2) }
+   而启动器的真实状态常常是「html 挂 dark-mode + 壁纸是亮的」(tone=light)——
+   其它界面用的是 `--color-text-*`（已翻成 #14161c 深色），只有侧栏被这条白色钉死。
+   ⇒ 统一改成 `--text-*` 令牌：dark 档白族、light 档深灰，两支自动覆盖，层级关系不变
+   （主标签 > 副标签 > 分组标题 = text-1 > text-3）。 */
+.side .nav-item {
+  color: var(--text-1);
 }
-.dark-mode .side .nav-item .nav-cn {
+.side .nav-item .nav-cn {
   color: inherit;
 }
-.dark-mode .side .nav-item .nav-en {
-  color: rgba(236, 240, 248, 0.44);
+.side .nav-item .nav-en {
+  color: var(--text-3);
 }
-.dark-mode .side .nav-item.on,
-.dark-mode .side .nav-item:hover {
-  color: #ffffff;
+.side .nav-item.on,
+.side .nav-item:hover {
+  color: var(--text-0);
 }
-.dark-mode .side .nav-item.on .nav-en,
-.dark-mode .side .nav-item:hover .nav-en {
-  color: rgba(255, 255, 255, 0.62);
+.side .nav-item.on .nav-en,
+.side .nav-item:hover .nav-en {
+  color: var(--text-2);
 }
-.dark-mode .side .nav-group-ttl {
-  color: rgba(236, 240, 248, 0.46);
+.side .nav-group-ttl {
+  color: var(--text-3);
 }
-.dark-mode .side .brand-name {
-  color: #ffffff;
+.side .brand-name {
+  color: var(--text-0);
 }
-.dark-mode .side .brand-sub {
-  color: rgba(236, 240, 248, 0.48);
+.side .brand-sub {
+  color: var(--text-3);
 }

@@ -51,7 +51,10 @@ const items = ref<ReleaseAnnouncement[]>([])
 const loading = ref(true)
 
 onMounted(async () => {
-    items.value = await fetchReleaseAnnouncements()
+    /* 进设置页就强制拉一次最新（绕过 5 分钟缓存）。
+       2026-11-01 主人：「不会手动拉取最新的更新信息，它还在检测着 1.0.33」——
+       原来是永久缓存，发新版后这里永远显示第一次拉到的列表。 */
+    items.value = await fetchReleaseAnnouncements({ force: true })
     loading.value = false
 })
 

@@ -52,12 +52,12 @@ const messages = defineMessages({
 })
 
 const {
+    availableUpdate,
     downloading,
     downloadPercent,
     downloadProgress,
     finishedDownloading,
     isVisible: isUpdateVisible,
-    metered,
     restarting,
 } = appUpdateState
 
@@ -66,9 +66,12 @@ const isUpdateDownloading = computed(
         downloading.value ||
         (downloadProgress.value > 0 && downloadProgress.value < 1 && !finishedDownloading.value),
 )
-const showUpdatePill = computed(
-    () => isUpdateVisible.value && (finishedDownloading.value || metered.value),
-)
+/* 2026-11-01 主人：「每次都要进设置界面刷新然后手动更新…能不能添加一个更新选项。」
+   原来的条件是 `isUpdateVisible && (finishedDownloading || metered)` —— 也就是
+   **有新版本但还没下载时按钮根本不渲染**，标题栏里看不到任何"该更新了"的入口，
+   人只能进「设置 → 更新」手动点检查。改成只要有可用更新就常驻显示。
+   点击逻辑本来就覆盖三态（下载中忽略 / 已下载则安装 / 否则开始下载），无需改。 */
+const showUpdatePill = computed(() => isUpdateVisible.value)
 const animateReadyPill = ref(false)
 const updateLabel = computed(() => {
     if (isUpdateDownloading.value) {
@@ -79,7 +82,10 @@ const updateLabel = computed(() => {
         return formatMessage(messages.reloadToUpdate)
     }
 
-    return formatMessage(messages.update)
+    // 带版本号：光写「更新」看不出要更新到哪一版（这也是主人报"还在检测 1.0.33"的观感来源）。
+    const version = availableUpdate.value?.version
+    const base = formatMessage(messages.update)
+    return version ? `${base} v${version}` : base
 })
 let readyPillAnimationFrame: number | null = null
 watch([showUpdatePill, finishedDownloading], async ([show, ready], [wasShown, wasReady]) => {
