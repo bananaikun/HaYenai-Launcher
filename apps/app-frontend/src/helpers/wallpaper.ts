@@ -280,15 +280,17 @@ export const WALLPAPER_QUALITY_PRESETS: Record<WallpaperQualityPreset, Wallpaper
 }
 
 export const DEFAULT_WALLPAPER_QUALITY: WallpaperQuality = {
-    /* 2026-10-30 20:20 主人：「时间组件是模糊的，而且像贴图一样，与背景不一样，像假的」。
-       根因就是这份默认档：`antialiasing: false`（**没有抗锯齿**）+ `postProcessing: 'medium'`
-       + `fps: 30`。scene 里的文字层（时钟/日期）本来是矢量绘制，没有 AA 就变成硬边锯齿，
-       再叠加 30fps 的抖动，看起来就像"一张贴上去的模糊图"。
-       ⇒ 默认改成 60fps + high 后处理 + FXAA。 */
-    fps: 60,
-    postProcessing: 'high',
-    /* 2026-10-30 20:00 主人指定的默认值与他在 WE 客户端里选的一致：
-       帧率 60 / 抗锯齿 MSAA x2 / 后处理启用。（纹理分辨率=自动 → textureScale 1） */
+    /* 2026-10-31 主人拍板：默认从「超高」降一档，但**不牺牲贴图清晰度**。
+       实测依据（Radeon 760M / ANGLE D3D11 / 1280×720 / 4K 包）：
+       原默认（后处理 high + 60fps）只有 **36fps**，而集显共享内存，
+       壁纸贴图与后处理 FBO 直接和系统内存抢带宽，UI 跟着掉帧。
+       ⇒ 靠 **帧率 30 + 后处理 medium** 省，`textureScale` 保持 1.0。
+       ⚠ 别把 textureScale 调低于 1：实际贴图 = textureScale × 自动因子 R
+       （dpr 1.25 时 R=0.8），0.8×0.8=0.64 会让山体比桌面 WE 明显发软。
+       抗锯齿保持 MSAA×2 与粒子 high：这两项直接影响文字边缘与花瓣效果。
+       要回满档去「设置 → 壁纸」手动选「超高」，这里只决定**首次使用**的默认值。 */
+    fps: 30,
+    postProcessing: 'medium',
     antiAliasing: 'msaa2',
     particles: 'high',
     textureScale: 1,
@@ -571,7 +573,28 @@ export async function getWallpaperConfig(): Promise<WallpaperConfig> {
        旧版 `quality.antialiasing` 是布尔、且没有 `particles` 字段；
        不迁移的话 `qualityPatch()` 会拿到 `undefined` 然后静默用库默认（AA off）。
        这里一次性收成新结构，调用方就不必各自兼容。 */
-    return { ...config, quality: normalizeWallpaperQuality(config.quality) }
+    const normalized = normalizeWallpaperQuality(config.quality)
+
+    /* 2026-10-31：默认档位降了一档（60fps/high/1.0 → 30fps/medium/0.8，实测 36fps→可跑满）。
+       只迁移**从没被改过**的旧配置 —— 指纹＝旧默认值 + 没有 `particles` 字段
+       （旧 schema 根本没这个键）。用户自己调过的、或新版写过的配置一律不碰。 */
+    const raw = (config.quality ?? {}) as Record<string, unknown>
+    const untouchedLegacyDefault =
+        raw.particles === undefined &&
+        Number(raw.fps) === 60 &&
+        raw.postProcessing === 'high' &&
+        Number(raw.textureScale) === 1
+    if (untouchedLegacyDefault) {
+        const migrated: WallpaperConfig = {
+            ...config,
+            quality: { ...normalized, ...DEFAULT_WALLPAPER_QUALITY },
+        }
+        // 写失败不阻断读取：本次仍按新默认跑，下次再试
+        await setWallpaperConfig(migrated).catch(() => undefined)
+        return migrated
+    }
+
+    return { ...config, quality: normalized }
 }
 
 /** 覆盖写 `wallpapers/config.json`（临时文件 + 原子 rename）。 */

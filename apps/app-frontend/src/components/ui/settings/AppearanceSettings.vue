@@ -24,7 +24,7 @@ import type { DragDropEvent } from '@tauri-apps/api/webview'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, readFile, remove, writeFile } from '@tauri-apps/plugin-fs'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import HeadlessSelect from '@/components/ui/headless/HeadlessSelect.vue'
 import HeadlessTooltip from '@/components/ui/headless/HeadlessTooltip.vue'
@@ -64,7 +64,9 @@ import {
 import AccentColorOption from './AccentColorOption.vue'
 import SettingsRow from './SettingsRow.vue'
 import SettingsSection from './SettingsSection.vue'
-import WallpaperSettings from './WallpaperSettings.vue'
+/* 壁纸面板（200+ 张贴图 + 属性面板）首次挂载实测要 220ms / +40MB，
+   而它位于「外观」页很靠下的位置。改成异步 chunk + 滚进视野才挂载。 */
+const WallpaperSettings = defineAsyncComponent(() => import('./WallpaperSettings.vue'))
 
 const props = withDefaults(
     defineProps<{
@@ -74,6 +76,10 @@ const props = withDefaults(
 )
 
 const themeStore = useTheming()
+const wallpaperSentinel = ref<HTMLElement | null>(null)
+const wallpaperPanelMounted = ref(false)
+let wallpaperObserver: IntersectionObserver | null = null
+
 const { formatMessage } = useVIntl()
 const { handleError } = injectNotificationManager()
 
@@ -109,6 +115,28 @@ function jumpTo(id: string): void {
 }
 
 onMounted(() => {
+    // 提前 600px 预挂：滚到附近就开始，避免真滚到位才一顿
+    if (!wallpaperSentinel.value) {
+        wallpaperPanelMounted.value = false
+        return
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+        wallpaperPanelMounted.value = true
+        return
+    }
+    wallpaperObserver = new IntersectionObserver(
+        (entries) => {
+            if (!entries.some((entry) => entry.isIntersecting)) return
+            wallpaperPanelMounted.value = true
+            wallpaperObserver?.disconnect()
+            wallpaperObserver = null
+        },
+        { rootMargin: '600px 0px' },
+    )
+    wallpaperObserver.observe(wallpaperSentinel.value)
+})
+
+onMounted(() => {
     const root = appearanceRoot.value?.closest('.settings-content-scroll')
     if (!root) return
     jumpObserver = new IntersectionObserver(
@@ -128,6 +156,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    wallpaperObserver?.disconnect()
+    wallpaperObserver = null
     jumpObserver?.disconnect()
     jumpObserver = null
 })
@@ -1523,7 +1553,8 @@ watch(
 			壁纸挂在「启动器背景」之后、「字体」之前：它和自定义背景图是同一件事的
 			两种形态（都是"背景层放什么"），放一起读起来才连贯。
 		-->
-        <WallpaperSettings v-if="props.scope === 'interface'" />
+        <div ref="wallpaperSentinel" />
+        <WallpaperSettings v-if="props.scope === 'interface' && wallpaperPanelMounted" />
 
         <SettingsSection v-if="props.scope === 'interface'">
             <template #header>

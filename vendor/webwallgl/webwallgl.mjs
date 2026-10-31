@@ -31053,7 +31053,9 @@ function mountScene(rt, cfg) {
         const projW = ortho?.width || c.width;
         const projH = ortho?.height || c.height;
         const win0 = fitWindow(normalizeFit(rt.cfg.fit), projW, projH, c.width, c.height);
-        const quality = Math.min(3, Math.max(0.5, c.width / Math.max(1, win0.viewW)));
+        // [we-scene patch 2026-10-31] 下限从 0.5 放到 0.25：4K 包在 1200px 窗口里真实比率只有 0.32，
+        // 夹到 0.5 等于强制 1.5× 栅格化（文本层白吃显存、贴图层白占显存）。
+        const quality = Math.min(3, Math.max(0.25, c.width / Math.max(1, win0.viewW)));
         const fontFamilies = /* @__PURE__ */ new Map();
         const usedFontKeys = [];
         const fontPaths = /* @__PURE__ */ new Set();
@@ -31287,7 +31289,13 @@ function mountScene(rt, cfg) {
             if (!layer.visible) continue;
             const pts = Math.max(1, it.sandbox ? it.sandbox.thisLayer.pointsize : layer.textPointsize);
             const fontPath = it.sandbox && it.sandbox.thisLayer.font || layer.textFont || "";
-            const key = `${content}\0${pts}\0${fontPath}\0${layer.alpha}\0${layer.textCastshadow}\0${layer.textMaxwidth || 0}\0${layer.limitwidth ? 1 : 0}\0${layer.maxrows || 0}\0${layer.limitrows ? 1 : 0}`;
+            // [we-scene patch 2026-10-31] 缓存键必须带上「与像素密度相关的量」。
+            // 旧键只有内容/字号/字体等，**不含窗口尺寸**：启动器在窗口还小的时候挂上壁纸、
+            // 把文字栅格化一次，之后窗口放大 or 用户拉伸窗口 ⇒ 键没变 ⇒ 不重画 ⇒
+            // 旧的低分辨率纹理被 GPU 拉伸到新尺寸 = 文字糊（几何位置却正确）。
+            // 这也是「时间组件/SATURDAY/日期都糊，但位置没错」的根因。
+            // 带上 quality（= canvasPx / 世界宽，随窗口变化）、size（自动长高会变）、scale。
+            const key = `${content}\0${pts}\0${fontPath}\0${layer.alpha}\0${layer.textCastshadow}\0${layer.textMaxwidth || 0}\0${layer.limitwidth ? 1 : 0}\0${layer.maxrows || 0}\0${layer.limitrows ? 1 : 0}\0${Math.round(layer.size[0])}x${Math.round(layer.size[1])}\0${(layer.scale[0] || 1).toFixed(3)}x${(layer.scale[1] || 1).toFixed(3)}\0${(it.quality || 1).toFixed(3)}`;
             if (it.lastKey === key) continue;
             it.lastKey = key;
             try {
@@ -31359,12 +31367,12 @@ function mountScene(rt, cfg) {
               }
               let cw = Math.max(1, Math.round(layer.size[0] * sx * it.quality));
               let ch = Math.max(1, Math.round(layer.size[1] * sy * it.quality));
-              // [we-scene patch 2026-10-30] 文字超采样。质量因子与布局单位会互相抵消，
-              // 纹理实际只有作者给的 pointsize 级别，放大到屏幕上就是一层糊（主人："时间组件是模糊的"）。
-              // 直接把画布按 3 倍栅格化：下面的 k = canvas/layout 随之变大，等价于 3× 超采样后再由 GPU 缩下来。
-              const TEXT_SHARP = 3;
-              cw = Math.max(1, Math.round(cw * TEXT_SHARP));
-              ch = Math.max(1, Math.round(ch * TEXT_SHARP));
+              // [we-scene patch 2026-10-31] 文本按「屏幕像素」1:1 栅格化。
+              // `it.quality` 的定义就是 canvasPx / 世界宽 = 屏幕像素每世界单位，
+              // 所以 size*scale*quality 恰好是这层文字在屏幕上占的像素数。
+              // 旧补丁（2026-10-30，TEXT_SHARP=3）在这之上再乘 3：实测 Clock 层纹理
+              // 2048×1560 while 屏幕只有 ~561×427 ⇒ 缩 3.6 倍、双线性无 mipmap 取 4 纹素
+              // 平均 ⇒ 笔画被抹平（主人报的「时间组件模糊」）。同时白吃 12.8MB 显存。
               const shrink = Math.min(1, MAX_TEX / Math.max(cw, ch));
               cw = Math.max(1, Math.round(cw * shrink));
               ch = Math.max(1, Math.round(ch * shrink));
@@ -31398,7 +31406,12 @@ function mountScene(rt, cfg) {
                 renderer.gl.texImage2D(renderer.gl.TEXTURE_2D, 0, renderer.gl.RGBA, renderer.gl.RGBA, renderer.gl.UNSIGNED_BYTE, textCanvas2);
                 it.upW = cw;
                 it.upH = ch;
+                // [we-scene patch 2026-10-31] 动态重建的文本纹理要走 mipmap：
+                // 镜头推远 / 窗口变小 / 层被缩小时，LINEAR 只取 4 个纹素会把笔画糊掉。
+                renderer.gl.texParameteri(renderer.gl.TEXTURE_2D, renderer.gl.TEXTURE_MIN_FILTER, renderer.gl.LINEAR_MIPMAP_LINEAR);
               }
+              // 文本每秒都在变（时钟），mip 链必须跟着重建；1:1 尺寸下这张图已经很小，代价可忽略。
+              renderer.gl.generateMipmap(renderer.gl.TEXTURE_2D);
               entry.width = cw;
               entry.height = ch;
             } catch (e) {
