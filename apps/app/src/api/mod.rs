@@ -29,7 +29,6 @@ pub mod tags;
 pub mod telemetry;
 pub mod terracotta;
 pub mod translation;
-pub mod update_service;
 pub mod utils;
 pub mod wallpaper;
 pub mod server_status;

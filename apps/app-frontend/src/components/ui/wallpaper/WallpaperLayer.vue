@@ -460,7 +460,11 @@ defineExpose({
 <style scoped>
 .wallpaper-layer {
     position: absolute;
-    inset: 0;
+    /* `.launcher-background` 是 `inset: -3rem`（自定义背景图要出血，避免边缘露底），
+       场景壁纸跟着它铺就会被放大 ~7.5%、四周各切掉 48px —— WE 壁纸是按 16:9 构图的
+       （文字、音频条贴边），切掉就是构图错位。这里用同样的 3rem 抵消回去，正好等于视口。
+       两边都用 rem，根字号变化时一起缩放，不会错位。 */
+    inset: 3rem;
     overflow: hidden;
     pointer-events: none;
     /* 包损坏 / 没有海报时的地板色。与 `.launcher-background` 同一个 token，

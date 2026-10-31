@@ -172,7 +172,6 @@ import {
 import { resolveAllBindings } from '@/helpers/shortcut-bindings'
 import { getSidebarExpanded, setSidebarExpanded } from '@/helpers/sidebar-state.ts'
 import { get_opening_command, initialize_state, set_discord_activity } from '@/helpers/state'
-import { subscribeUpdateServiceStatus } from '@/helpers/update-service'
 import {
     areUpdatesEnabled,
     backupAppDbForUpdate,
@@ -964,7 +963,6 @@ onMounted(async () => {
     // Background maintenance must not compete with first paint / route enter.
     runWhenIdle(() => {
         void checkUpdates()
-        void subscribeUpdateServiceStatus()
         void warnIfRunningElevated()
         startDirectLinkSync()
     })

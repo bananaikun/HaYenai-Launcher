@@ -243,10 +243,13 @@ const maxProjectsPerRow = ref(1)
  * - 观察回调统一进 rAF，一次重排里只量一次，不再在 RO 回调里同步读布局。
  */
 let measureFrame = 0
+let debounceTimer = 0
+let lastAppliedAt = 0
 let lastKey = ''
 
 function applyCardsPerRow() {
     measureFrame = 0
+    lastAppliedAt = performance.now()
     if (rows.value.length === 0) return
 
     const row = rows.value[0]
@@ -274,9 +277,25 @@ function applyCardsPerRow() {
     if (projects !== maxProjectsPerRow.value) maxProjectsPerRow.value = projects
 }
 
-/** ResizeObserver / window.resize 都走这里：同一帧内多次触发只量一次。 */
+/**
+ * ResizeObserver / window.resize 都走这里。
+ *
+ * 两种节奏：
+ * - 平时（距上次测量 > 400ms）：下一帧就量，手感立刻跟上；
+ * - 连续变化（侧栏宽度过渡 360ms 里每帧都会触发 ResizeObserver）：攒到安静 140ms
+ *   再量一次。否则动画期间每帧都要 `clientWidth` + `getComputedStyle` + 写 ref，
+ *   白白把 60fps 拖到 45fps（实测实例列表页 17ms → 21ms）。
+ */
 function scheduleCardsPerRow() {
-    if (measureFrame) return
+    if (measureFrame || debounceTimer) return
+    const since = performance.now() - lastAppliedAt
+    if (since < 400) {
+        debounceTimer = window.setTimeout(() => {
+            debounceTimer = 0
+            measureFrame = requestAnimationFrame(applyCardsPerRow)
+        }, 140)
+        return
+    }
     measureFrame = requestAnimationFrame(applyCardsPerRow)
 }
 
@@ -296,6 +315,8 @@ onUnmounted(() => {
     window.removeEventListener('resize', scheduleCardsPerRow)
     if (measureFrame) cancelAnimationFrame(measureFrame)
     measureFrame = 0
+    if (debounceTimer) window.clearTimeout(debounceTimer)
+    debounceTimer = 0
     if (rowContainer.value) {
         resizeObserver.value?.unobserve(rowContainer.value)
     }

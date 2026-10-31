@@ -43,5 +43,8 @@
   "hayenai": {
     "note": "vendored build（MIT，上游 oneincase/webwallgl 2.1.0 的另一份构建）",
     "why": "npm 上的 2.1.0 与这份不是同一个构建：这份带 MountOptions.scripts 开关与 scripts disabled 诊断，场景脚本（音频条等）依赖它。补丁在 npm 包上打不上，故改为 vendored。"
+  },
+  "dependencies": {
+    "mediabunny": "^1.62.1"
   }
 }

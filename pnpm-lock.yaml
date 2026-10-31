@@ -19755,7 +19755,9 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  webwallgl@file:vendor/webwallgl: {}
+  webwallgl@file:vendor/webwallgl:
+    dependencies:
+      mediabunny: 1.62.1
 
   wgpu-matrix@3.4.2: {}
 

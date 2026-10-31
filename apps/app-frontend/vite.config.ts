@@ -140,7 +140,10 @@ export default defineConfig(({ command }) => ({
             '@langchain/core/utils/function_calling',
             'zod',
         ],
-        exclude: ['ace-builds', 'vue3-ace-editor'],
+        // webwallgl 是 vendored 的 file: 依赖，我们经常直接改它。
+        // 预打包会把内容固化进 .vite/deps/webwallgl.js（hash 只看 package.json），
+        // 改完代码 reload 也拿不到新内容 —— 这个坑已经踩过多次。排除掉，直接读源文件。
+        exclude: ['ace-builds', 'vue3-ace-editor', 'webwallgl'],
     },
 
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

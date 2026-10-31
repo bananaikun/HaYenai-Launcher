@@ -133,6 +133,11 @@ function main() {
             SKIP_CONFIG,
             '--bundles',
             'nsis',
+            // ⚠ 不加这个，编进去的是 updater_impl_noop.rs：check_app_update 直接
+            // 返回 Ok(())，前端永远拿到 null（已发布的 1.0.27 就是这样，
+            // 「检查更新」形同虚设）。Cargo.toml 的 default 里没有 updater。
+            '--features',
+            'updater',
         ],
         { cwd: APP, stdio: 'inherit', env, shell: true },
     )

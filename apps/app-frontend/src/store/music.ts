@@ -422,6 +422,33 @@ export function setQueue(next: RawSong[], startIndex = 0, autoplay = true, label
     if (autoplay) void play()
 }
 
+/**
+ * 从队列里移除一首（界面上的「×」）。
+ *
+ * 三种情况分别处理：删的是当前曲 → 停在原位置换下一首（并在播放中就继续放）；
+ * 删的在当前曲之前 → 当前下标前移一位，正放的歌不跳；删完为空 → 停播。
+ */
+export function removeAt(index: number): void {
+    const i = Math.trunc(index)
+    if (!music.songs[i]) return
+    const wasCurrent = i === music.index
+    const wasPlaying = music.playing
+    music.songs.splice(i, 1)
+    if (!music.songs.length) {
+        pause()
+        music.index = 0
+        return
+    }
+    if (i < music.index) {
+        music.index -= 1
+        return
+    }
+    if (wasCurrent) {
+        music.index = Math.min(i, music.songs.length - 1)
+        applySong(music.index, wasPlaying)
+    }
+}
+
 /** 拉歌单。失败时把「哪个源、什么错」原样留给界面，不做二次包装。 */
 let autoplayed = false
 

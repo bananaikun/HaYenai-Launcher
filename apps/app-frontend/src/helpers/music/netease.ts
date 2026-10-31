@@ -349,6 +349,40 @@ export async function myPlaylists(): Promise<NeteasePlaylist[]> {
     }))
 }
 
+/* ---------------- 收藏 ---------------- */
+
+/**
+ * 「我喜欢的音乐」里的曲目 id 集合。
+ *
+ * 为什么不用 `/api/likelist`：实测返回 **code 404「接口未找到」**（网关没开这个路由）。
+ * 但「我喜欢的音乐」是一个普通歌单（`specialType === 5`），`/api/v6/playlist/detail`
+ * 能正常读到它的 `trackIds` —— 用它当收藏集，可靠且不需要额外权限。
+ */
+export async function likedSongIds(): Promise<Set<number>> {
+    const lists = await myPlaylists()
+    const liked = lists.find((p) => p.specialType === 5)
+    if (!liked) return new Set()
+    const detail = await playlistDetail(liked.id)
+    return new Set(detail.trackIds)
+}
+
+/**
+ * 收藏 / 取消收藏一首。
+ *
+ * 实测：`GET /api/song/like?trackId=&like=` 返回 `{ code: 200, playlistId }`。
+ * （`/api/radio/like` 会被风控打成 `-460 网络环境存在风险`，别用那个。）
+ * 调用方负责先做乐观更新、失败时回滚。
+ */
+export async function setSongLiked(trackId: number, liked: boolean): Promise<void> {
+    const s = loadSession()
+    if (!s) throw new Error('尚未登录网易云')
+    const json = await callJson<{ code?: number; message?: string }>(
+        `/api/song/like?trackId=${Number(trackId)}&like=${liked ? 'true' : 'false'}&timestamp=${Date.now()}`,
+        { cookie: s.cookie },
+    )
+    if (json.code !== 200) throw new Error(json.message || '收藏操作失败')
+}
+
 /* ---------------- 扫码相关（已下线） ----------------
    2026-11-01：登录改成「拉官网登录页 → 从 WebView 的 cookie 存储里读 MUSIC_U」
    （Rust 命令 `netease_open_login` / `netease_read_cookie`）。

@@ -920,7 +920,6 @@ fn main() {
         .plugin(api::multiplayer::init())
         .manage(api::files::StudioWatchers::default())
         .plugin(api::servers::init())
-        .plugin(api::update_service::init())
         .plugin(api::wallpaper::init())
         .manage(PendingUpdateData::default())
         .invoke_handler(tauri::generate_handler![

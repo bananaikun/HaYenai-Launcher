@@ -20,7 +20,13 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import NeteasePanel from '@/components/ui/music/NeteasePanel.vue'
 import { METING_SOURCES, hostOf } from '@/helpers/music/music-source'
-import type { NeteasePlaylist, NeteaseSong } from '@/helpers/music/netease'
+import {
+    likedSongIds,
+    loginState,
+    setSongLiked,
+    type NeteasePlaylist,
+    type NeteaseSong,
+} from '@/helpers/music/netease'
 import {
     currentSong,
     cycleMode,
@@ -30,8 +36,11 @@ import {
     next as musicNext,
     playIndex,
     prev as musicPrev,
+    pause,
+    removeAt,
     seek,
     setQueue,
+    setMusicSpec,
     setVolume,
     toggle,
     toggleMute,
@@ -84,8 +93,99 @@ function onNeteasePick(payload: { playlist: NeteasePlaylist; songs: NeteaseSong[
         lrc: `${source}?server=netease&type=lrc&id=${song.id}`,
     }))
     setQueue(list, 0, true, `网易云 · ${payload.playlist.name}`)
+    /* 记住这个歌单：下次启动 `loadPlaylist()` 按 musicSpec 重拉的就是它。
+       规则来自 WE/Meting 同源 —— 歌单 id 就是 spec，所以这里不需要额外存别的字段。 */
+    setMusicSpec(String(payload.playlist.id))
     netOpen.value = false
     tab.value = 'list'
+    void refreshLiked()
+}
+
+/* ---------------- 收藏（网易云账号） ---------------- */
+
+const loggedIn = computed(() => loginState().loggedIn)
+const liked = ref<Set<number>>(new Set())
+const likingId = ref<number | null>(null)
+const likeError = ref('')
+
+async function refreshLiked() {
+    if (!loginState().loggedIn) {
+        liked.value = new Set()
+        return
+    }
+    try {
+        liked.value = await likedSongIds()
+    } catch {
+        // 收藏集读不到不影响播放，静默降级（心形全部显示为未收藏）
+        liked.value = new Set()
+    }
+}
+
+async function toggleLike(trackId: number) {
+    if (likingId.value !== null || !loginState().loggedIn) return
+    likingId.value = trackId
+    likeError.value = ''
+    const next = !liked.value.has(trackId)
+    // 乐观更新：网络慢时心形也立刻响应；失败再回滚
+    const before = new Set(liked.value)
+    if (next) liked.value.add(trackId)
+    else liked.value.delete(trackId)
+    try {
+        await setSongLiked(trackId, next)
+    } catch (e) {
+        liked.value = before
+        likeError.value = (e as Error).message || '收藏失败'
+    } finally {
+        likingId.value = null
+    }
+}
+
+/**
+ * 取一首歌的网易云 id。
+ *
+ * 网易云歌单进队列时会带 `id`；而 Meting 歌单（`loadPlaylist`）只在 `url` 里
+ * 带 `id=...`，`id` 字段是空的 —— 不兜这一层，收藏按钮对默认歌单永远不显示。
+ */
+function trackIdOf(item: { id?: number | string; url?: string } | undefined): number | null {
+    if (!item) return null
+    const own = String(item.id ?? '')
+    if (/^\d+$/.test(own)) return Number(own)
+    const fromUrl = /[?&]id=(\d+)/.exec(String(item.url ?? ''))
+    return fromUrl ? Number(fromUrl[1]) : null
+}
+
+/* ---------------- 定时停止 ---------------- */
+
+const SLEEP_STEPS = [0, 15, 30, 60]
+const sleepMin = ref(0)
+const sleepLeft = ref(0)
+let sleepTimer: number | null = null
+
+function stopSleepTimer() {
+    if (sleepTimer !== null) {
+        window.clearInterval(sleepTimer)
+        sleepTimer = null
+    }
+    sleepLeft.value = 0
+}
+
+function cycleSleep() {
+    const at = SLEEP_STEPS.indexOf(sleepMin.value)
+    const next = SLEEP_STEPS[(at + 1) % SLEEP_STEPS.length]
+    stopSleepTimer()
+    sleepMin.value = next
+    if (!next) return
+    const endsAt = Date.now() + next * 60_000
+    sleepLeft.value = next
+    sleepTimer = window.setInterval(() => {
+        const left = Math.ceil((endsAt - Date.now()) / 60_000)
+        sleepLeft.value = Math.max(0, left)
+        if (Date.now() >= endsAt) {
+            stopSleepTimer()
+            sleepMin.value = 0
+            pause()
+        }
+    }, 1000)
 }
 const song = computed(() => currentSong())
 const progress = computed(() =>
@@ -134,10 +234,37 @@ const activeLine = ref<HTMLElement | null>(null)
 async function centerActiveLine() {
     await nextTick()
     const box = lyricBox.value
-    const line = activeLine.value
-    if (!box || !line) return
-    box.scrollTo({ top: Math.max(0, line.offsetTop - (box.clientHeight - line.clientHeight) / 2) })
+    if (!box) return
+    /* 直接按类名找当前行：`:ref` 回调只挂在「当前是活跃行」的那个节点上，
+       歌词整批替换 / 换歌时 Vue 会把旧 ref 置 null 而新节点未必回调到，
+       activeLine 就可能是旧的（实测：多行歌词完全不滚动，一直停在第 1 行）。 */
+    const line = box.querySelector<HTMLElement>('.mu-ln.on') ?? activeLine.value
+    if (!line) return
+    box.scrollTo({
+        top: Math.max(0, line.offsetTop - (box.clientHeight - line.clientHeight) / 2),
+        behavior: 'smooth',
+    })
 }
+
+/**
+ * 当前行的逐字高亮进度。
+ *
+ * 用「本行开始 → 下一行开始」作为这一行的时长，按比例点亮字符；
+ * 最后一行没有下一行时退化成 4s，够长到能看完，又不会一直亮着。
+ * 只在当前行上拆 span（其余行是纯文本），DOM 数量可控。
+ */
+const activeChars = computed(() => {
+    const i = activeIndex.value
+    const lines = music.lyrics
+    if (i < 0 || !lines[i]) return [] as { ch: string; lit: boolean }[]
+    const start = lines[i].at
+    const end = lines[i + 1]?.at ?? start + 4
+    const span = Math.max(0.4, end - start)
+    const ratio = Math.min(1, Math.max(0, (music.currentTime - start) / span))
+    const text = lines[i].text || '♪'
+    const litCount = Math.floor(ratio * text.length)
+    return [...text].map((ch, index) => ({ ch, lit: index < litCount }))
+})
 
 watch([activeIndex, tab], () => {
     void centerActiveLine()
@@ -145,6 +272,7 @@ watch([activeIndex, tab], () => {
 
 onMounted(() => {
     if (!music.songs.length) void loadPlaylist()
+    void refreshLiked()
 })
 </script>
 
@@ -246,7 +374,16 @@ onMounted(() => {
                                 :class="{ on: index === activeIndex, past: index < activeIndex }"
                                 @click="seek(line.at)"
                             >
-                                {{ line.text || '♪' }}
+                                <template v-if="index === activeIndex && activeChars.length">
+                                    <span
+                                        v-for="(part, ci) in activeChars"
+                                        :key="ci"
+                                        class="mu-ch"
+                                        :class="{ lit: part.lit }"
+                                        >{{ part.ch }}</span
+                                    >
+                                </template>
+                                <template v-else>{{ line.text || '♪' }}</template>
                             </p>
                             <p v-if="!music.settings.lyrics" class="mu-ln on">
                                 {{ formatMessage(messages.noLyrics) }}
@@ -258,13 +395,18 @@ onMounted(() => {
                     </div>
 
                     <div v-else class="mu-queue">
-                        <button
+                        <!-- 行本身是 div：里面要放「收藏」「移除」两个真按钮（button 不能嵌 button）。
+                             键盘可达性用 role+tabindex+Enter/Space 补齐。 -->
+                        <div
                             v-for="(item, index) in music.songs"
                             :key="`${item.id ?? index}`"
-                            type="button"
                             class="mu-row"
                             :class="{ on: index === music.index }"
+                            role="button"
+                            tabindex="0"
                             @click="playIndex(index)"
+                            @keydown.enter.prevent="playIndex(index)"
+                            @keydown.space.prevent="playIndex(index)"
                         >
                             <span class="mu-thumb">
                                 <img v-if="item.pic" :src="item.pic" alt="" loading="lazy" />
@@ -273,13 +415,34 @@ onMounted(() => {
                                 <span class="t">{{ item.name }}</span>
                                 <span class="a">{{ item.artist }}</span>
                             </span>
+                            <span class="mu-row-acts">
+                                <button
+                                    v-if="loggedIn && trackIdOf(item)"
+                                    type="button"
+                                    class="mu-row-act"
+                                    :class="{ liked: liked.has(trackIdOf(item)!) }"
+                                    :disabled="likingId === trackIdOf(item)"
+                                    v-tooltip="liked.has(trackIdOf(item)!) ? '取消收藏' : '收藏'"
+                                    @click.stop="toggleLike(trackIdOf(item)!)"
+                                >
+                                    {{ liked.has(trackIdOf(item)!) ? '♥' : '♡' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="mu-row-act"
+                                    v-tooltip="'从队列移除'"
+                                    @click.stop="removeAt(index)"
+                                >
+                                    ✕
+                                </button>
+                            </span>
                             <span v-if="index === music.index && music.playing" class="mu-eq">
                                 <i /><i /><i />
                             </span>
                             <span v-else class="mu-num">
                                 {{ String(index + 1).padStart(2, '0') }}
                             </span>
-                        </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -349,6 +512,16 @@ onMounted(() => {
                             @click="toggleMute"
                         >
                             <span class="mu-glyph sm">{{ volIcon }}</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="mu-btn sm"
+                            :class="{ on: sleepMin > 0 }"
+                            v-tooltip="'定时停止（0/15/30/60 分钟）'"
+                            @click="cycleSleep"
+                        >
+                            <span class="mu-glyph sm">⏱</span>
+                            <span v-if="sleepMin" class="mu-sleep-num">{{ sleepLeft }}′</span>
                         </button>
                         <input
                             class="mu-slider"
@@ -645,6 +818,67 @@ onMounted(() => {
     padding: 36% 0;
 }
 
+/* 队列行的行内操作（收藏/移除）：平时淡出，悬停该行才显形 */
+.mu-row-acts {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 140ms var(--ease);
+}
+
+.mu-row:hover .mu-row-acts,
+.mu-row:focus-within .mu-row-acts {
+    opacity: 1;
+}
+
+.mu-row-act {
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.mu-row-act:hover {
+    background: var(--glass-4);
+    color: var(--text-0);
+}
+
+.mu-row-act.liked {
+    color: var(--c-a, #ff4d4f);
+}
+
+.mu-row-act:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* 定时停止：开着的时候按钮带强调色，并显示剩余分钟 */
+.mu-btn.on {
+    color: var(--c-a);
+}
+
+.mu-sleep-num {
+    font-size: 10px;
+    margin-left: 2px;
+    color: var(--c-a);
+}
+
+/* 逐字高亮：未唱到的字半透明，唱到的字实色（不额外加粗，避免整行抖动） */
+.mu-ch {
+    color: color-mix(in srgb, currentColor 38%, transparent);
+    transition: color 120ms linear;
+}
+
+.mu-ch.lit {
+    color: currentColor;
+}
+
 .mu-ln {
     margin: 0;
     padding: 10px 8px;
@@ -687,6 +921,8 @@ onMounted(() => {
     gap: 10px;
     width: 100%;
     padding: 7px 10px;
+    /* 行元素是 div（里面要放收藏/移除按钮），所以不能只靠 button 的默认样式 */
+    user-select: none;
     border: 0;
     border-radius: 8px;
     background: none;
