@@ -62,6 +62,7 @@ function buildBody(version, details, rows) {
     const row = rows.get(version)
     const footer = [
         '',
+        '',
         '---',
         '',
         `- 安装包：\`HaYenai-${version}-x64-setup.exe\`（同目录有 \`SHA256SUMS.txt\`）`,
