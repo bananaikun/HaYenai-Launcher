@@ -280,20 +280,15 @@ export const WALLPAPER_QUALITY_PRESETS: Record<WallpaperQualityPreset, Wallpaper
 }
 
 export const DEFAULT_WALLPAPER_QUALITY: WallpaperQuality = {
-    /* 2026-10-31 主人拍板：默认从「超高」降一档，但**不牺牲贴图清晰度**。
-       实测依据（Radeon 760M / ANGLE D3D11 / 1280×720 / 4K 包）：
-       原默认（后处理 high + 60fps）只有 **36fps**，而集显共享内存，
-       壁纸贴图与后处理 FBO 直接和系统内存抢带宽，UI 跟着掉帧。
-       ⇒ 靠 **帧率 30 + 后处理 medium** 省，`textureScale` 保持 1.0。
-       ⚠ 别把 textureScale 调低于 1：实际贴图 = textureScale × 自动因子 R
-       （dpr 1.25 时 R=0.8），0.8×0.8=0.64 会让山体比桌面 WE 明显发软。
-       抗锯齿保持 MSAA×2 与粒子 high：这两项直接影响文字边缘与花瓣效果。
-       要回满档去「设置 → 壁纸」手动选「超高」，这里只决定**首次使用**的默认值。 */
-    fps: 30,
-    postProcessing: 'medium',
-    antiAliasing: 'msaa2',
-    particles: 'high',
-    textureScale: 1,
+    /* 2026-11-01 主人拍板：「默认为我 WE 现在的配置」——
+       帧率 60 / 抗锯齿 MSAA ×2 / 后处理启用(high) / 纹理分辨率自动(1.0) / 粒子 high。
+       这正好等于「高」档预设，所以直接从这里派生，别再各写一份数字（两张表迟早对不上）。
+
+       ⚠ 之前这里写的是 30fps / medium，理由是「Radeon 760M 实测只有 36fps」。
+       但那是**在抗锯齿被 bug 关掉、且壁纸后处理跑 high** 的前提下测的，
+       而且主人要的是跟 WE 一致 —— 性能不行他会自己在设置里往下调。
+       真正的性能开关在「设置 → 壁纸」的品质档，不在代码里替他做决定。 */
+    ...WALLPAPER_QUALITY_PRESETS.high,
 }
 
 /**
@@ -575,19 +570,24 @@ export async function getWallpaperConfig(): Promise<WallpaperConfig> {
        这里一次性收成新结构，调用方就不必各自兼容。 */
     const normalized = normalizeWallpaperQuality(config.quality)
 
-    /* 2026-10-31：默认档位降了一档（60fps/high/1.0 → 30fps/medium/0.8，实测 36fps→可跑满）。
-       只迁移**从没被改过**的旧配置 —— 指纹＝旧默认值 + 没有 `particles` 字段
-       （旧 schema 根本没这个键）。用户自己调过的、或新版写过的配置一律不碰。 */
+    /* 2026-11-01 修「每次切壁纸画质就重置」。
+
+       旧指纹迁移是这轮事故的放大器：Rust 侧 `WallpaperQuality` 少了 `particles`、
+       且 `antialiasing` 拼写对不上前端的 `antiAliasing`，**存盘时这两个键都被丢掉**。
+       于是用户按 WE 设成 60/high/1.0 之后，落盘的正好是「旧默认指纹」，
+       每次读配置都被判定成"从没改过" → 覆盖回 30fps/medium。
+       （Rust 侧字段已补齐，存盘不再丢数据；这里把误判的指纹一起换掉。）
+
+       现在的判据只认一件事：**这份配置是不是被那个会丢字段的旧 store 写出来的**
+       —— 缺 `particles` 或 缺 `antiAliasing` 就必然是。那种值不可能是用户选的
+       （UI 上根本没有对应的形状），一律覆盖成新默认。
+       迁移完这两个键就存在了，下次不会再触发，天然幂等。 */
     const raw = (config.quality ?? {}) as Record<string, unknown>
-    const untouchedLegacyDefault =
-        raw.particles === undefined &&
-        Number(raw.fps) === 60 &&
-        raw.postProcessing === 'high' &&
-        Number(raw.textureScale) === 1
-    if (untouchedLegacyDefault) {
+    const writtenByLossyStore = raw.particles === undefined || raw.antiAliasing === undefined
+    if (writtenByLossyStore) {
         const migrated: WallpaperConfig = {
             ...config,
-            quality: { ...normalized, ...DEFAULT_WALLPAPER_QUALITY },
+            quality: { ...DEFAULT_WALLPAPER_QUALITY },
         }
         // 写失败不阻断读取：本次仍按新默认跑，下次再试
         await setWallpaperConfig(migrated).catch(() => undefined)

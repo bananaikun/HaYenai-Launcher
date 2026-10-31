@@ -250,22 +250,99 @@ pub enum PostProcessing {
     Off,
 }
 
-/// 渲染档位。默认值来自架构文档 §0：30fps、后处理 medium、AA 关、贴图 0.8 倍。
+/// 抗锯齿档位，对应 `webwallgl` 的 `quality.antiAliasing`。
+///
+/// ⚠ 旧版这里是 `bool`（`antialiasing`），**前端发的是字符串 `antiAliasing`**。
+/// 名字对不上 ⇒ 每次保存都被落成默认 `false` ⇒ 抗锯齿永远是关的
+/// （主人 2026-11-01 报的「时钟边缘不锐利」）。
+/// 这里手写 `Deserialize`：既吃新字符串，也吃旧布尔，老 `config.json` 不会解析失败。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AntiAliasing {
+    #[default]
+    Off,
+    Fxaa,
+    Msaa2,
+    Msaa4,
+}
+
+impl<'de> Deserialize<'de> for AntiAliasing {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = AntiAliasing;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("off / fxaa / msaa2 / msaa4，或旧版的 true / false")
+            }
+
+            fn visit_bool<E>(self, value: bool) -> std::result::Result<AntiAliasing, E> {
+                Ok(if value {
+                    AntiAliasing::Fxaa
+                } else {
+                    AntiAliasing::Off
+                })
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<AntiAliasing, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(match value.trim().to_ascii_lowercase().as_str() {
+                    "fxaa" => AntiAliasing::Fxaa,
+                    "msaa2" => AntiAliasing::Msaa2,
+                    "msaa4" => AntiAliasing::Msaa4,
+                    _ => AntiAliasing::Off,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(Visitor)
+    }
+}
+
+/// 粒子档位，对应 `webwallgl` 的 `quality.particles`。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Particles {
+    Off,
+    Low,
+    Medium,
+    #[default]
+    High,
+}
+
+/// 渲染档位，字段必须与前端 `WallpaperQuality`（`helpers/wallpaper.ts`）一一对应。
+///
+/// 默认值＝主人在 Wallpaper Engine 里选的配置：60fps / MSAA ×2 / 后处理启用(high)
+/// / 纹理自动(textureScale 1) / 粒子 high。
+///
+/// ⚠ 这里**少一个字段就会静默丢数据**（serde 默认忽略未知字段，写盘时也没了）：
+/// 2026-10-31 就是少了 `particles`、且 `antialiasing` 拼写对不上，
+/// 于是「改画质 → 切壁纸 → 又变回去」，还被前端的旧默认指纹误判成「没改过」。
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WallpaperQuality {
     pub fps: u32,
     pub post_processing: PostProcessing,
-    pub antialiasing: bool,
+    /// 旧版键名是 `antialiasing`（无大写 A，且是布尔），这里用 alias 兜住。
+    #[serde(alias = "antialiasing")]
+    pub anti_aliasing: AntiAliasing,
+    pub particles: Particles,
     pub texture_scale: f32,
 }
 
 impl Default for WallpaperQuality {
     fn default() -> Self {
         Self {
-            fps: 30,
-            post_processing: PostProcessing::Medium,
-            antialiasing: false,
+            fps: 60,
+            post_processing: PostProcessing::High,
+            anti_aliasing: AntiAliasing::Msaa2,
+            particles: Particles::High,
             // 1.0 = native：贴图按原始分辨率装配。0.8 就是主人反复报的"壁纸像缩略图"。
             texture_scale: 1.0,
         }
@@ -278,7 +355,8 @@ impl WallpaperQuality {
         Self {
             fps: self.fps.clamp(1, 240),
             post_processing: self.post_processing,
-            antialiasing: self.antialiasing,
+            anti_aliasing: self.anti_aliasing,
+            particles: self.particles,
             texture_scale: if self.texture_scale.is_finite() {
                 let scale = self.texture_scale.clamp(0.25, 1.0);
                 // 0.8 是旧默认值，且没有任何 UI 能选到它 —— 只可能来自老 config.json。
@@ -359,9 +437,11 @@ mod tests {
     fn quality_defaults_match_the_agreed_budget() {
         let quality = WallpaperQuality::default();
 
-        assert_eq!(quality.fps, 30);
-        assert_eq!(quality.post_processing, PostProcessing::Medium);
-        assert!(!quality.antialiasing);
+        // 主人 2026-11-01 拍板：默认值跟他 Wallpaper Engine 里的配置一致
+        assert_eq!(quality.fps, 60);
+        assert_eq!(quality.post_processing, PostProcessing::High);
+        assert_eq!(quality.anti_aliasing, AntiAliasing::Msaa2);
+        assert_eq!(quality.particles, Particles::High);
         assert!((quality.texture_scale - 1.0).abs() < f32::EPSILON);
     }
 
@@ -370,26 +450,72 @@ mod tests {
         let quality = WallpaperQuality {
             fps: 0,
             post_processing: PostProcessing::Off,
-            antialiasing: true,
+            anti_aliasing: AntiAliasing::Msaa4,
+            particles: Particles::Off,
             texture_scale: f32::NAN,
         }
         .sanitized();
 
         assert_eq!(quality.fps, 1);
         assert_eq!(quality.post_processing, PostProcessing::Off);
-        assert!(quality.antialiasing);
+        assert_eq!(quality.anti_aliasing, AntiAliasing::Msaa4);
+        assert_eq!(quality.particles, Particles::Off);
         assert!((quality.texture_scale - 1.0).abs() < f32::EPSILON);
 
         let quality = WallpaperQuality {
             fps: 5_000,
             post_processing: PostProcessing::High,
-            antialiasing: false,
+            anti_aliasing: AntiAliasing::Off,
+            particles: Particles::High,
             texture_scale: 9.0,
         }
         .sanitized();
 
         assert_eq!(quality.fps, 240);
         assert!((quality.texture_scale - 1.0).abs() < f32::EPSILON);
+    }
+
+    /// 回归防护（2026-11-01）：前端发的是 `antiAliasing: "msaa2"` + `particles: "high"`。
+    /// 以前 Rust 侧字段名是 `antialiasing: bool`、且没有 `particles`，
+    /// 于是这两个键在反序列化时被静默丢掉 ——「改画质 → 切壁纸 → 又变回去」。
+    #[test]
+    fn quality_keeps_every_field_the_frontend_sends() {
+        let json = serde_json::json!({
+            "fps": 60,
+            "postProcessing": "high",
+            "antiAliasing": "msaa4",
+            "particles": "medium",
+            "textureScale": 0.75,
+        });
+
+        let quality: WallpaperQuality = serde_json::from_value(json).expect("前端载荷必须能解析");
+
+        assert_eq!(quality.fps, 60);
+        assert_eq!(quality.post_processing, PostProcessing::High);
+        assert_eq!(quality.anti_aliasing, AntiAliasing::Msaa4);
+        assert_eq!(quality.particles, Particles::Medium);
+        assert!((quality.texture_scale - 0.75).abs() < f32::EPSILON);
+
+        // 序列化回去必须还是前端认识的那几个键
+        let back = serde_json::to_value(quality).expect("必须能序列化");
+        assert_eq!(back["antiAliasing"], serde_json::json!("msaa4"));
+        assert_eq!(back["particles"], serde_json::json!("medium"));
+    }
+
+    /// 老 `config.json` 里是 `antialiasing: false`（布尔），不能因为改名就整个解析失败
+    /// —— 解析失败会退化成 `WallpaperConfig::default()`，把用户选中的壁纸一起丢掉。
+    #[test]
+    fn legacy_boolean_antialiasing_still_parses() {
+        let off: WallpaperQuality =
+            serde_json::from_value(serde_json::json!({ "antialiasing": false, "fps": 30 })).unwrap();
+        assert_eq!(off.anti_aliasing, AntiAliasing::Off);
+        assert_eq!(off.fps, 30);
+        // 缺的字段走 Default
+        assert_eq!(off.particles, Particles::High);
+
+        let on: WallpaperQuality =
+            serde_json::from_value(serde_json::json!({ "antialiasing": true })).unwrap();
+        assert_eq!(on.anti_aliasing, AntiAliasing::Fxaa);
     }
 
     #[test]
@@ -424,7 +550,19 @@ mod tests {
         )
         .expect("partial quality is valid");
         assert_eq!(parsed.quality.fps, 60);
-        assert_eq!(parsed.quality.post_processing, PostProcessing::Medium);
+        // 只给了 fps，其余字段走 Default（= 主人 WE 那套：high / msaa2 / high / 1.0）
+        assert_eq!(
+            parsed.quality.post_processing,
+            WallpaperQuality::default().post_processing
+        );
+        assert_eq!(
+            parsed.quality.anti_aliasing,
+            WallpaperQuality::default().anti_aliasing
+        );
+        assert_eq!(
+            parsed.quality.particles,
+            WallpaperQuality::default().particles
+        );
     }
 
     #[test]

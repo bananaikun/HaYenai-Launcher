@@ -31129,7 +31129,16 @@ function mountScene(rt, cfg) {
         }
         textCanvas = document.createElement("canvas");
         textCtx = textCanvas.getContext("2d");
-        const MAX_TEX = 2048;
+        /* [we-scene patch 2026-11-01] 2048 → min(4096, GL 上限)。
+           2× 超采样之后，大字号静态层（这张包的 "D a y" / SATURDAY）会被 2048 夹回去，
+           等于白超采样 —— 主人报的「边缘不锐利」里就有这一份。
+           取值理由：4096×4096 RGBA 约 64MB 是天花板，但只有**静态**的大字号层会接近它；
+           每秒都要重传的时钟/日期层纹理才几百 px，不受影响。
+           NPOT + mipmap 在 WebGL2 下合法，不用凑 2 的幂。 */
+        const MAX_TEX = Math.min(
+          4096,
+          (renderer.gl.getParameter(renderer.gl.MAX_TEXTURE_SIZE) || 0) || 4096
+        );
         for (const layer of scene.layers) {
           if (!layer.isText) continue;
           try {
