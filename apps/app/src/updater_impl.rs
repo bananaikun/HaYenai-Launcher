@@ -211,12 +211,131 @@ fn update_platform() -> Result<&'static str> {
 const GITHUB_UPDATE_ENDPOINT: &str =
     "https://github.com/bananaikun/HaYenai-Launcher/releases/latest/download/latest.json";
 
+/* ---------------- GitHub 加速镜像 ----------------
+   国内直连 release 资产实测只有 40 KB/s 左右（65 MB 的安装包要半小时）。
+   这些是「前缀式」代理：把整条 GitHub URL 拼在后面即可，
+   `https://gh-proxy.com/https://github.com/...`。
+
+   两个用途：
+   1. 清单（latest.json）也走镜像，check 才快；
+   2. 真正的下载地址在 check 之后**现测现选**最够快的那个（见
+      `fastest_download_url`），全挂了就退回 GitHub 原始地址。
+   ⚠ 签名与 sha256 都是对文件内容做的，镜像只是转发字节，校验不受影响。 */
+const GITHUB_MIRRORS: &[&str] = &["https://gh-proxy.com/", "https://ghfast.top/"];
+
+/// 探测镜像时最多取这么多字节（够算出速度，又不至于白下太多）。
+const MIRROR_PROBE_BYTES: u64 = 1_048_576;
+/// 单个候选的探测预算。
+const MIRROR_PROBE_BUDGET: Duration = Duration::from_secs(6);
+/// 低于这个速度就认为「跟直连差不多」，继续找下一个。
+const MIRROR_MIN_BYTES_PER_SEC: f64 = 250_000.0;
+
+/// 把 GitHub 地址套上镜像前缀。只处理 `https://github.com/...`。
+fn mirrored(url: &Url, mirror: &str) -> Option<Url> {
+    if url.scheme() != "https" || url.host_str()? != "github.com" {
+        return None;
+    }
+    Url::parse(&format!("{mirror}{url}")).ok()
+}
+
+/// 清单端点：镜像优先，最后才是 GitHub 直连（插件按顺序尝试，失败才降级）。
+async fn manifest_endpoints() -> Result<Vec<Url>> {
+    let base = update_endpoint().await?;
+    let mut list: Vec<Url> = GITHUB_MIRRORS
+        .iter()
+        .filter_map(|mirror| mirrored(&base, mirror))
+        .collect();
+    list.push(base);
+    Ok(list)
+}
+
 /// The updater manifest URL.
 async fn update_endpoint() -> Result<Url> {
     Url::parse(GITHUB_UPDATE_ENDPOINT).map_err(|error| {
         theseus::Error::from(theseus::ErrorKind::OtherError(error.to_string()))
             .into()
     })
+}
+
+/// 取一小段数据，算这个候选的真实速度（字节/秒）。失败返回 `None`。
+async fn probe_speed(client: &reqwest::Client, url: &Url) -> Option<f64> {
+    let started = Instant::now();
+    let response = client
+        .get(url.clone())
+        .header(
+            reqwest::header::RANGE,
+            format!("bytes=0-{}", MIRROR_PROBE_BYTES - 1),
+        )
+        .timeout(MIRROR_PROBE_BUDGET)
+        .send()
+        .await
+        .ok()?;
+
+    if !response.status().is_success() {
+        return None;
+    }
+
+    let mut received = 0u64;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let Ok(chunk) = chunk else { break };
+        received += chunk.len() as u64;
+        if received >= MIRROR_PROBE_BYTES || started.elapsed() > MIRROR_PROBE_BUDGET {
+            break;
+        }
+    }
+    if received == 0 {
+        return None;
+    }
+    let seconds = started.elapsed().as_secs_f64().max(0.001);
+    Some(received as f64 / seconds)
+}
+
+/// 给下载地址挑一个够快的镜像：逐个探测，达到阈值就立刻用；
+/// 都不行就退回原始 GitHub 地址（保持「至少能下」）。
+async fn fastest_download_url(original: &Url) -> Url {
+    let candidates: Vec<Url> = GITHUB_MIRRORS
+        .iter()
+        .filter_map(|mirror| mirrored(original, mirror))
+        .collect();
+    if candidates.is_empty() {
+        return original.clone();
+    }
+
+    let client = match ClientBuilder::new()
+        .user_agent(launcher_user_agent())
+        .build()
+    {
+        Ok(client) => client,
+        Err(_) => return original.clone(),
+    };
+
+    let mut best: Option<(f64, Url)> = None;
+    for candidate in candidates {
+        match probe_speed(&client, &candidate).await {
+            Some(speed) if speed >= MIRROR_MIN_BYTES_PER_SEC => {
+                tracing::info!(
+                    mirror = %candidate, speed_kib = (speed / 1024.0) as u64,
+                    "update download mirror selected"
+                );
+                return candidate;
+            }
+            Some(speed) => {
+                tracing::debug!(mirror = %candidate, speed_kib = (speed / 1024.0) as u64, "mirror too slow");
+                if best.as_ref().map(|(s, _)| speed > *s).unwrap_or(true) {
+                    best = Some((speed, candidate));
+                }
+            }
+            None => {
+                tracing::debug!(mirror = %candidate, "mirror probe failed");
+            }
+        }
+    }
+
+    match best {
+        Some((_, url)) => url,
+        None => original.clone(),
+    }
 }
 
 /// Build the platform-updater with the given endpoints and run a check.
@@ -231,7 +350,7 @@ async fn check_with_endpoints<R: Runtime>(
 
     let mut updater = webview
         .updater_builder()
-        .endpoints(vec![update_endpoint().await?])?
+        .endpoints(manifest_endpoints().await?)?
         .header("Accept", "application/json")?
         .header("X-HaYenai-Channel", channel)?
         .header("X-HaYenai-Platform", platform)?
@@ -283,6 +402,9 @@ async fn check_with_updater<R: Runtime>(
     // is verified with the catalog's sha256/size during the download.
     if is_apt_linux() {
         update.download_url = fetch_apt_deb_asset(&update.version).await?.url;
+    } else {
+        // 直连 GitHub 只有几十 KB/s；换成一个实测够快的镜像（都不行就保持原样）。
+        update.download_url = fastest_download_url(&update.download_url).await;
     }
 
     let published_at = update

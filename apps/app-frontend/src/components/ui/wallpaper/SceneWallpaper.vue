@@ -131,6 +131,7 @@ async function mountEngine(): Promise<void> {
     // 贴图倍率只能通过页面 URL 传，且库只在装配那一刻读 ⇒ 每次挂载前重写一遍。
     applyWallpaperTextureScale(props.quality.textureScale)
 
+    const mountStartedAt = performance.now()
     try {
         const { mount, httpSource, createMediaSource } = await import('webwallgl')
         if (disposed || current !== generation) return
@@ -170,6 +171,12 @@ async function mountEngine(): Promise<void> {
         }
 
         instance = mounted
+        if (import.meta.env.DEV) {
+            // 加载耗时：切壁纸时「卡一下」到底卡多久，只有这个数说话。
+            console.info(
+                `[wallpaper] mount ${Math.round(performance.now() - mountStartedAt)}ms ${props.wallpaperId}`,
+            )
+        }
         // 调试钩子：dev 下把实例挂到 window，方便用 CDP 直接验证 setProperties 等通路
         if (import.meta.env.DEV) {
             ;(window as unknown as { __scene?: unknown }).__scene = mounted
@@ -184,6 +191,12 @@ async function mountEngine(): Promise<void> {
         emit('first-frame')
     } catch (error) {
         if (disposed || current !== generation) return
+        if (import.meta.env.DEV) {
+            console.warn(
+                `[wallpaper] mount FAILED after ${Math.round(performance.now() - mountStartedAt)}ms ${props.wallpaperId}`,
+                error,
+            )
+        }
         console.warn('[wallpaper] 场景挂载失败', error)
         emit('fail', 'mount-failed')
     }
