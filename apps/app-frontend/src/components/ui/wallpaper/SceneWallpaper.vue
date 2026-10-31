@@ -142,6 +142,13 @@ async function mountEngine(): Promise<void> {
             fps: props.quality.fps,
             mountTimeoutMs: MOUNT_TIMEOUT_MS,
             quality: qualityPatch(props.quality),
+            /* 2026-10-31（主人：切/滚列表时「屏闪」）：
+               库的 autoQuality 会在帧率掉下来时**当场降一档后处理**（实测日志
+               `autoQuality: postProcessing → medium`），画面会明显闪一下；
+               而画质本来就有「设置 → 壁纸」里的显式档位，运行期自己偷偷改档
+               等于既闪又和用户的设置打架。这里直接关掉自动降档，
+               画质只由 `quality` 与 `setQuality()` 决定。 */
+            autoQuality: false,
             onDiagnostic: (message, level) => {
                 // 降档原因（autoQuality 只降不升）与资源缺失都在这里，
                 // 丢掉它就会出现「越用越糊却一句解释都没有」。

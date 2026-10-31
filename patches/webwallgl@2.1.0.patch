@@ -33034,3 +33034,20 @@ index 2ef09ef..dfdf9a5 100644
            getParticleSystems: (target) => target && target.id !== void 0 && particleSystemsByLayer.get(target.id) || [],
            emitParticles: (target, count) => {
              const list = target && target.id !== void 0 ? particleSystemsByLayer.get(target.id) : null;
+--- a/webwallgl.mjs
++++ b/webwallgl.mjs
+@@ -34889,7 +34889,13 @@
+     // （scene-mount applyQuality / getQuality），这里不引依赖 —— 本函数会被
+     // verify-media 抽出来脱离 import 单独执行。
+     quality: o.quality,
+-    scripts: o.scripts !== false
++    scripts: o.scripts !== false,
++    /* 2026-10-31 HaYenai 补：`MountOptions.autoQuality` 在 types 里写得很清楚
++       （「传 false 整体关闭」），但本函数是白名单式组装，把这一项丢了 ⇒
++       宿主的 `autoQuality: false` 根本不生效，运行期照旧自动降后处理档位
++       （表现为切列表/滚动时画面闪一下）。 */
++    autoQuality: o.autoQuality !== false,
++    bake: o.bake !== false
+   };
+   let project = null;
+   try {

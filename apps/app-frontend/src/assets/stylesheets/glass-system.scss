@@ -85,20 +85,6 @@ html.has-custom-background body :is(
     --color-tooltip-bg: color-mix(in srgb, #0a0b10 var(--ui-dim, 25%), transparent);
 }
 
-/* ---- 长列表行：只留渐变，不逐行模糊 ---------------------------------------
-   2026-10-31（主人：实例里的内容列表「滚动很卡、掉帧」）：
-   `.bg-surface-content` 在玻璃名单里 ⇒ 每一行都吃到 `backdrop-filter: blur(16px)`。
-   实例页 105 条内容、可见 22 行 = 22 个模糊层叠在一起，滚动时合成器每帧要重算
-   22 次 74px 高的模糊。实机测量：平均帧 **50ms（20fps）**、p90 68ms、51/59 帧超 33ms。
-   面板本身已经模糊过，行再模糊一次在视觉上看不出差别（行底色本来就近乎全透明），
-   所以这里只关掉**行的**模糊与 `saturate`，渐变与发丝描边保留。
-   规则只命中「表格里的行」，不影响别处的 `bg-surface-content` 卡片。 */
-html.has-custom-background body [data-content-card-table] [role='row'],
-html.has-custom-background body [role='table'] > [role='rowgroup'] > [role='row'] > * {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-}
-
 /* ---- 气泡箭头 -------------------------------------------------------------
    气泡本身换成了玻璃配方（几乎透明 + 模糊），但箭头是两片 CSS 三角，
    颜色取的是 `--surface-5` / `--color-tooltip-bg` —— 前者仍是深色实面，
