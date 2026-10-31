@@ -393,6 +393,31 @@ export function seek(seconds: number): void {
     audio.currentTime = Math.max(0, Math.min(seconds, music.duration || seconds))
 }
 
+/**
+ * 用一份现成的曲目列表替换播放队列（网易云歌单走这条）。
+ *
+ * 与 `loadPlaylist()` 的区别：那边自己去音源解析 spec，这边是「外面已经拿到
+ * 曲目元数据了，只差播放」。所以这里**不再请求任何接口**，只做三件事：
+ * 换队列、定位到起始曲、按需起播；进度沿用同一套 `restoreProgress()` 约定
+ * （换队列等于换内容，进度按 key 对不上就从头开始）。
+ *
+ * `url` 为空的曲目直接丢掉 —— 与 `loadPlaylist()` 里 `filter(song => song.url)` 同一口径，
+ * 免得播放列表里混进点了没反应的条目。
+ */
+export function setQueue(next: RawSong[], startIndex = 0, autoplay = true): void {
+    const list = (next || []).filter((song) => song && song.url)
+    if (!list.length) {
+        music.error = '这个歌单里没有可播放的曲目'
+        return
+    }
+    music.songs = list
+    music.error = ''
+    const at = Math.max(0, Math.min(list.length - 1, Math.trunc(startIndex) || 0))
+    music.index = at
+    applySong(at, autoplay)
+    if (autoplay) void play()
+}
+
 /** 拉歌单。失败时把「哪个源、什么错」原样留给界面，不做二次包装。 */
 let autoplayed = false
 

@@ -18,7 +18,9 @@ import { PauseIcon, PlayIcon, RefreshCwIcon } from '@modrinth/assets'
 import { defineMessages, useVIntl } from '@modrinth/ui'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
+import NeteasePanel from '@/components/ui/music/NeteasePanel.vue'
 import { METING_SOURCES, hostOf } from '@/helpers/music/music-source'
+import type { NeteasePlaylist, NeteaseSong } from '@/helpers/music/netease'
 import {
     currentSong,
     cycleMode,
@@ -29,6 +31,7 @@ import {
     playIndex,
     prev as musicPrev,
     seek,
+    setQueue,
     setVolume,
     toggle,
     toggleMute,
@@ -59,6 +62,31 @@ const messages = defineMessages({
 })
 
 const tab = ref<'lyric' | 'list'>('lyric')
+/** 网易云面板是否展开（登录 + 我的歌单） */
+const netOpen = ref(false)
+
+/**
+ * 网易云歌单 → 播放队列。
+ *
+ * 曲目元数据（名字/歌手/封面）已经从官方接口拿到了，这里只补「能播的地址」：
+ * 用 Meting 的 `type=url` / `type=lrc` 按曲目 id 取流与歌词。
+ * 这样播放链路完全没变（还是原来那套 audio + 歌词解析 + 进度保存），
+ * 只是队列来源换成了官方歌单。
+ */
+function onNeteasePick(payload: { playlist: NeteasePlaylist; songs: NeteaseSong[] }) {
+    const source = METING_SOURCES[0]
+    const list = payload.songs.map((song) => ({
+        id: song.id,
+        name: song.name,
+        artist: song.artist,
+        pic: song.cover,
+        url: `${source}?server=netease&type=url&id=${song.id}`,
+        lrc: `${source}?server=netease&type=lrc&id=${song.id}`,
+    }))
+    setQueue(list, 0, true)
+    netOpen.value = false
+    tab.value = 'list'
+}
 const song = computed(() => currentSong())
 const progress = computed(() =>
     music.duration > 0 ? Math.min(100, (music.currentTime / music.duration) * 100) : 0,
@@ -135,6 +163,15 @@ onMounted(() => {
             <span class="mu-grow" />
             <button
                 type="button"
+                class="mu-account"
+                :class="{ on: netOpen }"
+                v-tooltip="'网易云账号与我的歌单'"
+                @click="netOpen = !netOpen"
+            >
+                网易云
+            </button>
+            <button
+                type="button"
                 class="mu-iconbtn"
                 v-tooltip="formatMessage(messages.reload)"
                 @click="loadPlaylist()"
@@ -143,7 +180,13 @@ onMounted(() => {
             </button>
         </div>
 
-        <div v-if="!music.songs.length" class="mu-empty">
+        <NeteasePanel
+            v-if="netOpen"
+            @close="netOpen = false"
+            @pick="onNeteasePick"
+        />
+
+        <div v-if="!netOpen && !music.songs.length" class="mu-empty">
             <span class="mu-meta">
                 {{
                     music.loading
@@ -156,7 +199,7 @@ onMounted(() => {
             </button>
         </div>
 
-        <template v-else>
+        <template v-else-if="!netOpen">
             <div class="mu-stage">
                 <div class="mu-art">
                     <span class="mu-halo" />
@@ -360,6 +403,29 @@ onMounted(() => {
 
 .mu-grow {
     flex: 1;
+}
+
+/* 网易云入口：与工具栏的圆形按钮同材质，但要有字，所以是胶囊形 */
+.mu-account {
+    border: 1px solid var(--stroke-1);
+    background: var(--glass-2);
+    color: var(--text-1);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--glass-4);
+        color: var(--text-0);
+    }
+
+    &.on {
+        background: var(--glass-4);
+        color: var(--text-0);
+        border-color: var(--c-a, var(--stroke-1));
+    }
 }
 
 .mu-iconbtn {
