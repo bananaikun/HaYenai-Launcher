@@ -1140,11 +1140,17 @@ const confirmUnlinkModal = ref<InstanceType<typeof ConfirmUnlinkModal>>()
                     @toggle="toggleTypeFilter"
                 />
 
+                <!-- 2026-11-01 内容列表关掉虚拟化，全部渲染。
+                     原因：玻璃列表在 20fps 左右滚动时，滚动位置与渲染区间总有一帧对不上，
+                     那一帧就是整片空白（主人截图里「只有底部两条有内容」）。
+                     虚拟滚动在这里的收益远小于它带来的错位风险；模糊已改成容器一次
+                     （glass-system.scss 的 .content-list-glass），全渲染的模糊成本没增加。 -->
                 <ContentCardTable
                     v-model:selected-ids="selectedIds"
                     :items="tableItems"
                     :show-selection="true"
                     :expanded-groups="expandedGroups"
+                    :virtualized="false"
                     @update:enabled="handleToggleEnabledById"
                     @delete="handleDeleteById"
                     @update="handleUpdateById"

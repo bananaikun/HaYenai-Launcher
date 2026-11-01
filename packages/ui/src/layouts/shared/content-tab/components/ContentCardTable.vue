@@ -262,7 +262,7 @@ function handleItemUpdate(id: string) {
             v-if="items.length > 0 && virtualized"
             ref="listContainer"
             role="rowgroup"
-            class="relative w-full"
+            class="relative w-full content-list-glass"
             :class="flat ? '' : 'rounded-b-[20px]'"
             :style="{ minHeight: `${totalHeight}px`, overflowAnchor: 'none' }"
         >
@@ -382,6 +382,7 @@ function handleItemUpdate(id: string) {
             v-else-if="items.length > 0"
             ref="listContainer"
             role="rowgroup"
+            class="content-list-glass"
             :class="flat ? '' : 'rounded-b-[20px]'"
         >
             <ContentCardItem

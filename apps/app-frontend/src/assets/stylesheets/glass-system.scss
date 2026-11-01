@@ -41,6 +41,24 @@ html.has-custom-background[data-wallpaper-tone='light'] {
     --text-3: rgba(20, 22, 28, 0.42);
 }
 
+/* ---- 内容列表：整个列表一次模糊（不是每行一次）---------------------------
+   2026-11-01 主人：「模糊不要动」。模糊本身保留，只是换挂法：
+   原来几十行各挂一个 backdrop-filter，滚动时全部逐帧重算（实测 21.4fps）。
+   现在挂在这块容器上 —— 它自己不动，背后是壁纸也不动，模糊结果可以被复用；
+   行只留半透底（global.scss 的 .bg-surface-content* 那段），透出来就是这块模糊。
+   副作用：相邻行的模糊在接缝处连续（原来逐行独立采样，接缝有细微断裂），观感更整。 */
+.content-list-glass {
+    -webkit-backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(var(--ui-saturate, 105%));
+    backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(var(--ui-saturate, 105%));
+}
+/* 列表内部的行必须去掉自己的模糊，否则又变回「每行一层」。
+   行只剩半透底 + 内高光（global.scss 的 .bg-surface-content* 那段），
+   透出来的是上面这块容器的模糊结果。 */
+.content-list-glass [data-content-card-item-id] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
 /* ---- 玻璃：与 .settings-content 一字不差的配方 --------------------------- */
 html.has-custom-background body :is(
     /* 卡片族 */
@@ -48,6 +66,10 @@ html.has-custom-background body :is(
     /* 表面色族（逐个列，事后由扫描结果补漏，不用属性选择器一把抓） */
     .bg-surface-1, .bg-surface-2, .bg-surface-3, .bg-surface-4, .bg-surface-5,
     [class~='bg-surface-1.5'], [class~='bg-surface-2.5'],
+    /* 2026-11-01 说明：本段会把这些行变成模糊层（带 !important），代价很高。
+       内容列表已经改成「容器一次模糊 + 行不模糊」，见文件下方 `.content-list-glass` ——
+       那里对列表内部的行做了 backdrop-filter: none 覆盖，所以这里的规则对列表不再生效。
+       其它页面（下载页 / 文件列表）仍沿用本段，视觉不变。 */
     .bg-surface-content, .bg-surface-content-alt, .bg-surface-content-muted,
     /* 控件族 */
     .button-base, .menu-surface, .home-floating-controls, .hy-glass-list,
