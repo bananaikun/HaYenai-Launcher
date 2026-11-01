@@ -39,6 +39,7 @@ import {
 } from '@/helpers/wallpaper'
 
 import { wallpaperState } from '@/helpers/wallpaper'
+import { applyToneFromSurface } from '@/helpers/wallpaper-theme'
 import SceneWallpaper from './SceneWallpaper.vue'
 import VideoWallpaper from './VideoWallpaper.vue'
 import WebWallpaper from './WebWallpaper.vue'
@@ -285,9 +286,24 @@ function onVisibilityChange(): void {
 }
 
 /** 首帧到达：淡出海报。视频与场景共用一个信号。 */
+/**
+ * 用**屏幕上真正画出来的那一帧**重判明暗。
+ * `preview.*` 是工坊封面，跟场景实际画面经常对不上（实测 ws-2986218263 的封面是亮粉
+ * 角色立绘、场景却是深绿水面），按封面判会把深色壁纸判成该用深字。
+ */
+function captureToneFromSurface(): void {
+    const host = rootEl.value
+    if (!host) return
+    const el =
+        host.querySelector<HTMLCanvasElement>('canvas[data-webwallgl]') ??
+        host.querySelector<HTMLVideoElement>('video')
+    if (el) applyToneFromSurface(el)
+}
+
 function onFirstFrame(): void {
     engineReady.value = true
     failure.value = null
+    captureToneFromSurface()
 }
 
 function onFail(reason: string): void {
@@ -487,6 +503,7 @@ defineExpose({
             :entry="meta.file"
             :resolve-url="wallpaperAssetUrl"
             :active="engineActive"
+            @first-frame="onFirstFrame"
             @fail="onFail"
         />
 

@@ -26,8 +26,16 @@ const props = withDefaults(
         active?: boolean
         /** 首帧（其实就是 iframe 的 load）失败或超时 */
         onFail?: () => void
+        /**
+         * 首帧就绪。**必须发**：父组件靠它把海报撤掉
+         * （`posterVisible = posterUrl && !engineReady`）。
+         * 2026-11-01 之前这里只监听了 fail、没发过 first-frame ——
+         * 于是海报一直盖在 iframe 上面，用户看到的其实是 preview.gif，
+         * 表现为「网页壁纸用不了，只是个缩略图」。
+         */
+        onFirstFrame?: () => void
     }>(),
-    { active: true, onFail: undefined },
+    { active: true, onFail: undefined, onFirstFrame: undefined },
 )
 
 const frame = ref<HTMLIFrameElement | null>(null)
@@ -45,6 +53,7 @@ function onLoad() {
         window.clearTimeout(timeout)
         timeout = null
     }
+    props.onFirstFrame?.()
 }
 
 onMounted(() => {

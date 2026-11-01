@@ -22,6 +22,7 @@ import { selectedWallpaper } from '@/helpers/wallpaper'
 import {
     applyHysteresis,
     decideTone,
+    wcagLum,
     type GlassLayers,
     type LumGrid,
     type Region,
@@ -121,6 +122,14 @@ function glassLayers(): GlassLayers {
 
 let cachedSample: AccentSample | null = null
 let cachedId: string | null = null
+/**
+ * 屏幕上**真正渲染的那一帧**的低频网格。有它就优先于 preview。
+ *
+ * 为什么必须这么做：Wallpaper Engine 的 `preview.*` 是**工坊封面**，跟场景实际画面
+ * 对不上的情况很常见（实测 ws-2986218263 的封面是亮粉角色立绘，场景却是深绿水面）。
+ * 按封面判定，深色壁纸会被判成「该用深字」，侧栏直接糊掉。
+ */
+let liveGrid: LumGrid | null = null
 let resizeTimer: number | null = null
 let domRetryTimer: number | null = null
 
@@ -144,8 +153,9 @@ function currentTone(): 'dark' | 'light' | null {
 
 /** 按缓存样本重新判定并写 `data-wallpaper-tone`；`force` 表示不受迟滞约束（换壁纸）。 */
 function applyToneFromSample(force = false): void {
-    if (!cachedSample) return
-    const decision = decideTone(cachedSample, {
+    const grid: LumGrid | null = liveGrid ?? cachedSample
+    if (!grid) return
+    const decision = decideTone(grid, {
         regions: textRegions(),
         glass: glassLayers(),
         aspect: (window.innerWidth || 1) / (window.innerHeight || 1),
@@ -156,6 +166,70 @@ function applyToneFromSample(force = false): void {
     document.documentElement.dataset.wallpaperTone = tone
 
     if (force && !document.querySelector('.side') && domRetryTimer === null) retryWhenMounted()
+}
+
+/** 网格长边格数，与 Rust 侧 `wallpaper_accent` 的 GRID 保持一致。 */
+const GRID_EDGE = 64
+
+function surfaceSize(el: HTMLCanvasElement | HTMLVideoElement): [number, number] {
+    if (el instanceof HTMLVideoElement) return [el.videoWidth, el.videoHeight]
+    return [el.width, el.height]
+}
+
+function isBlankGrid(grid: LumGrid): boolean {
+    return grid.lumMax.every((v) => v === 0)
+}
+
+/**
+ * 把一个「正在显示的元素」缩成低频亮度网格。
+ * 失败返回 null —— 调用方退回 preview 那条路，不阻断任何东西。
+ */
+function gridFromSurface(el: HTMLCanvasElement | HTMLVideoElement): LumGrid | null {
+    const [w, h] = surfaceSize(el)
+    if (!w || !h) return null
+
+    const gw = w >= h ? GRID_EDGE : Math.max(1, Math.round((w * GRID_EDGE) / h))
+    const gh = w >= h ? Math.max(1, Math.round((h * GRID_EDGE) / w)) : GRID_EDGE
+
+    const canvas = document.createElement('canvas')
+    canvas.width = gw
+    canvas.height = gh
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+
+    try {
+        ctx.drawImage(el, 0, 0, gw, gh)
+        const { data } = ctx.getImageData(0, 0, gw, gh)
+        const lum: number[] = []
+        for (let i = 0; i < data.length; i += 4) {
+            lum.push(Math.round(wcagLum(data[i], data[i + 1], data[i + 2]) * 255))
+        }
+        return { gridW: gw, gridH: gh, lumMax: lum, lumMin: lum }
+    } catch {
+        // 跨源污染（视频走 hayenai-we 协议且响应没带 ACAO）—— 读不到就不读
+        return null
+    }
+}
+
+/**
+ * 用**屏幕上真正渲染的那一帧**重判明暗。场景壁纸的 WebGL canvas 是页内同源创建的，
+ * 可以直接读；这是唯一与肉眼所见一致的采样源。
+ *
+ * WebGL 默认没开 `preserveDrawingBuffer`，首帧回调里立刻读可能拿到空缓冲 ——
+ * 读到全 0 就退一帧重试，最多 4 次。
+ */
+export function applyToneFromSurface(
+    el: HTMLCanvasElement | HTMLVideoElement,
+    attempt = 0,
+): void {
+    const grid = gridFromSurface(el)
+    if (!grid) return
+    if (isBlankGrid(grid) && attempt < 4) {
+        requestAnimationFrame(() => applyToneFromSurface(el, attempt + 1))
+        return
+    }
+    liveGrid = grid
+    applyToneFromSample(true)
 }
 
 /* 窗口比例一变，cover 裁切就变了 —— 可见区域跟着变，判定必须重算。
@@ -188,6 +262,8 @@ export async function applyWallpaperTheme(id: string | null | undefined): Promis
        字色是**可读性底线**，必须与那两个开关解耦：取一次采样 → 写 tone，总是执行；
        下面 accent 的部分才受开关控制。 */
     if (!cachedSample || cachedId !== id) {
+        // 换了壁纸：上一张的实渲染帧不能再用来判这一张
+        liveGrid = null
         try {
             cachedSample = await invoke<AccentSample | null>('wallpaper_accent', { id })
         } catch {
