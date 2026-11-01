@@ -133,7 +133,7 @@
                     </div>
                 </template>
                 <template #actions>
-                    <div data-onboarding-id="instance-actions" class="flex gap-2">
+                    <div class="flex gap-2">
                         <Button
                             v-if="
                                 [
@@ -289,7 +289,6 @@
             </ContentPageHeader>
         </div>
         <div
-            data-onboarding-id="instance-tabs"
             :class="['px-6', { 'shrink-0': isFixedRender, hidden: isStudioMode }]"
         >
             <SymlinkInstanceWarning

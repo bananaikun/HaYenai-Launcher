@@ -95,7 +95,6 @@ import ModpackInstallModal from '@/components/ui/modal/ModpackInstallModal.vue'
 import PrivacyConsentModal from '@/components/ui/modal/PrivacyConsentModal.vue'
 import NavButton from '@/components/ui/NavButton.vue'
 import OfflineAccountRestrictionModal from '@/components/ui/OfflineAccountRestrictionModal.vue'
-import OnboardingOverlay from '@/components/ui/onboarding/OnboardingOverlay.vue'
 import OverlayScrollbar from '@/components/ui/OverlayScrollbar.vue'
 import MagneticBar from '@/components/ui/magnetic/MagneticBar.vue'
 import { applyWallpaperTheme } from '@/helpers/wallpaper-theme'
@@ -138,12 +137,6 @@ import {
 import { cancelLogin, get as getCreds, login, logout } from '@/helpers/mr_auth.ts'
 import { installNativeEditMenuBoundary } from '@/helpers/native-edit-menu'
 import { getNavShortcutEnabled } from '@/helpers/nav-shortcut-state'
-import {
-    needsInstanceTour,
-    needsOnboarding,
-    onboardingCompletionPatch,
-    verifyOnboardingPersisted,
-} from '@/helpers/onboarding'
 import { runWhenIdle } from '@/helpers/page-transition'
 import { get_by_instance_id, kill as killProcess } from '@/helpers/process.js'
 import { getExternalLinkUrl, mergeUrlQuery, parseModrinthLink } from '@/helpers/project-links.ts'
@@ -480,11 +473,6 @@ const {
 } = setupProviders(notificationManager, popupNotificationManager, stateInitialization)
 
 const { browserOffline, offline, setNetworkReachable } = useNetworkStatus()
-
-const showOnboarding = ref(false)
-const onboardingMode = ref('main')
-const onboardingSettings = ref(null)
-const onboardingReplay = ref(false)
 
 const os = ref('')
 const isDevEnvironment = ref(false)
@@ -1163,15 +1151,6 @@ const messages = defineMessages({
         id: 'app.account.sign-in-modrinth',
         defaultMessage: 'Sign in to a Modrinth account',
     },
-    onboardingSaveFailedTitle: {
-        id: 'app.onboarding.save-failed-title',
-        defaultMessage: 'Setup was not saved',
-    },
-    onboardingSaveFailedBody: {
-        id: 'app.onboarding.save-failed-body',
-        defaultMessage:
-            'HaYenai could not store your setup. You can keep using the app, but the tour will be shown again after a restart.',
-    },
     updateInstalledToastTitle: {
         id: 'app.update.complete-toast.title',
         defaultMessage: 'Version {version} was successfully installed!',
@@ -1702,10 +1681,7 @@ async function setupApp() {
     os.value = await getOS()
     const dev = await isDev()
     isDevEnvironment.value = dev
-    if (!onboarded && route.path !== '/') await router.replace('/')
     privacyConsentPending.value = telemetry_consent_version < 1
-    showOnboarding.value = false
-    onboardingSettings.value = initialSettings
 
     // Always自绘: a native title bar would add a second strip above the app's own
     // status bar. The setting is kept in the schema so old profiles still load,
@@ -1764,8 +1740,6 @@ async function setupApp() {
             discord_rpc,
             consent_version: telemetry_consent_version,
         })
-    } else {
-        showOnboarding.value = needsOnboarding(initialSettings)
     }
 
     unlistenWindowResize = await getCurrentWindow().onResized(() => {
@@ -1860,113 +1834,8 @@ async function initializeSystemAccentColor() {
     }
 }
 
-function startOnboarding(mode = 'main') {
-    onboardingReplay.value = false
-    onboardingMode.value = mode
-    showOnboarding.value = true
-}
-
-async function replayOnboarding(mode) {
-    onboardingReplay.value = true
-    onboardingMode.value = mode
-    if (mode === 'main') await router.replace('/')
-    if (mode === 'logagent') await router.replace('/settings#launch-defaults')
-    showOnboarding.value = true
-}
-
-async function finishOnboarding() {
-    const wasReplay = onboardingReplay.value
-    const mode = onboardingMode.value
-
-    if (!wasReplay) {
-        const instanceTour = mode === 'instance'
-        let persisted: Awaited<ReturnType<typeof getSettings>>
-        try {
-            const saved = await updateSettings(
-                instanceTour
-                    ? { onboarding_instance_tour_completed: true }
-                    : onboardingCompletionPatch(),
-            )
-            onboardingSettings.value = saved
-            // The reply to a patch is not proof that the row was committed: read
-            // it back. A write that silently did not land is exactly what made
-            // the wizard reappear on the next launch, so it must be visible now
-            // instead of after a restart.
-            persisted = await getSettings()
-            onboardingSettings.value = persisted
-        } catch (error) {
-            reportOnboardingFailure(error)
-            return
-        }
-
-        const completed = instanceTour
-            ? persisted.onboarding_instance_tour_completed === true
-            : verifyOnboardingPersisted(persisted)
-
-        if (!completed) {
-            reportOnboardingFailure(undefined, persisted)
-            return
-        }
-    }
-
-    showOnboarding.value = false
-    onboardingReplay.value = false
-    if (!wasReplay) await scheduleStartupDialogs()
-}
-
-/**
- * Tells the user that the wizard could not be saved, and keeps it open.
- *
- * Closing the overlay on a failed write is the failure mode this replaces: the
- * profile stays un-onboarded and the wizard comes back after a restart with no
- * explanation.
- */
-function reportOnboardingFailure(
-    error?: unknown,
-    persisted?: { onboarded?: boolean; onboarding_version?: number },
-) {
-    console.error('Failed to persist the onboarding state', {
-        error,
-        onboarded: persisted?.onboarded,
-        onboarding_version: persisted?.onboarding_version,
-    })
-    addNotification({
-        title: formatMessage(messages.onboardingSaveFailedTitle),
-        text: formatMessage(messages.onboardingSaveFailedBody),
-        type: 'error',
-        autoCloseMs: null,
-    })
-}
-
-async function skipOnboarding() {
-    await finishOnboarding()
-}
-
-async function closeOnboardingSettings() {
-    if (route.path === '/settings') await router.replace('/')
-}
-
-async function scheduleStartupDialogs() {
-    if (
-        !stateInitialized.value ||
-        privacyConsentPending.value ||
-        showOnboarding.value
-    )
-        return
-}
-
 async function handlePrivacyConsentSaved(privacy: PrivacySettings) {
     privacyConsentPending.value = false
-    if (onboardingSettings.value) {
-        onboardingSettings.value.telemetry = privacy.telemetry
-        onboardingSettings.value.discord_rpc = privacy.discord_rpc
-        onboardingSettings.value.telemetry_consent_version = privacy.consent_version
-    }
-    if (needsOnboarding(onboardingSettings.value)) {
-        startOnboarding('main')
-    } else {
-        await scheduleStartupDialogs()
-    }
 }
 
 async function previewPrivacyConsentModal() {
@@ -1978,11 +1847,6 @@ async function previewPrivacyConsentModal() {
             consent_version: 0,
         })
         privacyConsentPending.value = true
-        if (onboardingSettings.value) {
-            onboardingSettings.value.telemetry = privacy.telemetry
-            onboardingSettings.value.discord_rpc = privacy.discord_rpc
-            onboardingSettings.value.telemetry_consent_version = privacy.consent_version
-        }
         await nextTick()
         privacyConsentModal.value?.show(privacy)
     } catch (error) {
@@ -1990,7 +1854,6 @@ async function previewPrivacyConsentModal() {
     }
 }
 
-provide('replayOnboarding', replayOnboarding)
 provide(minecraftLaunchErrorKey, async (launchError, payload) => {
     if (isOfflineAccountRestrictedError(launchError)) {
         useError().showAntiPiracyNotice()
@@ -2291,7 +2154,6 @@ watch(
                 loading.end(routerToken)
                 routerToken = null
             }
-            void scheduleStartupDialogs()
         }
     },
     { flush: 'post' },
@@ -2302,20 +2164,6 @@ watch(offline, (isOffline) => {
         void router.push('/library')
     }
 })
-
-watch(
-    () => route.path,
-    (path) => {
-        if (
-            path.startsWith('/instance/') &&
-            !needsOnboarding(onboardingSettings.value) &&
-            needsInstanceTour(onboardingSettings.value) &&
-            !showOnboarding.value
-        ) {
-            startOnboarding('instance')
-        }
-    },
-)
 
 const error = useError()
 error.setMinecraftLaunchErrorHandler((launchError, context) => {
@@ -3231,7 +3079,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
                     <OverflowMenu
                         v-if="BrandConfig.capabilities.privateModrinthServices && credentials?.user"
                         class="nav-item"
-                        data-onboarding-id="account-entry"
                         :options="[
                             {
                                 id: 'view-profile',
@@ -3273,7 +3120,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
                         v-else-if="BrandConfig.capabilities.privateModrinthServices"
                         type="button"
                         class="nav-item"
-                        data-onboarding-id="account-entry"
                         @click="signIn()"
                     >
                         <span class="nav-ico">
@@ -3478,21 +3324,11 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
     <MinecraftCrashModal ref="minecraftCrashModal" />
     <JavaDownloadConfirmationModal ref="javaDownloadConfirmationModal" />
     <PrivacyConsentModal ref="privacyConsentModal" @saved="handlePrivacyConsentSaved" />
-    <RemoteAnnouncements
-        :ready="
-            stateInitialized &&
-            !privacyConsentPending &&
-            !showOnboarding
-        "
-    />
+    <RemoteAnnouncements :ready="stateInitialized && !privacyConsentPending" />
     <RemoteAnnouncements
         ref="remoteAnnouncementPreview"
         preview-only
-        :ready="
-            stateInitialized &&
-            !privacyConsentPending &&
-            !showOnboarding
-        "
+        :ready="stateInitialized && !privacyConsentPending"
     />
     <NewModal
         ref="closeChoiceModal"
@@ -3748,14 +3584,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
         :done="batchScanDone"
         :total="batchOriginalCount"
         @cancel="cancelBatchScan"
-    />
-
-    <OnboardingOverlay
-        :visible="showOnboarding"
-        :mode="onboardingMode"
-        @complete="finishOnboarding"
-        @skip="skipOnboarding"
-        @request-close-settings="closeOnboardingSettings"
     />
 
     <!-- 全站磨砂滚动条：单例覆盖层，隐藏原生条并自己画（材质同后台侧栏） -->

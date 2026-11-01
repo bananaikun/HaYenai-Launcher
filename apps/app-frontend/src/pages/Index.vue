@@ -397,7 +397,6 @@ onUnmounted(() => {
                         dashboardEditing ? messages.doneEditing : messages.customizeWidgets,
                     )
                 "
-                data-onboarding-id="home-widget-customize"
                 type="button"
                 class="home-floating-action"
                 :class="{ 'is-active': dashboardEditing }"
@@ -443,7 +442,6 @@ onUnmounted(() => {
             v-tooltip="
                 formatMessage(isMinimal ? messages.switchToInformation : messages.switchToMinimal)
             "
-            data-onboarding-id="home-layout-switch"
             type="button"
             role="switch"
             class="home-layout-switch"

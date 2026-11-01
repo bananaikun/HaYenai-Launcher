@@ -192,7 +192,6 @@ provideConsoleManager({
 
 <template>
     <div
-        data-onboarding-id="server-console"
         class="flex flex-col pb-3"
         :class="hasLogs ? 'h-[calc(100dvh-80px)] shrink-0' : 'h-full min-h-[240px]'"
     >

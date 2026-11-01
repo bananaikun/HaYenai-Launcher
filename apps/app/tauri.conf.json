@@ -13,7 +13,8 @@
 		"targets": "all",
 		"externalBin": [],
 		"resources": [
-			"resources/blockbench-skin"
+			"resources/blockbench-skin",
+			"resources/bundled-wallpapers/arona"
 		],
 		"icon": [
 			"icons/128x128.png",

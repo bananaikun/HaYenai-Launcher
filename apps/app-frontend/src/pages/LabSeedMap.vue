@@ -2367,7 +2367,7 @@ function clampWorldCoordinate(value: number) {
             </div>
         </header>
 
-        <section data-onboarding-id="seed-map-toolbar" class="seed-map-toolbar">
+        <section class="seed-map-toolbar">
             <div class="toolbar-primary">
                 <div class="control-group seed-map-edition">
                     <span class="control-label">{{ formatMessage(messages.edition) }}</span>
@@ -2598,7 +2598,6 @@ function clampWorldCoordinate(value: number) {
         <section
             ref="fullscreenContainer"
             class="seed-map-experience min-h-0 flex-1 bg-surface-1"
-            data-onboarding-id="seed-map-workspace"
             tabindex="0"
             @keydown="onMapKeydown"
         >
@@ -2864,7 +2863,6 @@ function clampWorldCoordinate(value: number) {
 
             <div
                 class="seed-map-canvas-shell relative flex-1 overflow-hidden rounded-b-[var(--radius-md)] min-h-[32rem] border-x border-b border-surface-5 bg-surface-2"
-                data-onboarding-id="seed-map-canvas"
             >
                 <canvas
                     ref="mapCanvas"

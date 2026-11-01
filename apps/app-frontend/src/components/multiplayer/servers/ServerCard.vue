@@ -75,7 +75,6 @@ const setupTooltip = computed(() => {
 <template>
     <div
         v-if="variant === 'library'"
-        data-onboarding-id="server-card"
         role="button"
         tabindex="0"
         class="group relative flex w-full cursor-pointer select-none flex-col items-start justify-end gap-3 overflow-clip rounded-[20px] border border-solid border-surface-4 bg-surface-3 p-3 text-left transition-[border-color,filter,transform] hover:border-surface-5 hover:brightness-110 active:scale-[0.98]"
@@ -170,7 +169,6 @@ const setupTooltip = computed(() => {
     </div>
     <div
         v-else
-        data-onboarding-id="server-card"
         role="button"
         tabindex="0"
         class="group button-base flex w-full cursor-pointer select-none gap-3 rounded-xl border border-solid border-surface-4 bg-surface-2 p-4 text-left transition-[border-color,filter,transform] hover:border-surface-5 hover:brightness-110 active:scale-[0.98]"

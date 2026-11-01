@@ -130,11 +130,17 @@ pub async fn wallpaper_list<R: Runtime>(
 ) -> Result<Vec<WallpaperMeta>, WallpaperCommandError> {
     tracing::info!(target: LOG_TARGET, cmd = "wallpaper_list", "invoked");
     let store = store_for(&app)?;
+    // 内置壁纸只在首次落地（21MB 复制 + 一次性默认选中），之后这里只剩一次
+    // `is_dir()` 判断。放在 list 之前，前端读列表时就一定能看到它。
+    let bundled = crate::api::bundled_wallpaper::source_dir(&app);
     // 扫目录 + 读每个 .tex 的 64 字节头是同步 IO，不能压在 async 线程上。
-    tauri::async_runtime::spawn_blocking(move || store.list())
-        .await
-        .map_err(|_| WallpaperCommandError::interrupted())?
-        .map_err(WallpaperCommandError::from_wallpaper)
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::api::bundled_wallpaper::seed(&store, bundled.as_deref());
+        store.list()
+    })
+    .await
+    .map_err(|_| WallpaperCommandError::interrupted())?
+    .map_err(WallpaperCommandError::from_wallpaper)
 }
 
 /// 读取一个壁纸包里 `project.json` 的 `general.properties`。

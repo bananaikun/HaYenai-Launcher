@@ -1171,7 +1171,6 @@ await refreshSelectedAccount()
 
     <div
         v-if="currentUser"
-        data-onboarding-id="skins-page"
         class="skin-layout box-border min-h-full p-4"
     >
         <div class="sticky top-6 self-start p-2 pt-0">
@@ -1312,7 +1311,6 @@ await refreshSelectedAccount()
 
     <div
         v-else
-        data-onboarding-id="skins-page"
         class="box-border flex min-h-full items-center justify-center pt-[25%]"
     >
         <div

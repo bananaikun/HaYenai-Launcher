@@ -693,7 +693,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div data-onboarding-id="browse-favorites-content" class="flex flex-col gap-3 p-6">
+    <div class="flex flex-col gap-3 p-6">
         <div
             v-if="installContext?.showInstallHeader"
             ref="stickyInstallHeaderRef"

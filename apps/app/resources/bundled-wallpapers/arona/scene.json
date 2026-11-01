@@ -1,0 +1,315 @@
+{
+	"camera" : 
+	{
+		"center" : "762.34778 -86.06363 -1.00000",
+		"eye" : "762.34778 -86.06363 0.00000",
+		"up" : "0.00000 1.00000 0.00000"
+	},
+	"general" : 
+	{
+		"ambientcolor" : "0.30000 0.30000 0.30000",
+		"bloom" : false,
+		"bloomhdrfeather" : 0.1,
+		"bloomhdriterations" : 8,
+		"bloomhdrscatter" : 1.619,
+		"bloomhdrstrength" : 2.0,
+		"bloomhdrthreshold" : 1.0,
+		"bloomstrength" : 2.0,
+		"bloomthreshold" : 0.64999998,
+		"bloomtint" : "1.00000 1.00000 1.00000",
+		"camerafade" : true,
+		"cameraparallax" : false,
+		"cameraparallaxamount" : 0.5,
+		"cameraparallaxdelay" : 0.1,
+		"cameraparallaxmouseinfluence" : 0.5,
+		"camerapreview" : true,
+		"camerashake" : false,
+		"camerashakeamplitude" : 0.5,
+		"camerashakeroughness" : 1.0,
+		"camerashakespeed" : 3.0,
+		"clearcolor" : "0.70000 0.70000 0.70000",
+		"clearenabled" : true,
+		"farz" : 10000.0,
+		"fov" : 50.0,
+		"gravitydirection" : "0.00000 -1.00000 0.00000",
+		"gravitystrength" : 1.0,
+		"hdr" : false,
+		"nearz" : 0.0099999998,
+		"orthogonalprojection" : 
+		{
+			"height" : 2160,
+			"width" : 3840
+		},
+		"perspectiveoverridefov" : 30.0,
+		"skylightcolor" : "0.30000 0.30000 0.30000",
+		"winddirection" : "0.70700 0.70700 0.00000",
+		"windenabled" : false,
+		"windstrength" : 1.0,
+		"zoom" : 1.0
+	},
+	"objects" : 
+	[
+		{
+			"disablepropagation" : false,
+			"id" : 26,
+			"image" : "models/补帧60阿罗娜.json",
+			"name" : "补帧60阿罗娜",
+			"origin" : "1920.00000 1080.00000 0.00000",
+			"size" : "3840.00000 2160.00000"
+		},
+		{
+			"config" : 
+			{
+				"passthrough" : true
+			},
+			"disablepropagation" : false,
+			"effects" : 
+			[
+				{
+					"file" : "effects/workshop/3021673417/Simple_Audio_Bars/effect.json",
+					"id" : 34,
+					"name" : "",
+					"passes" : 
+					[
+						{
+							"combos" : 
+							{
+								"ANTIALIAS" : 1,
+								"BLENDMODE" : 6,
+								"CLIP_LOW" : 1,
+								"RESOLUTION" : 64,
+								"SHAPE" : 1
+							},
+							"constantshadervalues" : 
+							{
+								"Anti-alias blurring" : "0.1 0.1",
+								"Bar Color" : "0.80000 0.93725 1.00000",
+								"Bar Count" : 56,
+								"Bar Spacing" : 0.60000002,
+								"Lower/Upper Bar Bounds" : "0 0.8",
+								"ui_editor_properties_opacity" : 0.76999998
+							},
+							"id" : 35
+						}
+					],
+					"visible" : true
+				}
+			],
+			"id" : 28,
+			"image" : "models/util/composelayer.json",
+			"name" : "Audio bar",
+			"origin" : "2758.77026 377.45212 0.00000",
+			"scale" : "0.70000 0.20725 1.77413",
+			"size" : "2560.00000 1440.00000"
+		},
+		{
+			"config" : 
+			{
+				"passthrough" : true
+			},
+			"disablepropagation" : false,
+			"effects" : 
+			[
+				{
+					"file" : "effects/workshop/3021673417/Simple_Audio_Bars/effect.json",
+					"id" : 36,
+					"name" : "",
+					"passes" : 
+					[
+						{
+							"combos" : 
+							{
+								"ANTIALIAS" : 1,
+								"A_SMOOTH_CURVE" : 1,
+								"BLENDMODE" : 6,
+								"CLIP_LOW" : 1,
+								"RESOLUTION" : 64
+							},
+							"constantshadervalues" : 
+							{
+								"Anti-alias blurring" : "0.1 0.1",
+								"Bar Color" : "0.80000 0.93725 1.00000",
+								"Bar Count" : 64,
+								"Bar Spacing" : 0.75,
+								"Lower/Upper Bar Bounds" : "0 0.43",
+								"ui_editor_properties_opacity" : 1
+							},
+							"id" : 0
+						}
+					],
+					"visible" : true
+				}
+			],
+			"id" : 23,
+			"image" : "models/util/composelayer.json",
+			"name" : "Audio bar",
+			"origin" : "2759.50659 679.09070 0.00000",
+			"scale" : "0.69202 0.20725 1.77413",
+			"size" : "2560.00000 1440.00000"
+		},
+		{
+			"anchor" : "top",
+			"color" : 
+			{
+				"user" : "newproperty1",
+				"value" : "0.00000 1.00000 1.00000"
+			},
+			"colorBlendMode" : 28,
+			"disablepropagation" : false,
+			"font" : "fonts/workshop/3006161764/Anurati-Regular.otf",
+			"horizontalalign" : "center",
+			"id" : 27,
+			"limitrows" : false,
+			"limituseellipsis" : false,
+			"limitwidth" : false,
+			"maxrows" : 1,
+			"maxwidth" : 500.0,
+			"name" : "Day Text",
+			"origin" : "3108.22827 1636.65527 0.00000",
+			"padding" : "54.00000 54.00000",
+			"pointsize" : 40.0,
+			"scale" : "0.60000 0.60000 1.51204",
+			"size" : "1711.00000 308.00000",
+			"spacing" : "0.00000 0.00000",
+			"text" : 
+			{
+				"script" : "'use strict';\n// Please note: Do not remove this line or asset references may break.\nexport let __workshopId = '3006161764';\n \nexport function update(value) {\n\tlet time = new Date();\n\tvar dayVar = new Array(7);\n\tdayVar[0] = \"S U N D A Y\";\n\tdayVar[1] = \"M O N DA Y\";\n\tdayVar[2] = \"T U E S D A Y\";\n\tdayVar[3] = \"W E D N E S D A Y\";\n\tdayVar[4] = \"T H U R S D A Y\";\n\tdayVar[5] = \"F R I D A Y\";\n\tdayVar[6] = \"S A T U R D A Y\" ;\n \n\tlet dayText = dayVar[time.getDay()];\n\tlet dateVar = (time.getDate());\n\tvalue = dayText\n\treturn value;\n}\n",
+				"value" : "W E D N E S D A Y"
+			},
+			"verticalalign" : "center",
+			"visible" : 
+			{
+				"user" : "showday",
+				"value" : true
+			}
+		},
+		{
+			"brightness" : 2.3900001,
+			"disablepropagation" : false,
+			"effects" : 
+			[
+				{
+					"file" : "effects/workshop/2981960200/blurprecise/effect.json",
+					"id" : 358,
+					"name" : "",
+					"passes" : 
+					[
+						{
+							"constantshadervalues" : 
+							{
+								"scale" : "0.5 0.5"
+							},
+							"id" : 360
+						},
+						{
+							"combos" : 
+							{
+								"ENABLEMASK" : 1,
+								"VERTICAL" : 1
+							},
+							"constantshadervalues" : 
+							{
+								"scale" : "0.5 0.5"
+							},
+							"id" : 361
+						}
+					],
+					"visible" : true
+				}
+			],
+			"font" : "fonts/workshop/2981960200/Quicksand-Bold.otf",
+			"horizontalalign" : "center",
+			"id" : 356,
+			"limitrows" : false,
+			"limituseellipsis" : false,
+			"limitwidth" : false,
+			"maxrows" : 1,
+			"maxwidth" : 500.0,
+			"name" : "Clock",
+			"origin" : "2910.00000 1490.00000 0.00000",
+			"padding" : "32.00000 32.00000",
+			"pointsize" : 32.0,
+			"scale" : "0.40000 0.40000 0.40000",
+			"size" : "379.00000 219.00000",
+			"spacing" : "0.00000 0.00000",
+			"text" : 
+			{
+				"script" : "'use strict';\n// Please note: Do not remove this line or asset references may break.\nexport let __workshopId = '2981960200';\n// Please note: Do not remove this line or asset references may break.\n\nexport var scriptProperties = createScriptProperties()\n\t// Whether you want a 24h or 12h style format\n\t.addCheckbox({\n\t\tname: 'use24hFormat',\n\t\tlabel: 'ui_editor_properties_use_24h_format',\n\t\tvalue: true\n\t})\n\t// Whether you want to see the seconds or not\n\t.addCheckbox({\n\t\tname: 'showSeconds',\n\t\tlabel: 'ui_editor_properties_show_seconds',\n\t\tvalue: false\n\t})\n\t// This will be used to separate each element\n\t.addText({\n\t\tname: 'delimiter',\n\t\tlabel: 'ui_editor_properties_delimiter',\n\t\tvalue: ':'\n\t})\n\t.finish();\n\n/**\n * @param {String} value (for property 'text')\n */\nexport function update(value) {\n\tlet time = new Date();\n\tvar hours = time.getHours();\n\tif (!scriptProperties.use24hFormat) {\n\t\thours %= 12;\n\t\tif (hours == 0) {\n\t\t\thours = 12;\n\t\t}\n\t}\n\thours = (\"00\" + hours).slice(-2);\n\tlet minutes = (\"00\" + time.getMinutes()).slice(-2);\n\tvalue = \"-\" + hours + scriptProperties.delimiter + minutes+\"-\";\n\tif (scriptProperties.showSeconds) {\n\t\tlet seconds = (\"00\" + time.getSeconds()).slice(-2);\n\t\tvalue += scriptProperties.delimiter + seconds;\n\t}\n\treturn value;\n}\n",
+				"scriptproperties" : 
+				{
+					"delimiter" : ":",
+					"showSeconds" : false,
+					"use24hFormat" : true
+				},
+				"value" : "12:34"
+			},
+			"verticalalign" : "center"
+		},
+		{
+			"brightness" : 1.98,
+			"disablepropagation" : false,
+			"effects" : 
+			[
+				{
+					"file" : "effects/workshop/2981960200/blurprecise/effect.json",
+					"id" : 374,
+					"name" : "",
+					"passes" : 
+					[
+						{
+							"constantshadervalues" : 
+							{
+								"scale" : "0.5 0.5"
+							},
+							"id" : 375
+						},
+						{
+							"combos" : 
+							{
+								"ENABLEMASK" : 1,
+								"VERTICAL" : 1
+							},
+							"constantshadervalues" : 
+							{
+								"scale" : "0.5 0.5"
+							},
+							"id" : 376
+						}
+					],
+					"visible" : true
+				}
+			],
+			"font" : "fonts/workshop/2981960200/Quicksand-Bold.otf",
+			"horizontalalign" : "center",
+			"id" : 373,
+			"limitrows" : false,
+			"limituseellipsis" : false,
+			"limitwidth" : false,
+			"maxrows" : 1,
+			"maxwidth" : 500.0,
+			"name" : "Date",
+			"origin" : "3230.00000 1490.00000 0.00000",
+			"padding" : "32.00000 32.00000",
+			"pointsize" : 32.0,
+			"scale" : "0.40000 0.40000 0.40000",
+			"size" : "508.00000 219.00000",
+			"spacing" : "0.00000 0.00000",
+			"text" : 
+			{
+				"script" : "'use strict';\n// Please note: Do not remove this line or asset references may break.\nexport let __workshopId = '2981960200';\n// Please note: Do not remove this line or asset references may break.\n// Please note: Do not remove this line or asset references may break.\n\n\nexport var scriptProperties = createScriptProperties()\n\t.addCombo({\n\t\tname: 'monthFormat',\n\t\tlabel: 'Month Format',\n\t\toptions: [{\n\t\t\tlabel: 'Numeric',\n\t\t\tvalue: '1'\n\t\t}, {\n\t\t\tlabel: 'Abbreviated',\n\t\t\tvalue: '2'\n\t\t},{\n\t\t\tlabel: 'Full',\n\t\t\tvalue: '3'\n\t\t}]\n\t})\n\t.addCombo({\n\t\tname: 'dayFormat',\n\t\tlabel: 'Day Format',\n\t\toptions: [{\n\t\t\tlabel: 'Abbreviated',\n\t\t\tvalue: '1'\n\t\t}, {\n\t\t\tlabel: 'Full',\n\t\t\tvalue: '2'\n\t\t}]\n\t})\n\t.addCheckbox({\n\t\tname: 'showDay',\n\t\tlabel: 'Show Day',\n\t\tvalue: false\n\t})\n   .addCheckbox({\n\t\tname: 'alignVertical',\n\t\tlabel: 'Align Day Vertically',\n\t\tvalue: false\n\t})\n  .addCheckbox({\n\t\tname: 'useDelimiter',\n\t\tlabel: 'Use Delimiter',\n\t\tvalue: false\n\t})\n\t.addText({\n\t\tname: 'addDelimiter',\n\t\tlabel: 'Delimiter',\n\t\tvalue: '/'\n\t})\n\t.finish();\n\n\nlet months;\nlet day;\nvar delimiterValue;\nvar newLine;\n/**\n * @param {String} value (for property 'text')\n */\nexport function update(value){\n  if (scriptProperties.useDelimiter == true){\n  delimiterValue = scriptProperties.addDelimiter\n}\n  if (scriptProperties.useDelimiter == false){\n   delimiterValue = [\n  ' '\n]\n}\nif (scriptProperties.alignVertical == true){\n   newLine = [\n  '\\n'\n]\n}\nif (scriptProperties.alignVertical == false){\n   newLine = [\n  ''\n]\n}\n  if (scriptProperties.monthFormat == 1){\n  months = [\n  '1',\n  '2',\n  '3',\n  '4',\n  '5',\n  '6',\n  '7',\n  '8',\n  '9',\n  '10',\n  '11',\n  '12'\n]\n}\n if (scriptProperties.monthFormat == 2){\n months = [\n  ' JAN ',\n  ' FEB ',\n  ' MAR ',\n  ' APR ',\n  ' MAY ',\n  ' JUN ',\n  ' JUL ',\n  ' AUG ',\n  ' SEP ',\n  ' OCT ',\n  ' NOV ',\n  ' DEC '\n]\n}\nif (scriptProperties.monthFormat == 3){\n months = [\n  'January',\n  'February',\n  'March',\n  'April',\n  'May',\n  'June',\n  'July',\n  'August',\n  'September',\n  'October',\n  'November',\n  'December'\n]\n}\nif (scriptProperties.dayFormat == 1){\n  day = [\n  'Sun',\n  'Mon',\n  'Tue',\n  'Wed',\n  'Thu',\n  'Fri',\n  '\\nSat'\n]\n}\nif (scriptProperties.dayFormat == 2){\n day = [\n  'Sunday',\n  'Monday',\n  'Tuesday',\n  'Wednesday',\n  'Thursday',\n  'Friday',\n  '\\nSaturday'\n]\n}\n\tlet date = new Date();{\n    if (scriptProperties.showDay == true ){\n    return day[date.getDay()] + newLine + ' ' + date.getDate() + delimiterValue + months[date.getMonth()] + delimiterValue + date.getFullYear();\n    }\n    if (scriptProperties.showDay == false ){\n\treturn   date.getDate() + delimiterValue + months[date.getMonth()] + delimiterValue + date.getFullYear();\n}\n}\n}\n",
+				"scriptproperties" : 
+				{
+					"addDelimiter" : "",
+					"alignVertical" : false,
+					"dayFormat" : "2",
+					"monthFormat" : "2",
+					"showDay" : false,
+					"useDelimiter" : true
+				},
+				"value" : "<Date>"
+			},
+			"verticalalign" : "center"
+		}
+	],
+	"version" : 4
+}

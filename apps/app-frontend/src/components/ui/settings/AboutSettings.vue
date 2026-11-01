@@ -7,54 +7,47 @@ import {
     HeartHandshakeIcon,
     IssuesIcon,
     ScaleIcon,
-    UsersIcon,
 } from '@modrinth/assets'
-import { Avatar, Button, defineMessages, useVIntl } from '@modrinth/ui'
+import { Button, defineMessages, useVIntl } from '@modrinth/ui'
 import { getVersion } from '@tauri-apps/api/app'
-import { inject, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 
 import AfdianIcon from '@/assets/external/afdian.png'
 import appLogo from '@/assets/hayenai.png'
 import { BrandConfig } from '@/config'
-import { contributors } from '@/data/about'
-import { get as getSettings, getCurrentAppDatabasePath, getUpdateChannel } from '@/helpers/settings'
+import { getCurrentAppDatabasePath, getUpdateChannel } from '@/helpers/settings'
 
 import QqChannelIcon from './QqChannelIcon.vue'
 import SettingsSection from './SettingsSection.vue'
 
 const { formatMessage } = useVIntl()
 const version = ref('')
-const replayOnboarding = inject<(mode: 'main' | 'instance') => Promise<void>>('replayOnboarding')
 
 /**
  * Diagnostics loaded on demand.
  *
- * The onboarding state and the database path are the two facts needed to tell
- * "the write was lost" apart from "another build shares this data directory",
- * so they are shown instead of guessed at.
+ * The database path and the update channel are what tell "the write was lost"
+ * apart from "another build shares this data directory", so they are shown
+ * instead of guessed at.
+ *
+ * 不再展示 `onboarded` / `onboarding_version`：首次安装向导已整体移除，
+ * 这两个字段永远是 `false` / `0`，摆出来只会让人以为「向导没关掉」。
+ * 字段本身仍留在设置表里（老配置照常加载），只是不再有 UI 读它。
  */
 const diagnostics = ref<{
     databasePath: string
     channel: string
-    onboarded: boolean
-    onboardingVersion: number
 } | null>(null)
 const diagnosticsError = ref<string | null>(null)
 
 async function loadDiagnostics() {
     if (diagnostics.value || diagnosticsError.value) return
     try {
-        const [databasePath, channel, settings] = await Promise.all([
+        const [databasePath, channel] = await Promise.all([
             getCurrentAppDatabasePath(),
             getUpdateChannel(),
-            getSettings(),
         ])
-        diagnostics.value = {
-            databasePath,
-            channel,
-            onboarded: settings.onboarded === true,
-            onboardingVersion: settings.onboarding_version ?? 0,
-        }
+        diagnostics.value = { databasePath, channel }
     } catch (error) {
         diagnosticsError.value = error instanceof Error ? error.message : String(error)
     }
@@ -95,10 +88,6 @@ const messages = defineMessages({
         id: 'app.settings.about.modified-notice',
         defaultMessage:
             'The appearance and branding are replaced by HaYenai; the upstream features and control layout are kept.',
-    },
-    replayOnboarding: {
-        id: 'app.settings.about.replay-onboarding',
-        defaultMessage: 'Replay tour',
     },
     developmentTeam: {
         id: 'app.settings.about.development-team',
@@ -161,10 +150,6 @@ const messages = defineMessages({
         id: 'app.settings.about.third-party-licenses',
         defaultMessage: 'Third-party licenses',
     },
-    contributors: {
-        id: 'app.settings.about.contributors',
-        defaultMessage: 'Contributors',
-    },
     diagnostics: {
         id: 'app.settings.about.diagnostics',
         defaultMessage: 'Diagnostics',
@@ -177,17 +162,9 @@ const messages = defineMessages({
         id: 'app.settings.about.diagnostics-channel',
         defaultMessage: 'Update channel',
     },
-    diagnosticsOnboarding: {
-        id: 'app.settings.about.diagnostics-onboarding',
-        defaultMessage: 'Onboarding',
-    },
     diagnosticsUnavailable: {
         id: 'app.settings.about.diagnostics-unavailable',
         defaultMessage: 'Diagnostics are unavailable in this build.',
-    },
-    contributorsCount: {
-        id: 'app.settings.about.contributors-count',
-        defaultMessage: '{count, plural, one {# contributor} other {# contributors}}',
     },
 })
 
@@ -389,51 +366,6 @@ const projectLinks = [
             </div>
         </SettingsSection>
 
-        <details class="group pt-4 about-settings-details">
-            <summary
-                class="flex cursor-pointer list-none items-center gap-2 text-base font-semibold text-[var(--color-text-primary)] [&::-webkit-details-marker]:hidden"
-            >
-                <UsersIcon class="size-5 text-[var(--color-text-tertiary)]" />
-                <span>{{ formatMessage(messages.contributors) }}</span>
-                <span
-                    class="rounded-full bg-surface-4 px-2 py-0.5 text-xs text-[var(--color-text-tertiary)]"
-                >
-                    {{ formatMessage(messages.contributorsCount, { count: contributors.length }) }}
-                </span>
-                <ChevronDownIcon
-                    class="ml-auto size-5 text-[var(--color-text-tertiary)] transition-transform group-open:rotate-180"
-                />
-            </summary>
-            <div class="mt-3 flex flex-wrap gap-2">
-                <a
-                    v-for="contributor in contributors"
-                    :key="contributor.name"
-                    :href="contributor.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="flex min-w-0 items-center gap-1.5 rounded-full bg-surface-4 py-1 pl-1 pr-2.5 transition-colors hover:bg-surface-5"
-                >
-                    <Avatar
-                        :src="contributor.avatarUrl"
-                        :alt="contributor.name"
-                        size="1.5rem"
-                        circle
-                        no-shadow
-                        loading="lazy"
-                    />
-                    <span class="truncate text-sm text-[var(--color-text-default)]">{{
-                        contributor.name
-                    }}</span>
-                </a>
-            </div>
-        </details>
-
-        <div id="settings-target-about-replay-tour" tabindex="-1" class="flex flex-wrap gap-2">
-            <Button type="base" @click="replayOnboarding?.('main')">
-                {{ formatMessage(messages.replayOnboarding) }}
-            </Button>
-        </div>
-
         <details class="group about-settings-details" @toggle="loadDiagnostics">
             <summary
                 class="flex cursor-pointer list-none items-center gap-2 text-base font-semibold text-[var(--color-text-primary)] [&::-webkit-details-marker]:hidden"
@@ -460,16 +392,6 @@ const projectLinks = [
                             >{{ formatMessage(messages.diagnosticsChannel) }}:
                         </span>
                         <code>{{ diagnostics.channel }}</code>
-                    </p>
-                    <p class="m-0">
-                        <span class="text-[var(--color-text-tertiary)]"
-                            >{{ formatMessage(messages.diagnosticsOnboarding) }}:
-                        </span>
-                        <code
-                            >onboarded={{ diagnostics.onboarded }}, onboarding_version={{
-                                diagnostics.onboardingVersion
-                            }}</code
-                        >
                     </p>
                 </template>
             </div>

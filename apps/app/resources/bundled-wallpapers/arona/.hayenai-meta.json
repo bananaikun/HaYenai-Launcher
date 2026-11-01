@@ -1,0 +1,27 @@
+{
+  "id": "ws-3358649912-37d2571554a1",
+  "type": "scene",
+  "title": "一切奇迹的起点  阿罗娜  Blue Archive  Arona--4k 无媒体组件",
+  "description": "",
+  "tags": [
+    "Unspecified"
+  ],
+  "workshopId": "3358649912",
+  "file": "scene.json",
+  "preview": "preview.jpg",
+  "entries": 30,
+  "bytes": 21413172,
+  "installedAt": 1792319387574,
+  "hasProperties": true,
+  "texAudit": {
+    "etc2": false,
+    "dxt": false,
+    "bptc": false,
+    "total": 1,
+    "unreadable": 0,
+    "formats": {
+      "ARGB8888": 1
+    }
+  },
+  "damaged": false
+}

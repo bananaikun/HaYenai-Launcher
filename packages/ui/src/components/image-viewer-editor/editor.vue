@@ -463,7 +463,8 @@ defineExpose({ markSaved })
     </div>
     <div
         ref="fitBounds"
-        class="pointer-events-none absolute inset-x-6 bottom-[5.75rem] top-[4.75rem] z-[3] flex items-center justify-center max-[900px]:inset-x-4 max-[900px]:bottom-[8.5rem] max-[900px]:top-[4.5rem]"
+        class="viewer-fit-bounds pointer-events-none absolute inset-x-6 bottom-[5.75rem] top-[4.75rem] z-[3] flex items-center justify-center max-[900px]:inset-x-4 max-[900px]:bottom-[8.5rem] max-[900px]:top-[4.5rem]"
+        :class="{ 'is-view': mode === 'view' }"
         aria-hidden="true"
     />
 
@@ -553,6 +554,24 @@ defineExpose({ markSaved })
     &::-webkit-scrollbar {
         display: none;
     }
+}
+
+/* 查看态：表头与底部控件**浮在图上**，不再为它们预留画布空间。
+ *
+ * 预留的量是 pt 4.75rem + pb 5.75rem = 168px。在 1080 高的窗口里这等于砍掉 15%
+ * 的可用高度，16:9 的截图因此被缩得更小 —— 左右两侧留出的黑边比图本身还显眼
+ * （实测 1536×912 窗口：图只占 1323×744，左右各 106px）。
+ *
+ * 表头自带 `drop-shadow`、底部控件自带 `bg-surface-3` + 投影，压在图上也读得清。
+ * **编辑态不受影响**：放大镜/裁剪工具栏需要独占顶部一条，改了会挡操作。 */
+.editor-viewport.is-view {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+}
+
+.viewer-fit-bounds.is-view {
+    top: 1rem !important;
+    bottom: 1rem !important;
 }
 
 .editor-canvas :deep(.canvas-container) {

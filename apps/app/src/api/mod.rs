@@ -33,6 +33,7 @@ pub mod utils;
 pub mod wallpaper;
 pub mod server_status;
 pub mod wallpaper_accent;
+pub mod bundled_wallpaper;
 
 pub mod cache;
 pub mod content_favorites;

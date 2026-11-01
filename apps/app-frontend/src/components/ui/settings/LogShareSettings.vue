@@ -37,7 +37,6 @@ type LogShareSettings = {
 
 const { formatMessage } = useVIntl()
 const router = useRouter()
-const replayOnboarding = inject<(mode: 'logagent') => Promise<void>>('replayOnboarding')
 const { handleError } = injectNotificationManager()
 const settings = ref<LogShareSettings>({
     share_provider: 'logshare',
@@ -263,15 +262,9 @@ onMounted(async () => {
                 )
             "
         >
-            <template #extra
-                ><Button v-if="!localSetup" type="quiet" @click="replayOnboarding?.('logagent')">{{
-                    formatMessage(messages.tour)
-                }}</Button></template
-            >
             <div
                 v-if="!localSetup"
                 id="settings-target-log-share"
-                data-onboarding-id="logagent-settings-source"
                 class="p-4"
             >
                 <LogAgentSourcePicker
@@ -338,7 +331,7 @@ onMounted(async () => {
                     }}</Button>
                 </div>
             </template>
-            <div v-else data-onboarding-id="logagent-settings-cloud">
+            <div v-else>
                 <SettingsRow inline-control>
                     <template #label>{{ formatMessage(messages.noStorage) }}</template>
                     <template #description>{{
@@ -369,7 +362,6 @@ onMounted(async () => {
         </SettingsSection>
         <SettingsSection
             v-if="!localSetup"
-            data-onboarding-id="logagent-settings-sharing"
             :title="formatMessage(messages.sharingTitle)"
             :description="formatMessage(messages.sharingDescription)"
         >

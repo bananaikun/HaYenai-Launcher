@@ -1283,7 +1283,7 @@ function slotEditorSlots(type: RecipeType): RecipeSlot[] {
 </script>
 
 <template>
-    <main class="recipe-generator-page" data-onboarding-id="recipe-generator-workspace">
+    <main class="recipe-generator-page">
         <header class="recipe-generator-header">
             <h1 class="recipe-generator-title">{{ formatMessage(messages.title) }}</h1>
             <div class="recipe-header-actions">

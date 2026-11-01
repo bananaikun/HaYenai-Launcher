@@ -85,7 +85,7 @@ async function toggleRunning(server: ServerView) {
 </script>
 
 <template>
-    <div data-onboarding-id="servers-overview" class="flex min-h-0 w-full flex-1 flex-col gap-4">
+    <div class="flex min-h-0 w-full flex-1 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
             <span class="flex items-center gap-2 text-sm text-[var(--color-text-tertiary)]">
                 <SpinnerIcon v-if="isRefreshing" class="size-4 animate-spin" />
@@ -124,7 +124,6 @@ async function toggleRunning(server: ServerView) {
                 <Button
                     type="colored"
                     color="brand"
-                    data-onboarding-id="create-server-button"
                     @click="createModal?.show()"
                     ><PlusIcon />
                     {{ formatMessage(messages.create) }}

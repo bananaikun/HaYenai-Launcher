@@ -259,7 +259,6 @@ function favoriteFilterLabel(value: LabFavoriteFilter) {
         <section
             v-if="visibleTools.length"
             aria-label="Lab tools"
-            data-onboarding-id="lab-tools"
             class="flex flex-col gap-3"
         >
             <Card
