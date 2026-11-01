@@ -53,8 +53,13 @@ html.has-custom-background[data-wallpaper-tone='light'] {
 }
 /* 列表内部的行必须去掉自己的模糊，否则又变回「每行一层」。
    行只剩半透底 + 内高光（global.scss 的 .bg-surface-content* 那段），
-   透出来的是上面这块容器的模糊结果。 */
-.content-list-glass [data-content-card-item-id] {
+   透出来的是上面这块容器的模糊结果。
+
+   ⚠ 选择器必须写成 `html.has-custom-background body ...`：
+   上面给列表行加模糊的规则是 `html.has-custom-background body :is(.bg-surface-content*)`，
+   特异性 (0,1,3)；两边都带 `!important` 时**比的还是特异性**，
+   写成 `.content-list-glass [data-...]`(0,1,1) 会输，实测行的 backdrop-filter 仍然是 blur(8px)。 */
+html.has-custom-background body .content-list-glass [data-content-card-item-id] {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }

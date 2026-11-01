@@ -19,6 +19,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { update as updateSettings } from '@/helpers/settings'
 import { selectedWallpaper } from '@/helpers/wallpaper'
 
+import {
+    applyHysteresis,
+    decideTone,
+    type GlassLayers,
+    type LumGrid,
+    type Region,
+} from '@/helpers/wallpaper-tone-decision'
 import { useTheming } from '@/store/state'
 
 export type WallpaperThemeSettings = {
@@ -64,7 +71,104 @@ export function setWallpaperTheme(patch: Partial<WallpaperThemeSettings>): void 
 }
 
 
-type AccentResult = { color: string; luminance: number } | null
+/** Rust 侧回传的采样：低频亮度网格 + 主色。判据全在 `wallpaper-tone-decision`。 */
+type AccentSample = LumGrid & {
+    color: string
+    luminance: number
+}
+
+/**
+ * 文字真正压住的区域 —— 从 DOM 真实几何读，不猜。
+ *
+ * 侧栏是唯一「大片文字直接压在壁纸上、下面没有卡片」的地方；顶栏放标题与图标；
+ * 主区剩下的大块（卡片自身有玻璃，但行内文字同样吃壁纸底色）。
+ * 侧栏收起（`.side.min`）或还没挂载时退回经验值。
+ */
+function textRegions(): Region[] {
+    const W = window.innerWidth || 1
+    const H = window.innerHeight || 1
+    const rect = (document.querySelector('.side') as HTMLElement | null)?.getBoundingClientRect()
+    const hasSide = !!rect && rect.width > 8 && rect.height > 8
+
+    const sideX1 = hasSide ? rect.right / W : 0.06
+    const sideY0 = hasSide ? rect.top / H : 0.05
+    const sideY1 = hasSide ? rect.bottom / H : 0.95
+    // 顶栏就是侧栏顶部那条空档（标题栏与侧栏同高起步），夹到 4%–20%
+    const topY1 = Math.min(0.2, Math.max(0.04, sideY0))
+
+    return [
+        { name: '左侧栏', x0: 0, x1: sideX1, y0: sideY0, y1: sideY1 },
+        { name: '顶栏', x0: sideX1, x1: 1, y0: 0, y1: topY1 },
+        { name: '主区', x0: sideX1, x1: 1, y0: topY1, y1: 1 },
+    ]
+}
+
+/**
+ * 玻璃两层：深色底垫（`--ui-dim`）+ 白玻璃叠加（`--ui-glass-2-alpha`）。
+ * 主人定的是 `--ui-dim = 0`（完全不压暗），所以这里必须读实际值 ——
+ * 硬编码 25% 会把「文字压在原图上」错算成「压在压暗 25% 的背景上」，
+ * 结论会整体偏向白字。
+ */
+function glassLayers(): GlassLayers {
+    const cs = getComputedStyle(document.documentElement)
+    const dimRaw = parseFloat(cs.getPropertyValue('--ui-dim'))
+    const whiteRaw = parseFloat(cs.getPropertyValue('--ui-glass-2-alpha'))
+    return {
+        dim: Number.isFinite(dimRaw) ? dimRaw / 100 : 0,
+        white: Number.isFinite(whiteRaw) ? whiteRaw : 0.07,
+    }
+}
+
+let cachedSample: AccentSample | null = null
+let cachedId: string | null = null
+let resizeTimer: number | null = null
+let domRetryTimer: number | null = null
+
+/**
+ * 第一次判定可能发生在挂载前：`App.vue` 的 watch 是 `immediate`，setup 阶段 `.side`
+ * 还没进 DOM，只能退回经验区域。等侧栏出现后补算一次，判定才用上真实几何。
+ */
+function retryWhenMounted(tries = 0): void {
+    if (document.querySelector('.side') || tries > 40) {
+        domRetryTimer = null
+        applyToneFromSample(true)
+        return
+    }
+    domRetryTimer = window.setTimeout(() => retryWhenMounted(tries + 1), 100)
+}
+
+function currentTone(): 'dark' | 'light' | null {
+    const tone = document.documentElement.dataset.wallpaperTone
+    return tone === 'dark' || tone === 'light' ? tone : null
+}
+
+/** 按缓存样本重新判定并写 `data-wallpaper-tone`；`force` 表示不受迟滞约束（换壁纸）。 */
+function applyToneFromSample(force = false): void {
+    if (!cachedSample) return
+    const decision = decideTone(cachedSample, {
+        regions: textRegions(),
+        glass: glassLayers(),
+        aspect: (window.innerWidth || 1) / (window.innerHeight || 1),
+    })
+    if (!decision) return
+
+    const tone = applyHysteresis(decision, force ? null : currentTone())
+    document.documentElement.dataset.wallpaperTone = tone
+
+    if (force && !document.querySelector('.side') && domRetryTimer === null) retryWhenMounted()
+}
+
+/* 窗口比例一变，cover 裁切就变了 —— 可见区域跟着变，判定必须重算。
+   只重算缓存里的网格，不再解一次图（Rust 那边解 4K 图要 30–80ms，拖窗口跟不上）。 */
+if (typeof window !== 'undefined') {
+    window.addEventListener('resize', () => {
+        if (resizeTimer !== null) window.clearTimeout(resizeTimer)
+        resizeTimer = window.setTimeout(() => {
+            resizeTimer = null
+            applyToneFromSample()
+        }, 300)
+    })
+}
 
 /**
  * 按当前开关把壁纸主题应用一次。
@@ -73,53 +177,35 @@ type AccentResult = { color: string; luminance: number } | null
 export async function applyWallpaperTheme(id: string | null | undefined): Promise<void> {
     if (!id) {
         delete document.documentElement.dataset.wallpaperTone
+        cachedSample = null
+        cachedId = null
         return
     }
     /* ⚠ 这里**不能**再按 accent/scheme 两个开关提前返回（2026-10-25 08:45）。
        实机症状：壁纸是亮的，字却是白的、压在亮壁纸上发淡 —— 因为主人关掉了
        「随壁纸取色 / 随壁纸切深浅」，函数在那行直接 return，`data-wallpaper-tone`
        从来没被写过，字体色落回默认白族。
-       字色是**可读性底线**，必须与那两个开关解耦：取一次亮度 → 写 tone，总是执行；
+       字色是**可读性底线**，必须与那两个开关解耦：取一次采样 → 写 tone，总是执行；
        下面 accent 的部分才受开关控制。 */
-    let sample: AccentResult = null
-    try {
-        sample = await invoke<AccentResult>('wallpaper_accent', { id })
-    } catch {
-        // 命令缺失或读图失败：保持用户自己的主题，不报错
-        return
+    if (!cachedSample || cachedId !== id) {
+        try {
+            cachedSample = await invoke<AccentSample | null>('wallpaper_accent', { id })
+        } catch {
+            // 命令缺失或读图失败：保持用户自己的主题，不报错
+            return
+        }
+        cachedId = id
     }
-    if (!sample) return
+    if (!cachedSample) return
 
-    const themeStore = useTheming()
-
-    /* 先判三档，后面所有东西都跟着它走：
-         dark    —— 壁纸暗，字体必须是白的
-         light   —— 壁纸亮，字体必须是深的
-         neutral —— 中间调，**不切主题**，靠光晕保证可读
-       `luminance` 是 Rust 侧的**中位亮度**（0–1，线性 Rec.709）。
-       用中位数而不是平均：平均会被「夜空里的亮云」拉高，把暗壁纸判成浅色。 */
-    const tone: WallpaperTone = !Number.isFinite(sample.luminance)
-        ? 'neutral'
-        : sample.luminance < LUMINANCE_DARK_MAX
-          ? 'dark'
-          : sample.luminance > LUMINANCE_LIGHT_MIN
-            ? 'light'
-            : 'neutral'
-
-    // 字体族完全跟着壁纸走（与主题档、与取色开关都解耦）
-    document.documentElement.dataset.wallpaperTone = tone
+    // 字色完全跟着壁纸走（与主题档、与取色开关都解耦）；换壁纸时不受迟滞约束
+    applyToneFromSample(true)
 
     // 取色/切档两个开关都关时，字色已经设置完，到此为止
     if (!wallpaperTheme.accent && !wallpaperTheme.scheme) return
 
-    const scheme: 'dark' | 'light' =
-        tone === 'dark'
-            ? 'dark'
-            : tone === 'light'
-              ? 'light'
-              : document.documentElement.classList.contains('light-mode')
-                ? 'light'
-                : 'dark'
+    const themeStore = useTheming()
+    const scheme: 'dark' | 'light' = currentTone() ?? 'dark'
 
     /* 2026-10-25 07:00 主人定：**只切文字色，不切主题档**（不碰背景/模糊）。
        以前这里调 `setThemeState(tone)` 会把整站换成浅/深主题 ——
@@ -128,8 +214,8 @@ export async function applyWallpaperTheme(id: string | null | undefined): Promis
 
     // 必须带 `custom:` 前缀：setAccentColor 用 parseCustomAccentColor 校验，
     // 裸 `#rrggbb` 会被判为非法值然后静默退回预设色（上一版就是这个问题）。
-    if (wallpaperTheme.accent && /^#[0-9a-fA-F]{6}$/.test(sample.color)) {
-        const hex = clampAccentForScheme(sample.color, scheme)
+    if (wallpaperTheme.accent && /^#[0-9a-fA-F]{6}$/.test(cachedSample.color)) {
+        const hex = clampAccentForScheme(cachedSample.color, scheme)
         themeStore.setAccentColor(`custom:${hex}`)
 
         /* 2026-10-30 19:50 主人：「主题色总是没有跟随壁纸，而是跟随系统」。
@@ -155,29 +241,14 @@ export async function applyWallpaperTheme(id: string | null | undefined): Promis
  *
  * 这里按最终落地的档位再收一次：深色档保证亮，浅色档保证暗。
  */
-/**
- * 线性平均亮度低于它就算「深色壁纸」。
- *
- * 0.18 太靠暗了：MC 那种「大片灰黑 + 一块亮天空」的壁纸，线性平均会被亮块拉到 0.25~0.32，
- * 于是被判成浅色档，深色字压在暗画面上直接消失（主人 02:29 报的就是这张）。
- * sRGB 的 50% 中灰 = 线性 0.214，取 0.20 相当于「画面整体明显偏暗才算深色」。
- */
-const LUMINANCE_DARK_MAX = 0.2
-/**
- * 高于它算「亮壁纸」（用深色字）。
- *
- * ⚠ 2026-11-01 从 0.42 降到 0.30。原因是中性带（0.20~0.42）**太宽**，
- * 而中性档在 CSS 里根本没有任何规则 —— 落回白字，且 `--text-halo` 被设成 none，
- * 等于「白字直接压在亮壁纸上」，侧栏图标与文字全看不清
- * （主人报的那张壁纸实测中位亮度 **0.396**，就差 0.024 被判成中性）。
- *
- * 降到 0.30 之后：>0.30 一律深色字。中位亮度 0.30 已经是「整体明显偏亮」，
- * 深色字压上去才有对比。仍然用**中位数**而不是平均值，所以「暗画面带一块亮天空」
- * 不会被误判（亮块占比小，中位数还在暗侧）。
- */
-const LUMINANCE_LIGHT_MIN = 0.3
 
-export type WallpaperTone = 'dark' | 'neutral' | 'light'
+/**
+ * 现在只有两档。`neutral` 是历史遗留：CSS 里从来没给中性档写过规则，
+ * 落回白字 + `--text-halo: none`，等于「白字直接压在壁纸上」——
+ * 12/71 张壁纸落进这一档，这正是「中性色识别不准」最刺眼的那部分。
+ * 改成极小极大对比度之后，每一张都会明确落到白字或深字其中之一。
+ */
+export type WallpaperTone = 'dark' | 'light'
 
 const ACCENT_L_MIN_DARK = 0.58
 const ACCENT_L_MAX_LIGHT = 0.5
