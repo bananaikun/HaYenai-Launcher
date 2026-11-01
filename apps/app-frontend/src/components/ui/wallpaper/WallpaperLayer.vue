@@ -290,20 +290,37 @@ function onVisibilityChange(): void {
  * 用**屏幕上真正画出来的那一帧**重判明暗。
  * `preview.*` 是工坊封面，跟场景实际画面经常对不上（实测 ws-2986218263 的封面是亮粉
  * 角色立绘、场景却是深绿水面），按封面判会把深色壁纸判成该用深字。
+ *
+ * 更硬的一组证据（`tmp/video-tone.mjs`，15 个视频包）：**5 个**的封面与实播画面
+ * 判定相反，其中「囍」封面亮→判深字，视频几乎全暗（白字覆盖率 99%）—— 就是「看不清」。
  */
-function captureToneFromSurface(): void {
+let toneTimer: number | null = null
+let toneToken = 0
+
+function captureToneFromSurface(force = true): void {
     const host = rootEl.value
     if (!host) return
     const el =
         host.querySelector<HTMLCanvasElement>('canvas[data-webwallgl]') ??
         host.querySelector<HTMLVideoElement>('video')
-    if (el) applyToneFromSurface(el)
+    if (el) applyToneFromSurface(el, 0, force)
 }
 
 function onFirstFrame(): void {
     engineReady.value = true
     failure.value = null
-    captureToneFromSurface()
+    captureToneFromSurface(true)
+
+    /* 首帧常常还在开场淡入里（视频第 0 帧多是黑场、场景的贴图刚装配完），
+       拿它判明暗会偏向"太暗 → 白字"。1.2s 后再采一次稳定画面，以这次为准。
+       换壁纸时 `toneToken` 递增，旧 timer 就算没清掉也不会写错结论。 */
+    const token = ++toneToken
+    if (toneTimer !== null) window.clearTimeout(toneTimer)
+    toneTimer = window.setTimeout(() => {
+        toneTimer = null
+        if (token !== toneToken) return
+        captureToneFromSurface(false)
+    }, 1200)
 }
 
 function onFail(reason: string): void {
@@ -321,6 +338,10 @@ onBeforeUnmount(() => {
     document.removeEventListener('visibilitychange', onVisibilityChange)
     motionQuery?.removeEventListener('change', onMotionChange)
     motionQuery = null
+    if (toneTimer !== null) {
+        window.clearTimeout(toneTimer)
+        toneTimer = null
+    }
 })
 
 // 换包：一切从头开始，别把上一张的「已就绪 / 已失败」带过来。
@@ -329,6 +350,12 @@ watch(
     (next, previous) => {
         engineReady.value = false
         failure.value = null
+        // 上一张的延迟重采不能再落到新壁纸上
+        toneToken += 1
+        if (toneTimer !== null) {
+            window.clearTimeout(toneTimer)
+            toneTimer = null
+        }
         // 首次挂载（previous === undefined）不盖：启动时本来就有一层海报，
         // 再盖一次只是多闪一下。真正换包才值得遮挡。
         if (!previous || !next || previous === next) return

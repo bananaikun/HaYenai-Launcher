@@ -160,6 +160,13 @@ function applyToneFromSample(force = false): void {
         glass: glassLayers(),
         aspect: (window.innerWidth || 1) / (window.innerHeight || 1),
     })
+    if (import.meta.env.DEV) {
+        console.info(
+            `[wallpaper-theme] decide source=${liveGrid ? 'surface' : 'preview'} grid=${grid.gridW}x${grid.gridH} ` +
+                `tone=${decision?.tone ?? 'null'} white=${decision ? decision.whiteCoverage.toFixed(2) : '-'} ` +
+                `ink=${decision ? decision.inkCoverage.toFixed(2) : '-'}`,
+        )
+    }
     if (!decision) return
 
     const tone = applyHysteresis(decision, force ? null : currentTone())
@@ -213,23 +220,27 @@ function gridFromSurface(el: HTMLCanvasElement | HTMLVideoElement): LumGrid | nu
 
 /**
  * 用**屏幕上真正渲染的那一帧**重判明暗。场景壁纸的 WebGL canvas 是页内同源创建的，
- * 可以直接读；这是唯一与肉眼所见一致的采样源。
+ * 可以直接读；视频则要求 `<video crossorigin="anonymous">` 且取流响应带 ACAO，
+ * 否则 canvas 被污染、`getImageData` 抛错，这里就会返回 `null`。
  *
  * WebGL 默认没开 `preserveDrawingBuffer`，首帧回调里立刻读可能拿到空缓冲 ——
- * 读到全 0 就退一帧重试，最多 4 次。
+ * 读到全 0 就退一帧重试，最多 4 次。**4 次都空就当读不到**：
+ * 把「读不到」当成「全黑壁纸」会让判定永远落成白字，比退回封面更糟。
  */
 export function applyToneFromSurface(
     el: HTMLCanvasElement | HTMLVideoElement,
     attempt = 0,
+    force = true,
 ): void {
     const grid = gridFromSurface(el)
     if (!grid) return
-    if (isBlankGrid(grid) && attempt < 4) {
-        requestAnimationFrame(() => applyToneFromSurface(el, attempt + 1))
+    if (isBlankGrid(grid)) {
+        if (attempt < 4) requestAnimationFrame(() => applyToneFromSurface(el, attempt + 1, force))
         return
     }
     liveGrid = grid
-    applyToneFromSample(true)
+    // 首帧那一次不受迟滞约束（换壁纸要立刻定字色）；之后的重采允许迟滞防抖
+    applyToneFromSample(force)
 }
 
 /* 窗口比例一变，cover 裁切就变了 —— 可见区域跟着变，判定必须重算。
@@ -249,6 +260,11 @@ if (typeof window !== 'undefined') {
  * `id` 为空（没有壁纸）时直接返回，不动用户自己选的主题。
  */
 export async function applyWallpaperTheme(id: string | null | undefined): Promise<void> {
+    if (import.meta.env.DEV) {
+        // 明暗判定整条链路只在「切壁纸」时跑一次，出了问题界面上看不出来 ——
+        // 留一条 DEV 日志，实机排查时不必再改代码。
+        console.info(`[wallpaper-theme] apply id=${id ?? 'null'} tone=${currentTone() ?? 'null'}`)
+    }
     if (!id) {
         delete document.documentElement.dataset.wallpaperTone
         cachedSample = null
@@ -266,13 +282,21 @@ export async function applyWallpaperTheme(id: string | null | undefined): Promis
         liveGrid = null
         try {
             cachedSample = await invoke<AccentSample | null>('wallpaper_accent', { id })
-        } catch {
-            // 命令缺失或读图失败：保持用户自己的主题，不报错
+        } catch (error) {
+            /* 命令缺失或读图失败：保持用户自己的主题，不报错到 UI。
+               但**必须留一行日志**：这条 catch 静默吞掉过一次真实故障
+               （网页类壁纸的 tone 一直为空、字色停在白族），界面看不出任何异常。 */
+            console.warn('[wallpaper-theme] 明暗采样失败，本次保留原字色', error)
             return
         }
         cachedId = id
     }
-    if (!cachedSample) return
+    if (!cachedSample) {
+        if (import.meta.env.DEV) {
+            console.warn(`[wallpaper-theme] 采样为空（${id}），保留原字色`)
+        }
+        return
+    }
 
     // 字色完全跟着壁纸走（与主题档、与取色开关都解耦）；换壁纸时不受迟滞约束
     applyToneFromSample(true)

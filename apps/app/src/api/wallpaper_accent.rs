@@ -43,9 +43,17 @@ pub struct WallpaperAccent {
 /// 网格长边格数。64 保证「左侧栏一条竖带」在 16:9 下仍有约 5×34 个采样点，
 /// 同时把回传体积压在 ~18KB JSON（只在切壁纸时传一次）。
 const GRID: u32 = 64;
-/// 动图最多解这么多帧。预览图通常只有几百见方，120 帧的解码成本可以忽略；
-/// 设上限是防极端长动图（几千帧）把切壁纸拖慢。
+/// 动图最多解这么多帧（硬上限，防极端长动图）。
 const MAX_FRAMES: usize = 120;
+/// 动图解码的**总像素预算**。
+///
+/// 为什么不能只按帧数切：封面尺寸差一个数量级。实测「哔哩哔哩音频响应壁纸」的
+/// `preview.gif` 是 800×800 × 105 帧，解完要 **11.2 秒** —— 字色要等它出结论才切，
+/// 用户看到的就是「换了亮壁纸，白字糊在上面好几秒」。而 256×256 × 38 帧只要 0.68s。
+///
+/// 8M 像素 ≈ 大封面 12 帧 / 小封面 120 帧，耗时压在 1.3s 内。
+/// 跨帧 max/min 只需要覆盖亮度极值，循环动图的极值在前十来帧就都露过面了。
+const FRAME_PIXEL_BUDGET: u64 = 8_000_000;
 
 #[tauri::command]
 pub async fn wallpaper_accent<R: tauri::Runtime>(
@@ -70,9 +78,16 @@ fn sample_package(root: &Path, id: &str) -> Option<WallpaperAccent> {
     if is_gif(&preview) {
         if let Ok(file) = File::open(&preview) {
             if let Ok(decoder) = image::codecs::gif::GifDecoder::new(BufReader::new(file)) {
+                let mut budget = FRAME_PIXEL_BUDGET;
                 for frame in decoder.into_frames().take(MAX_FRAMES) {
                     let Ok(frame) = frame else { break };
                     let buf = frame.buffer();
+                    // 先扣预算再收帧：超预算就停，别把第 100 帧的代价付完才发现该停。
+                    let pixels = u64::from(buf.width()) * u64::from(buf.height());
+                    if budget < pixels {
+                        break;
+                    }
+                    budget -= pixels;
                     sampler.get_or_insert_with(|| Sampler::new(buf.width(), buf.height()))
                         .add(buf);
                 }

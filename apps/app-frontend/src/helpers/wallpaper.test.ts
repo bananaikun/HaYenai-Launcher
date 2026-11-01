@@ -102,8 +102,14 @@ describe('wallpaper renderability', () => {
         assert.equal(wallpaperRenderability(metaOf({ type: 'video' }), noGpuCaps), 'ok')
     })
 
+    it('treats web pages as renderable (iframe, no GPU textures involved)', () => {
+        // web 类走 `<iframe>`，不吃 WebGL2 / 贴图格式，所以设备能力一概不看。
+        assert.equal(wallpaperRenderability(metaOf({ type: 'web' }), noGpuCaps), 'ok')
+        assert.equal(wallpaperRenderability(metaOf({ type: 'web' }), fullCaps), 'ok')
+    })
+
     it('reports unsupported types regardless of device', () => {
-        for (const type of ['web', 'application', 'other'] as const) {
+        for (const type of ['application', 'other'] as const) {
             assert.equal(wallpaperRenderability(metaOf({ type }), fullCaps), 'unsupported')
         }
     })
@@ -122,13 +128,14 @@ describe('wallpaper formatting', () => {
         assert.equal(formatWallpaperBytes(Number.NaN), '0 KB')
     })
 
-    it('defaults match the agreed budget (30fps / medium / AA off / 0.8)', () => {
+    it('defaults match the owner’s Wallpaper Engine profile (60fps / high / msaa2 / 1.0)', () => {
         const config = defaultWallpaperConfig()
         assert.deepEqual(config.quality, {
-            fps: 30,
-            postProcessing: 'medium',
-            antialiasing: false,
-            textureScale: 0.8,
+            fps: 60,
+            postProcessing: 'high',
+            antiAliasing: 'msaa2',
+            particles: 'high',
+            textureScale: 1,
         })
         assert.equal(config.selected, null)
     })

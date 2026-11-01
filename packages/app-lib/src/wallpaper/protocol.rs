@@ -111,6 +111,21 @@ pub fn resolve_with_steam(
     request: &ProtocolRequest<'_>,
     steam_lookup: &dyn Fn(&str) -> Option<PathBuf>,
 ) -> ProtocolResponse {
+    /* CORS 预检。
+       `<video crossorigin="anonymous">` 是为了让画进 canvas 的视频帧不被污染
+       （见 `VideoWallpaper.vue`）—— 而一旦走 CORS 模式，浏览器的 `Range` 请求
+       就不再是"简单请求"，会**先发 OPTIONS 预检**。
+       预检被 405 掉，视频就直接加载失败、壁纸退回海报 —— 实测正是这个症状
+       （「囍」的 99MB mp4 报 video-error）。所以这里必须放行 OPTIONS。
+       真正的 CORS 响应头由 `apps/app/src/we_protocol.rs` 统一加。 */
+    if request.method == "OPTIONS" {
+        return ProtocolResponse {
+            status: 204,
+            headers: Vec::new(),
+            body: Vec::new(),
+        };
+    }
+
     if !matches!(request.method, "GET" | "HEAD") {
         return ProtocolResponse::empty(405);
     }
@@ -861,6 +876,24 @@ mod tests {
         );
 
         assert_eq!(response.status, 405);
+    }
+
+    #[test]
+    fn cors_preflight_is_answered_so_video_can_use_crossorigin() {
+        // `<video crossorigin="anonymous">` 的 Range 请求会先发 OPTIONS 预检；
+        // 这里回 405 的话视频直接加载失败、壁纸退回海报（实测「囍」就是这样）。
+        let (_temp, root) = fixture();
+
+        let response = resolve(
+            &root,
+            &ProtocolRequest {
+                method: "OPTIONS",
+                ..get(&format!("/{ID}/big.mp4"))
+            },
+        );
+
+        assert_eq!(response.status, 204);
+        assert!(response.body.is_empty());
     }
 
     #[test]

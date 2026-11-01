@@ -44,6 +44,23 @@ const video = ref<HTMLVideoElement | null>(null)
 /** 已经出过画面。同一次挂载只报一次，避免 seek/loop 反复触发。 */
 let reportedFirstFrame = false
 let disposed = false
+/**
+ * 这次加载带不带 `crossorigin`。
+ *
+ * 带它的唯一目的是**让 canvas 不被污染**：`wallpaper-theme` 要靠
+ * `drawImage(video)` + `getImageData` 读屏幕上那一帧的亮度来决定字色，
+ * 而不带 CORS 的视频帧一画进 canvas 就"污染"，`getImageData` 直接抛 ——
+ * 于是明暗只能退回包内 `preview.*` 封面。
+ *
+ * 实测（15 个视频包，`tmp/video-tone.mjs`）：**5 个的封面与实播画面判定不一致**，
+ * 其中「囍」是封面亮（判深字）而视频几乎全暗（白字覆盖率 99%）——
+ * 深字压在暗视频上等于看不见。所以像素必须读得到。
+ *
+ * 取流响应已带 `access-control-allow-origin: *`；万一某个环境下 CORS 反而
+ * 让视频加载失败，`onError` 会摘掉它重来一次（画面优先，采样退回封面）。
+ */
+const allowCors = ref(true)
+let droppedCors = false
 
 const source = computed(() => wallpaperAssetUrl(props.wallpaperId, props.file))
 
@@ -56,8 +73,13 @@ async function play(): Promise<void> {
         resumeAttempts = 0
         stuckTicks = 0
     } catch (error) {
-        // `muted` 已经加了，走到这里通常是解码器不支持这个编码（HEVC / AV1 缺硬解）。
         if (disposed) return
+        /* `AbortError` = 这次 `play()` 被紧随其后的 `pause()` / 换源打断。
+           启动阶段背景层会先不可见再可见（`active` 抖一下），这个打断必然发生；
+           把它当失败会让壁纸**永久**退回海报（`failure` 一旦置位就不再重试）。
+           实测「囍」的 99MB mp4 就是这样被误判成播不出来的。 */
+        if ((error as DOMException | undefined)?.name === 'AbortError') return
+        // `muted` 已经加了，走到这里通常是解码器不支持这个编码（HEVC / AV1 缺硬解）。
         console.warn('[wallpaper] 视频播放被拒', error)
         emit('fail', 'video-blocked')
     }
@@ -79,7 +101,19 @@ function onLoadedData(): void {
 
 function onError(): void {
     if (disposed) return
-    console.warn('[wallpaper] 视频加载失败', video.value?.error)
+    const element = video.value
+    /* 带 `crossorigin` 时加载失败：多半是那条请求被当成跨源 CORS 请求而对方没放行。
+       摘掉它重新加载一次 —— 壁纸能不能播是第一位，读不到像素只会让字色退回封面判定。 */
+    if (allowCors.value && !droppedCors) {
+        droppedCors = true
+        allowCors.value = false
+        if (element) {
+            element.removeAttribute('crossorigin')
+            element.load()
+            return
+        }
+    }
+    console.warn('[wallpaper] 视频加载失败', element?.error)
     emit('fail', 'video-error')
 }
 
@@ -228,6 +262,7 @@ defineExpose({ play, pause })
             ref="video"
             class="video-wallpaper__element"
             :src="source"
+            :crossorigin="allowCors ? 'anonymous' : undefined"
             loop
             muted
             playsinline

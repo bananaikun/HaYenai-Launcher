@@ -24,6 +24,12 @@ html.has-custom-background {
     --color-text-primary: #fff;
     --color-text-secondary: rgba(255, 255, 255, 0.86);
     --color-text-tertiary: rgba(255, 255, 255, 0.66);
+    /* `--color-text-default` 是 Modrinth 那套令牌里的第四支，`--color-base` 由它派生。
+       `ButtonFrame` 的 quiet / chip 默认字色就是 `var(--button-color, var(--color-text-default))`
+       —— **漏掉它，所有默认按钮都不跟深浅档**。实测「日历」右上的月份切换按钮
+       （`2026年11月`）在浅色壁纸下仍是 `#c9d2dc`，深字档里白得几乎看不见。 */
+    --color-text-default: rgba(255, 255, 255, 0.86);
+    --color-base: var(--color-text-default);
     --text-0: #fff;
     --text-1: rgba(255, 255, 255, 0.86);
     --text-2: rgba(255, 255, 255, 0.66);
@@ -35,6 +41,8 @@ html.has-custom-background[data-wallpaper-tone='light'] {
     --color-text-primary: #14161c;
     --color-text-secondary: rgba(20, 22, 28, 0.8);
     --color-text-tertiary: rgba(20, 22, 28, 0.6);
+    --color-text-default: rgba(20, 22, 28, 0.8);
+    --color-base: var(--color-text-default);
     --text-0: #14161c;
     --text-1: rgba(20, 22, 28, 0.8);
     --text-2: rgba(20, 22, 28, 0.6);
