@@ -14836,5 +14836,89 @@
   },
   "app.feedback.saved": {
     "message": "Log bundle saved to {path}"
+  },
+  "app.ai-settings.presets": {
+    "message": "Persona & presets"
+  },
+  "app.ai-presets.title": {
+    "message": "Persona & presets"
+  },
+  "app.ai-presets.description": {
+    "message": "A preset bundles a persona, its rules and the model that runs it. Bots and agents pick a preset instead of carrying their own instructions."
+  },
+  "app.ai-presets.empty": {
+    "message": "No presets yet. Create one to describe how the model should behave."
+  },
+  "app.ai-presets.create": {
+    "message": "New preset"
+  },
+  "app.ai-presets.duplicate": {
+    "message": "Duplicate"
+  },
+  "app.ai-presets.name": {
+    "message": "Name"
+  },
+  "app.ai-presets.name.placeholder": {
+    "message": "e.g. Arona · assistant"
+  },
+  "app.ai-presets.provider": {
+    "message": "Provider"
+  },
+  "app.ai-presets.model": {
+    "message": "Model"
+  },
+  "app.ai-presets.follow-provider": {
+    "message": "Follow the calling feature"
+  },
+  "app.ai-presets.persona": {
+    "message": "Persona"
+  },
+  "app.ai-presets.persona.hint": {
+    "message": "Who the model is. Sent first, as the opening of the system prompt."
+  },
+  "app.ai-presets.persona.placeholder": {
+    "message": "You are Arona, the assistant of the Sensei. You are cheerful but concise."
+  },
+  "app.ai-presets.rules": {
+    "message": "Rules"
+  },
+  "app.ai-presets.rules.hint": {
+    "message": "What it must or must not do. Always placed after the persona, so it overrides it."
+  },
+  "app.ai-presets.rules.placeholder": {
+    "message": "Answer in Chinese.\nNever invent file paths or instance names."
+  },
+  "app.ai-presets.save": {
+    "message": "Save"
+  },
+  "app.ai-presets.remove": {
+    "message": "Delete"
+  },
+  "app.ai-presets.set-active": {
+    "message": "Use this preset"
+  },
+  "app.ai-presets.active": {
+    "message": "In use"
+  },
+  "app.ai-presets.test": {
+    "message": "Try it"
+  },
+  "app.ai-presets.test.placeholder": {
+    "message": "Say something…"
+  },
+  "app.ai-presets.test.reply": {
+    "message": "Reply"
+  },
+  "app.ai-presets.saved": {
+    "message": "Preset saved"
+  },
+  "app.ai-presets.deleted": {
+    "message": "Preset deleted"
+  },
+  "app.ai-presets.needs-name": {
+    "message": "Give the preset a name first."
+  },
+  "app.ai-presets.needs-model": {
+    "message": "Bind a provider and a model before running this preset."
   }
 }

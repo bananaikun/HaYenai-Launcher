@@ -943,6 +943,12 @@ fn main() {
             // 磁悬条/主题色：壁纸主色采样（前端 canvas 被自定义协议挡住）
             api::server_status::server_status,
             api::wallpaper_accent::wallpaper_accent,
+            // AI 方案（人格/规则）：插件通道的权限清单是编译期快照，加命令不生效，走主 handler
+            api::ai::ai_preset_list,
+            api::ai::ai_preset_save,
+            api::ai::ai_preset_remove,
+            api::ai::ai_preset_set_active,
+            api::ai::ai_preset_complete,
             is_dev,
             portable::is_portable_mode,
             are_updates_enabled,

@@ -1,5 +1,6 @@
 //! API for interacting with Theseus
 pub mod ai;
+pub mod ai_preset;
 pub mod anti_piracy;
 pub mod cache;
 pub mod content_favorites;

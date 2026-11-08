@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+    BotIcon,
     CheckIcon,
     CopyIcon,
     ExternalIcon,
@@ -27,6 +28,8 @@ import {
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+
+import AiPresetsPanel from './AiPresetsPanel.vue'
 
 import providerDescriptionsEn from '@/data/lobehub-provider-descriptions/en-US.json'
 import providerDescriptionsZh from '@/data/lobehub-provider-descriptions/zh-CN.json'
@@ -107,6 +110,7 @@ const messages = defineMessages({
             'When disabled, AI actions and provider choices are hidden across the launcher.',
     },
     search: { id: 'app.ai-settings.search', defaultMessage: 'Search providers' },
+    presets: { id: 'app.ai-settings.presets', defaultMessage: 'Persona & presets' },
     allProviders: { id: 'app.ai-settings.all-providers', defaultMessage: 'All' },
     enabledProviders: {
         id: 'app.ai-settings.enabled-providers',
@@ -277,6 +281,16 @@ const enabledProviderItems = computed(() =>
     filteredProviderItems.value.filter(
         ({ config, definition }) => config.enabled && !definition.sponsored,
     ),
+)
+/** 面板只认「已启用且已配模型」的厂商：给一个没有模型的厂商让用户选，等于埋一个必失败的分支。 */
+const presetProviders = computed(() =>
+    enabledProviderItems.value.map(({ definition, config }) => ({
+        providerId: definition.id,
+        label: config.custom_name?.trim() || definition.name,
+        models: config.models
+            .filter((model) => model.enabled)
+            .map((model) => ({ id: model.id, name: model.name })),
+    })),
 )
 const sponsoredProviderItems = computed(() =>
     filteredProviderItems.value.filter(({ definition }) => definition.sponsored),
@@ -782,6 +796,19 @@ onMounted(async () => {
                     </span>
                 </button>
 
+                <button
+                    v-if="!search.trim()"
+                    type="button"
+                    class="ai-provider-item mb-1"
+                    :class="{ selected: selectedId === 'presets' }"
+                    @click="selectProvider('presets')"
+                >
+                    <BotIcon class="size-[22px] shrink-0" />
+                    <span class="min-w-0 flex-1 truncate text-left text-sm font-semibold">
+                        {{ formatMessage(messages.presets) }}
+                    </span>
+                </button>
+
                 <div v-if="enabledProviderItems.length" class="flex flex-none flex-col gap-1">
                     <p
                         class="m-0 flex items-center justify-between px-2 pb-1 pt-2 text-xs font-semibold text-[var(--color-text-tertiary)]"
@@ -873,7 +900,11 @@ onMounted(async () => {
             </div>
         </aside>
 
-        <section v-if="selectedId === 'all'" class="ai-provider-overview">
+        <section v-if="selectedId === 'presets'" class="ai-provider-detail">
+            <AiPresetsPanel :providers="presetProviders" />
+        </section>
+
+        <section v-else-if="selectedId === 'all'" class="ai-provider-overview">
             <Admonition type="info">
                 <div class="flex flex-col gap-2">
                     <strong class="text-[var(--color-text-primary)]">

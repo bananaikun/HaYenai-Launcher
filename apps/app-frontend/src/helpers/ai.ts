@@ -139,3 +139,69 @@ export async function pollAIOAuth(flowId: string): Promise<OAuthPollStatus> {
 export async function disconnectAIOAuth(providerId: string): Promise<void> {
     await invoke('plugin:ai|ai_disconnect_oauth', { providerId })
 }
+
+/* ------------------------------------------------------------------ *
+ * 方案（Preset）
+ *
+ * 人格 + 规则 + 绑定的厂商/模型打包成一个可复用的成品。
+ * 机器人与 Agent 读 `activeId`，不必各自维护一份人格配置。
+ * ------------------------------------------------------------------ */
+
+export interface AIPreset {
+    id: string
+    name: string
+    providerId: string
+    modelId: string
+    persona: string
+    rules: string
+    createdAt: number
+    updatedAt: number
+}
+
+export interface AIPresetInput {
+    id?: string | null
+    name: string
+    providerId: string
+    modelId: string
+    persona: string
+    rules: string
+}
+
+export interface AIPresetState {
+    presets: AIPreset[]
+    activeId: string | null
+}
+
+export async function listAIPresets(): Promise<AIPresetState> {
+    return await invoke('ai_preset_list')
+}
+
+export async function saveAIPreset(input: AIPresetInput): Promise<AIPreset> {
+    return await invoke('ai_preset_save', { input })
+}
+
+export async function removeAIPreset(id: string): Promise<void> {
+    await invoke('ai_preset_remove', { id })
+}
+
+export async function setActiveAIPreset(id: string | null): Promise<void> {
+    await invoke('ai_preset_set_active', { id })
+}
+
+/**
+ * 用某个方案发一句话。
+ *
+ * `providerId` / `modelId` 只在方案自己没绑模型时才用得上 —— 传了也不会覆盖方案里的设置。
+ */
+export async function completeWithAIPreset(
+    presetId: string,
+    userPrompt: string,
+    options?: { providerId?: string; modelId?: string },
+): Promise<string> {
+    return await invoke('ai_preset_complete', {
+        presetId,
+        providerId: options?.providerId ?? null,
+        modelId: options?.modelId ?? null,
+        userPrompt,
+    })
+}

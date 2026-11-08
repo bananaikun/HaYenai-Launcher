@@ -14917,5 +14917,89 @@
   },
   "app.feedback.saved": {
     "message": "日志包已保存到 {path}"
+  },
+  "app.ai-settings.presets": {
+    "message": "人格与方案"
+  },
+  "app.ai-presets.title": {
+    "message": "人格与方案"
+  },
+  "app.ai-presets.description": {
+    "message": "一个方案打包了人格、规则和负责执行它的模型。机器人与 Agent 直接选用方案，不必各自维护一套设定。"
+  },
+  "app.ai-presets.empty": {
+    "message": "还没有方案。新建一个，描述模型该怎么表现。"
+  },
+  "app.ai-presets.create": {
+    "message": "新建方案"
+  },
+  "app.ai-presets.duplicate": {
+    "message": "复制"
+  },
+  "app.ai-presets.name": {
+    "message": "名称"
+  },
+  "app.ai-presets.name.placeholder": {
+    "message": "例如：阿罗娜 · 助手"
+  },
+  "app.ai-presets.provider": {
+    "message": "厂商"
+  },
+  "app.ai-presets.model": {
+    "message": "模型"
+  },
+  "app.ai-presets.follow-provider": {
+    "message": "跟随调用方"
+  },
+  "app.ai-presets.persona": {
+    "message": "人格"
+  },
+  "app.ai-presets.persona.hint": {
+    "message": "模型「是谁」。放在系统提示的最前面。"
+  },
+  "app.ai-presets.persona.placeholder": {
+    "message": "你是阿罗娜，老师的助手。活泼，但说话简短。"
+  },
+  "app.ai-presets.rules": {
+    "message": "规则"
+  },
+  "app.ai-presets.rules.hint": {
+    "message": "必须做 / 不许做的事。永远排在人格之后，所以能压住人格。"
+  },
+  "app.ai-presets.rules.placeholder": {
+    "message": "用中文回答。\n不要编造文件路径或实例名。"
+  },
+  "app.ai-presets.save": {
+    "message": "保存"
+  },
+  "app.ai-presets.remove": {
+    "message": "删除"
+  },
+  "app.ai-presets.set-active": {
+    "message": "使用这个方案"
+  },
+  "app.ai-presets.active": {
+    "message": "使用中"
+  },
+  "app.ai-presets.test": {
+    "message": "试运行"
+  },
+  "app.ai-presets.test.placeholder": {
+    "message": "随便说一句……"
+  },
+  "app.ai-presets.test.reply": {
+    "message": "回复"
+  },
+  "app.ai-presets.saved": {
+    "message": "方案已保存"
+  },
+  "app.ai-presets.deleted": {
+    "message": "方案已删除"
+  },
+  "app.ai-presets.needs-name": {
+    "message": "先给方案起个名字。"
+  },
+  "app.ai-presets.needs-model": {
+    "message": "先给方案绑定厂商和模型，才能试运行。"
   }
 }
