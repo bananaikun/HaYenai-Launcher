@@ -64,6 +64,7 @@ import {
 import AccentColorOption from './AccentColorOption.vue'
 import SettingsRow from './SettingsRow.vue'
 import SettingsSection from './SettingsSection.vue'
+import SplashSettingsSection from '@/components/ui/settings/SplashSettingsSection.vue'
 /* 壁纸面板（200+ 张贴图 + 属性面板）首次挂载实测要 220ms / +40MB，
    而它位于「外观」页很靠下的位置。改成异步 chunk + 滚进视野才挂载。 */
 const WallpaperSettings = defineAsyncComponent(() => import('./WallpaperSettings.vue'))
@@ -163,6 +164,12 @@ onUnmounted(() => {
 })
 
 const messages = defineMessages({
+    splashTitle: { id: 'app.splash-settings.title', defaultMessage: 'Startup animation' },
+    splashDescription: {
+        id: 'app.splash-settings.description',
+        defaultMessage:
+            'Replace the cold-start screen with your own wallpaper, image or video.',
+    },
     homeNavigationSectionTitle: {
         id: 'app.appearance-settings.sections.home-navigation',
         defaultMessage: 'Home & navigation',
@@ -1112,6 +1119,22 @@ watch(
                 {{ formatMessage(messages[target.key]) }}
             </button>
         </nav>
+        <SettingsSection v-if="props.scope === 'interface'" icon="palette">
+            <template #header>
+                <h2
+                    id="settings-target-appearance-splash"
+                    tabindex="-1"
+                    class="m-0 text-lg font-semibold text-[var(--color-text-primary)]"
+                >
+                    {{ formatMessage(messages.splashTitle) }}
+                </h2>
+                <p class="m-0 mt-1 text-sm leading-relaxed text-[var(--color-text-tertiary)]">
+                    {{ formatMessage(messages.splashDescription) }}
+                </p>
+            </template>
+            <SplashSettingsSection />
+        </SettingsSection>
+
         <SettingsSection v-if="props.scope === 'interface'" icon="palette">
             <template #header>
                 <h2

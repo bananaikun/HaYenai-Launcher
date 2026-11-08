@@ -15001,5 +15001,53 @@
   },
   "app.ai-presets.needs-model": {
     "message": "先给方案绑定厂商和模型，才能试运行。"
+  },
+  "app.splash-settings.title": {
+    "message": "启动动画"
+  },
+  "app.splash-settings.description": {
+    "message": "把冷启动画面换成你自己的壁纸、图片或视频。留空就用内置的动态背景。"
+  },
+  "app.splash-settings.media": {
+    "message": "自定义背景"
+  },
+  "app.splash-settings.media-empty": {
+    "message": "正在使用内置动态背景。"
+  },
+  "app.splash-settings.pick": {
+    "message": "选择文件"
+  },
+  "app.splash-settings.replace": {
+    "message": "更换"
+  },
+  "app.splash-settings.clear": {
+    "message": "移除"
+  },
+  "app.splash-settings.hint": {
+    "message": "支持图片（png / jpg / webp / gif）与视频（mp4 / webm / mov），最大 200 MB。文件会被复制进启动器数据目录，原文件挪走也不会失效。"
+  },
+  "app.splash-settings.elements": {
+    "message": "元素"
+  },
+  "app.splash-settings.elements-hint": {
+    "message": "不想在启动画面上看到的，关掉即可。"
+  },
+  "app.splash-settings.show-icon": {
+    "message": "启动图标"
+  },
+  "app.splash-settings.show-tagline": {
+    "message": "标语"
+  },
+  "app.splash-settings.show-progress": {
+    "message": "进度条"
+  },
+  "app.splash-settings.tagline": {
+    "message": "自定义标语"
+  },
+  "app.splash-settings.tagline-hint": {
+    "message": "留空则使用内置文案。"
+  },
+  "app.splash-settings.saved": {
+    "message": "启动动画已更新"
   }
 }

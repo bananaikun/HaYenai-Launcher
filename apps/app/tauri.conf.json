@@ -114,7 +114,8 @@
 					"$CONFIG/caches/icons/*",
 					"$APPDATA/profiles/*/saves/*/icon.png",
 					"$APPCONFIG/profiles/*/saves/*/icon.png",
-					"$CONFIG/profiles/*/saves/*/icon.png"
+					"$CONFIG/profiles/*/saves/*/icon.png",
+					"$APPDATA/splash/*"
 				],
 				"enable": true
 			},
@@ -137,7 +138,7 @@
 				"script-src": "'self' 'unsafe-eval' 'wasm-unsafe-eval'",
 				"worker-src": "'self' blob:",
 				"frame-src": "https://www.youtube.com https://www.youtube-nocookie.com https://discord.com 'self' http://axolotl-skin.localhost axolotl-skin://localhost http://hayenai-we.localhost",
-				"media-src": "'self' blob: data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net"
+				"media-src": "'self' blob: data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net http://asset.localhost"
 			},
 			"csp": {
 				"default-src": "'self' customprotocol: asset:",
@@ -154,7 +155,7 @@
 				"script-src": "'self' 'unsafe-eval' 'wasm-unsafe-eval'",
 				"worker-src": "'self' blob:",
 				"frame-src": "https://www.youtube.com https://www.youtube-nocookie.com https://discord.com 'self' axolotl-skin://localhost http://axolotl-skin.localhost http://hayenai-we.localhost",
-				"media-src": "'self' blob: data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net"
+				"media-src": "'self' blob: data: http://hayenai-we.localhost https://*.githubusercontent.com https://api.qijieya.cn https://api.injahow.cn https://api.i-meto.com https://meting.qjqq.cn http://*.music.126.net https://*.music.126.net https://music.163.com http://m7.music.126.net http://asset.localhost"
 			}
 		}
 	}

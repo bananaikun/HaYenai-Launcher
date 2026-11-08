@@ -949,6 +949,12 @@ fn main() {
             api::ai::ai_preset_remove,
             api::ai::ai_preset_set_active,
             api::ai::ai_preset_complete,
+            // 启动动画自定义（不走插件：同 ai_preset_* 的 ACL 快照问题）
+            api::splash::splash_get_config,
+            api::splash::splash_set_config,
+            api::splash::splash_set_media,
+            api::splash::splash_clear_media,
+            api::splash::splash_media_path,
             is_dev,
             portable::is_portable_mode,
             are_updates_enabled,

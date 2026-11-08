@@ -14920,5 +14920,53 @@
   },
   "app.ai-presets.needs-model": {
     "message": "Bind a provider and a model before running this preset."
+  },
+  "app.splash-settings.title": {
+    "message": "Startup animation"
+  },
+  "app.splash-settings.description": {
+    "message": "Replace the cold-start screen with your own wallpaper, image or video. Leave it empty to keep the built-in animated background."
+  },
+  "app.splash-settings.media": {
+    "message": "Custom background"
+  },
+  "app.splash-settings.media-empty": {
+    "message": "Using the built-in animated background."
+  },
+  "app.splash-settings.pick": {
+    "message": "Choose file"
+  },
+  "app.splash-settings.replace": {
+    "message": "Replace"
+  },
+  "app.splash-settings.clear": {
+    "message": "Remove"
+  },
+  "app.splash-settings.hint": {
+    "message": "Images (png / jpg / webp / gif) or video (mp4 / webm / mov), up to 200 MB. The file is copied into the launcher data folder, so moving the original will not break it."
+  },
+  "app.splash-settings.elements": {
+    "message": "Elements"
+  },
+  "app.splash-settings.elements-hint": {
+    "message": "Turn off anything you do not want on the startup screen."
+  },
+  "app.splash-settings.show-icon": {
+    "message": "App icon"
+  },
+  "app.splash-settings.show-tagline": {
+    "message": "Tagline"
+  },
+  "app.splash-settings.show-progress": {
+    "message": "Progress bar"
+  },
+  "app.splash-settings.tagline": {
+    "message": "Custom tagline"
+  },
+  "app.splash-settings.tagline-hint": {
+    "message": "Leave empty to keep the built-in text."
+  },
+  "app.splash-settings.saved": {
+    "message": "Startup animation updated"
   }
 }

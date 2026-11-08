@@ -8,6 +8,7 @@
  * keeps the animation loop's lifetime tied to a single owner.
  */
 import { defineMessages, injectLoadingState, useVIntl } from '@modrinth/ui'
+import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import appIcon from '@/assets/hayenai.png'
@@ -106,6 +107,42 @@ function degrade(error?: Error) {
     emitGpuReady()
 }
 
+/**
+ * 自定义启动动画。
+ *
+ * 刻意**不等** State：启动画面要赶在数据库初始化之前出图，所以配置走
+ * `splash/config.json` 而不是设置表。读取失败一律当成「没自定义」，退回内置粒子背景 ——
+ * 启动画面永远不能因为配置读不到就白屏。
+ */
+const splashConfig = ref({
+    media: null as null | { kind: 'image' | 'video'; file: string },
+    showIcon: true,
+    showTagline: true,
+    showProgress: true,
+    tagline: '',
+})
+const mediaUrl = ref<string | null>(null)
+const mediaBroken = ref(false)
+
+const customMedia = computed(() => {
+    if (!splashConfig.value.media || mediaBroken.value || !mediaUrl.value) return null
+    return { kind: splashConfig.value.media.kind, url: mediaUrl.value }
+})
+
+async function loadSplashConfig() {
+    try {
+        const config = await invoke<typeof splashConfig.value>('splash_get_config')
+        splashConfig.value = { ...splashConfig.value, ...config }
+        if (config.media) {
+            const path = await invoke<string | null>('splash_media_path')
+            if (path) mediaUrl.value = convertFileSrc(path)
+        }
+    } catch (error) {
+        // 没拿到配置就用默认值 —— 这是「启动画面」,不值得为它报错打扰用户。
+        console.warn('[splash] 读取自定义配置失败，使用内置背景', error)
+    }
+}
+
 const loading = injectLoadingState()
 const { formatMessage } = useVIntl()
 
@@ -164,6 +201,8 @@ watch(
 )
 
 onMounted(() => {
+    // 自定义素材要尽早拿到：它决定这一帧画什么。失败不影响下面的就绪流程。
+    void loadSplashConfig()
     // A static background never reports ready — it is not animated. Everything
     // else reports from the component that actually paints.
     if (renderer.value === 'static') emitGpuReady()
@@ -188,53 +227,82 @@ loading_listener((event) => {
 <template>
     <div class="splash" data-tauri-drag-region>
         <!--
-			AeroShards (WebGPU) is the intended background; a failed adapter, a
-			failed device request or a runtime GPU error degrades to the WebGL2
-			particles once, and a failed WebGL2 context to the static gradient.
+			自定义素材优先于内置背景。两者是互斥的：用户选了视频就是想看视频，
+			不该再让粒子在上面叠一层。
 		-->
-        <AeroShards
-            v-if="showGpu"
-            :shard-color="'#7aa2ff'"
-            :accent-color="'#9fd8ff'"
-            :count="900"
-            :speed="0.8"
-            :glow="0.35"
-            :depth-of-field="0.75"
-            markers="plus"
-            :mouse-interaction="true"
-            :pulse-on-click="true"
-            :hold-to-gather="true"
-            :parallax="0.5"
-            :dpr="2"
-            @ready="emitGpuReady"
-            @error="degrade"
-        />
-        <ParticlesBackground
-            v-else-if="renderer === 'particles'"
-            :particle-count="260"
-            :particle-colors="['#7aa2ff', '#9fd8ff', '#ffffff']"
-            :glow="0.6"
-            :twinkle="0.35"
-            drift="forward"
-            :connections="true"
-            hover-effect="parallax"
-            :speed="0.08"
-            @ready="emitGpuReady"
-            @unsupported="degrade()"
-        />
+        <template v-if="customMedia">
+            <video
+                v-if="customMedia.kind === 'video'"
+                class="splash__media"
+                :src="customMedia.url"
+                autoplay
+                muted
+                loop
+                playsinline
+                @error="mediaBroken = true"
+            />
+            <img
+                v-else
+                class="splash__media"
+                :src="customMedia.url"
+                alt=""
+                draggable="false"
+                @error="mediaBroken = true"
+            />
+            <!-- 压暗层：素材可能是亮的，白字直接压上去会读不出来 -->
+            <div class="splash__scrim" />
+        </template>
+        <template v-else>
+            <AeroShards
+                v-if="showGpu"
+                :shard-color="'#7aa2ff'"
+                :accent-color="'#9fd8ff'"
+                :count="900"
+                :speed="0.8"
+                :glow="0.35"
+                :depth-of-field="0.75"
+                markers="plus"
+                :mouse-interaction="true"
+                :pulse-on-click="true"
+                :hold-to-gather="true"
+                :parallax="0.5"
+                :dpr="2"
+                @ready="emitGpuReady"
+                @error="degrade"
+            />
+            <ParticlesBackground
+                v-else-if="renderer === 'particles'"
+                :particle-count="260"
+                :particle-colors="['#7aa2ff', '#9fd8ff', '#ffffff']"
+                :glow="0.6"
+                :twinkle="0.35"
+                drift="forward"
+                :connections="true"
+                hover-effect="parallax"
+                :speed="0.08"
+                @ready="emitGpuReady"
+                @unsupported="degrade()"
+            />
+        </template>
 
         <div class="splash__content" data-tauri-drag-region>
             <img
+                v-if="splashConfig.showIcon"
                 :src="appIcon"
                 alt="HaYenai"
                 class="splash__icon"
                 draggable="false"
                 data-tauri-drag-region
             />
-            <p class="splash__caption" data-tauri-drag-region>
-                {{ message ?? formatMessage(messages.preparing) }}
+            <p v-if="splashConfig.showTagline" class="splash__caption" data-tauri-drag-region>
+                {{ splashConfig.tagline.trim() || message || formatMessage(messages.preparing) }}
             </p>
-            <div class="splash__track" role="progressbar" :aria-valuenow="Math.round(progress)">
+            <div
+                v-if="splashConfig.showProgress"
+                class="splash__track"
+                role="progressbar"
+                :aria-valuenow="Math.round(progress)"
+            >
                 <div class="splash__bar" :style="{ width: `${Math.min(100, progress)}%` }" />
             </div>
         </div>
@@ -265,6 +333,29 @@ loading_listener((event) => {
     align-items: center;
     gap: 1rem;
     padding: 0 1.5rem;
+}
+
+/* 自定义素材：铺满整屏，超出部分裁掉（cover）。
+   不用 `contain` —— 启动画面留黑边比裁掉一点更难接受。 */
+.splash__media {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}
+
+/* 压暗层：中间略亮、四周更暗，让图标与文字在任何素材上都能读出来。 */
+.splash__scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse at center, rgb(0 0 0 / 28%) 0%, rgb(0 0 0 / 62%) 100%),
+        linear-gradient(180deg, rgb(0 0 0 / 30%) 0%, rgb(0 0 0 / 45%) 100%);
+    pointer-events: none;
 }
 
 .splash__icon {
