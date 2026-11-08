@@ -80,6 +80,30 @@ fn row_to_preset(row: &sqlx::sqlite::SqliteRow) -> AiPreset {
     }
 }
 
+/// 按 ID 取一条方案。
+///
+/// 找不到返回 `None` 而不是报错：调用方（Agent 面板）需要能优雅处理「方案被删了」——
+/// 那是个正常的用户操作，不是故障。
+pub async fn find(id: &str) -> crate::Result<Option<AiPreset>> {
+    let state = State::get().await?;
+    let row = sqlx::query(
+        "SELECT id, name, provider_id, model_id, persona, rules, created_at, updated_at
+         FROM ai_presets
+         WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?;
+    Ok(row.as_ref().map(row_to_preset))
+}
+
+/// 把人格 + 规则拼成 system prompt。
+///
+/// 对外暴露是为了让 Agent 和「试运行」用**同一套口径** —— 两处各写一份迟早会漂。
+pub fn system_prompt(preset: &AiPreset) -> String {
+    compose_system_prompt(preset)
+}
+
 /// 列出全部方案 + 当前选中项。最近编辑的排前面。
 pub async fn list() -> crate::Result<AiPresetState> {
     let state = State::get().await?;

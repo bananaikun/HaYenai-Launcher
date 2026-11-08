@@ -33,6 +33,9 @@ pub mod utils;
 pub mod wallpaper;
 pub mod server_status;
 pub mod splash;
+pub mod agent;
+pub mod lan;
+pub mod room;
 pub mod wallpaper_accent;
 pub mod bundled_wallpaper;
 

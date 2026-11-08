@@ -14,7 +14,8 @@
 		"externalBin": [],
 		"resources": [
 			"resources/blockbench-skin",
-			"resources/bundled-wallpapers/arona"
+			"resources/bundled-wallpapers/arona",
+			"resources/easytier"
 		],
 		"icon": [
 			"icons/128x128.png",

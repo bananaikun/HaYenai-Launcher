@@ -15049,5 +15049,158 @@
   },
   "app.splash-settings.saved": {
     "message": "启动动画已更新"
+  },
+  "app.nav.agent": {
+    "message": "Agent"
+  },
+  "app.agent.title": {
+    "message": "Agent"
+  },
+  "app.agent.subtitle": {
+    "message": "它会读你的实例和日志，只有你允许时才会改动。"
+  },
+  "app.agent.preset": {
+    "message": "方案"
+  },
+  "app.agent.no-preset": {
+    "message": "还没有方案"
+  },
+  "app.agent.no-preset-hint": {
+    "message": "先到「设置 → AI 功能 → 人格与方案」建一个，并绑好厂商和模型。"
+  },
+  "app.agent.allow-write": {
+    "message": "允许修改"
+  },
+  "app.agent.allow-write-hint": {
+    "message": "改实例名、调内存"
+  },
+  "app.agent.read-only": {
+    "message": "只读"
+  },
+  "app.agent.clear": {
+    "message": "清空对话"
+  },
+  "app.agent.placeholder": {
+    "message": "问它某个实例、某次崩溃、某项设置……"
+  },
+  "app.agent.send": {
+    "message": "发送"
+  },
+  "app.agent.empty": {
+    "message": "随便问点什么。它会去读真实文件，而不是猜。"
+  },
+  "app.agent.tools": {
+    "message": "工具"
+  },
+  "app.agent.thinking": {
+    "message": "处理中……"
+  },
+  "app.agent.stop": {
+    "message": "停止"
+  },
+  "app.agent.you": {
+    "message": "你"
+  },
+  "app.nav.rooms": {
+    "message": "房间"
+  },
+  "app.rooms.title": {
+    "message": "房间"
+  },
+  "app.rooms.subtitle": {
+    "message": "聊天、分享整合包和文件，全部跑在你自己的网络里。"
+  },
+  "app.rooms.create": {
+    "message": "新建房间"
+  },
+  "app.rooms.empty": {
+    "message": "还没有房间。建一个开始。"
+  },
+  "app.rooms.name": {
+    "message": "房间名"
+  },
+  "app.rooms.your-name": {
+    "message": "你的名字"
+  },
+  "app.rooms.join": {
+    "message": "用邀请码加入"
+  },
+  "app.rooms.code": {
+    "message": "邀请码"
+  },
+  "app.rooms.code-hint": {
+    "message": "房主给你的 32 位字符，它同时也是网络密钥。"
+  },
+  "app.rooms.open": {
+    "message": "开启房间"
+  },
+  "app.rooms.close": {
+    "message": "断开"
+  },
+  "app.rooms.connecting": {
+    "message": "连接中……"
+  },
+  "app.rooms.waiting-network": {
+    "message": "等虚拟网络就绪……"
+  },
+  "app.rooms.members": {
+    "message": "成员"
+  },
+  "app.rooms.settings": {
+    "message": "保存设置"
+  },
+  "app.rooms.plugins": {
+    "message": "模块"
+  },
+  "app.rooms.bot": {
+    "message": "AI 机器人"
+  },
+  "app.rooms.bot-name": {
+    "message": "机器人名字"
+  },
+  "app.rooms.bot-preset": {
+    "message": "方案"
+  },
+  "app.rooms.bot-mention": {
+    "message": "只在被 @ 时回复"
+  },
+  "app.rooms.qq": {
+    "message": "QQ 群同步"
+  },
+  "app.rooms.qq-group": {
+    "message": "群号"
+  },
+  "app.rooms.qq-pending": {
+    "message": "设置已保存，但这一版还没实接。"
+  },
+  "app.rooms.placeholder": {
+    "message": "说点什么……"
+  },
+  "app.rooms.send": {
+    "message": "发送"
+  },
+  "app.rooms.share-file": {
+    "message": "分享文件"
+  },
+  "app.rooms.share-pack": {
+    "message": "分享模组清单"
+  },
+  "app.rooms.copied": {
+    "message": "邀请码已复制"
+  },
+  "app.rooms.host-address": {
+    "message": "房主地址"
+  },
+  "app.rooms.admin-needed": {
+    "message": "虚拟网卡需要管理员权限才能创建。"
+  },
+  "app.rooms.note": {
+    "message": "备注"
+  },
+  "app.rooms.no-preset": {
+    "message": "先建一个方案"
+  },
+  "app.rooms.system": {
+    "message": "系统"
   }
 }

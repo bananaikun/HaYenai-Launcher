@@ -14968,5 +14968,158 @@
   },
   "app.splash-settings.saved": {
     "message": "Startup animation updated"
+  },
+  "app.nav.agent": {
+    "message": "Agent"
+  },
+  "app.agent.title": {
+    "message": "Agent"
+  },
+  "app.agent.subtitle": {
+    "message": "Reads your instances and logs, and changes them only when you allow it."
+  },
+  "app.agent.preset": {
+    "message": "Preset"
+  },
+  "app.agent.no-preset": {
+    "message": "No preset"
+  },
+  "app.agent.no-preset-hint": {
+    "message": "Create one under Settings → AI → Persona & presets, with a provider and model bound."
+  },
+  "app.agent.allow-write": {
+    "message": "Allow changes"
+  },
+  "app.agent.allow-write-hint": {
+    "message": "Renaming instances and changing memory"
+  },
+  "app.agent.read-only": {
+    "message": "Read-only"
+  },
+  "app.agent.clear": {
+    "message": "Clear conversation"
+  },
+  "app.agent.placeholder": {
+    "message": "Ask about an instance, a crash, or a setting…"
+  },
+  "app.agent.send": {
+    "message": "Send"
+  },
+  "app.agent.empty": {
+    "message": "Ask something. It will read real files instead of guessing."
+  },
+  "app.agent.tools": {
+    "message": "Tools"
+  },
+  "app.agent.thinking": {
+    "message": "Working…"
+  },
+  "app.agent.stop": {
+    "message": "Stop"
+  },
+  "app.agent.you": {
+    "message": "You"
+  },
+  "app.nav.rooms": {
+    "message": "Rooms"
+  },
+  "app.rooms.title": {
+    "message": "Rooms"
+  },
+  "app.rooms.subtitle": {
+    "message": "Chat, share packs and files, all on your own network."
+  },
+  "app.rooms.create": {
+    "message": "New room"
+  },
+  "app.rooms.empty": {
+    "message": "No rooms yet. Create one to start."
+  },
+  "app.rooms.name": {
+    "message": "Room name"
+  },
+  "app.rooms.your-name": {
+    "message": "Your name"
+  },
+  "app.rooms.join": {
+    "message": "Join with code"
+  },
+  "app.rooms.code": {
+    "message": "Invite code"
+  },
+  "app.rooms.code-hint": {
+    "message": "The 32 characters the host gave you. It is also the network key."
+  },
+  "app.rooms.open": {
+    "message": "Start hosting"
+  },
+  "app.rooms.close": {
+    "message": "Disconnect"
+  },
+  "app.rooms.connecting": {
+    "message": "Connecting…"
+  },
+  "app.rooms.waiting-network": {
+    "message": "Waiting for the virtual network…"
+  },
+  "app.rooms.members": {
+    "message": "Members"
+  },
+  "app.rooms.settings": {
+    "message": "Save settings"
+  },
+  "app.rooms.plugins": {
+    "message": "Modules"
+  },
+  "app.rooms.bot": {
+    "message": "AI bot"
+  },
+  "app.rooms.bot-name": {
+    "message": "Bot name"
+  },
+  "app.rooms.bot-preset": {
+    "message": "Preset"
+  },
+  "app.rooms.bot-mention": {
+    "message": "Only reply when mentioned"
+  },
+  "app.rooms.qq": {
+    "message": "QQ group sync"
+  },
+  "app.rooms.qq-group": {
+    "message": "Group number"
+  },
+  "app.rooms.qq-pending": {
+    "message": "Saved, but not active yet in this version."
+  },
+  "app.rooms.placeholder": {
+    "message": "Message the room…"
+  },
+  "app.rooms.send": {
+    "message": "Send"
+  },
+  "app.rooms.share-file": {
+    "message": "Share file"
+  },
+  "app.rooms.share-pack": {
+    "message": "Share mod list"
+  },
+  "app.rooms.copied": {
+    "message": "Invite code copied"
+  },
+  "app.rooms.host-address": {
+    "message": "Host address"
+  },
+  "app.rooms.admin-needed": {
+    "message": "The virtual network needs administrator rights to create its adapter."
+  },
+  "app.rooms.note": {
+    "message": "Note"
+  },
+  "app.rooms.no-preset": {
+    "message": "Create a preset first"
+  },
+  "app.rooms.system": {
+    "message": "System"
   }
 }

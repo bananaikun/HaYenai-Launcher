@@ -37,6 +37,22 @@ export const utilityRoutes: RouteRecordRaw[] = [
         },
     },
     {
+        path: '/rooms',
+        name: 'Rooms',
+        component: () => import('@/pages/Rooms.vue'),
+        meta: {
+            breadcrumb: [{ name: 'Rooms' }],
+        },
+    },
+    {
+        path: '/agent',
+        name: 'Agent',
+        component: () => import('@/pages/Agent.vue'),
+        meta: {
+            breadcrumb: [{ name: 'Agent' }],
+        },
+    },
+    {
         path: '/settings',
         name: 'Settings',
         component: () => import('@/pages/Settings.vue'),
