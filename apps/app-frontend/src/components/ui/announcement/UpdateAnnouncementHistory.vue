@@ -162,7 +162,10 @@ async function openRelease(url: string): Promise<void> {
                             </div>
                         </template>
                         <div class="update-announcement-history-item-content">
-                            <div class="markdown-body break-words" v-html="renderString(item.body)" />
+                            <div
+                                class="markdown-body break-words"
+                                v-html="renderString(item.body)"
+                            />
                         </div>
                     </Accordion>
                 </div>
@@ -176,7 +179,7 @@ async function openRelease(url: string): Promise<void> {
 </template>
 
 <style scoped>
-/* 2026-10-31：原来是 `border:1px solid var(--surface-4)` + `background: var(--surface-2)`
+/* 2026-10-31：原来是 `border:1px solid var(--surface-4)` + `background: var(--glass-2)`
    —— 面板是一块实心色。统一成全站玻璃配方（描边 stroke 令牌 + glass 渐变 + 模糊）。 */
 .update-announcement-history {
     display: flex;

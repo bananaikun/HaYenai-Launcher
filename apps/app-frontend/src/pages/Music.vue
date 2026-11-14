@@ -311,11 +311,7 @@ onMounted(() => {
             </button>
         </div>
 
-        <NeteasePanel
-            v-if="netOpen"
-            @close="netOpen = false"
-            @pick="onNeteasePick"
-        />
+        <NeteasePanel v-if="netOpen" @close="netOpen = false" @pick="onNeteasePick" />
 
         <div v-if="!netOpen && !music.songs.length" class="mu-empty">
             <span class="mu-meta">
@@ -369,7 +365,11 @@ onMounted(() => {
                             <p
                                 v-for="(line, index) in music.settings.lyrics ? music.lyrics : []"
                                 :key="`${line.at}-${index}`"
-                                :ref="index === activeIndex ? (el) => (activeLine = el as HTMLElement) : undefined"
+                                :ref="
+                                    index === activeIndex
+                                        ? (el) => (activeLine = el as HTMLElement)
+                                        : undefined
+                                "
                                 class="mu-ln"
                                 :class="{ on: index === activeIndex, past: index < activeIndex }"
                                 @click="seek(line.at)"
@@ -694,7 +694,9 @@ onMounted(() => {
     border-radius: 16px;
     overflow: hidden;
     background: var(--glass-2);
-    box-shadow: var(--sh-2), inset 0 0 0 1px var(--stroke-2);
+    box-shadow:
+        var(--sh-2),
+        inset 0 0 0 1px var(--stroke-2);
 
     img {
         display: block;

@@ -283,9 +283,9 @@ defineExpose({ show })
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-4);
+    background: var(--glass-3);
     color: var(--color-text-tertiary);
 }
 

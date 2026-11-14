@@ -280,7 +280,11 @@ html.os-overlay *::-webkit-scrollbar {
     z-index: 2147483000;
     box-sizing: border-box;
     border-radius: var(--r-pill, 999px);
-    background: linear-gradient(180deg, var(--glass-2, rgba(255, 255, 255, 0.09)) 0%, var(--glass-1, rgba(255, 255, 255, 0.06)) 100%);
+    background: linear-gradient(
+        180deg,
+        var(--glass-2, rgba(255, 255, 255, 0.09)) 0%,
+        var(--glass-1, rgba(255, 255, 255, 0.06)) 100%
+    );
     border: 1px solid var(--stroke-1, rgba(255, 255, 255, 0.1));
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.22),
@@ -297,7 +301,11 @@ html.os-overlay *::-webkit-scrollbar {
 }
 
 .os-thumb--h {
-    background: linear-gradient(90deg, var(--glass-2, rgba(255, 255, 255, 0.09)) 0%, var(--glass-1, rgba(255, 255, 255, 0.06)) 100%);
+    background: linear-gradient(
+        90deg,
+        var(--glass-2, rgba(255, 255, 255, 0.09)) 0%,
+        var(--glass-1, rgba(255, 255, 255, 0.06)) 100%
+    );
 }
 
 .os-thumb.is-visible {
@@ -307,13 +315,21 @@ html.os-overlay *::-webkit-scrollbar {
 
 .os-thumb.is-visible:hover,
 .os-thumb.is-dragging {
-    background: linear-gradient(180deg, var(--glass-3, rgba(255, 255, 255, 0.14)) 0%, var(--glass-2, rgba(255, 255, 255, 0.09)) 100%);
+    background: linear-gradient(
+        180deg,
+        var(--glass-3, rgba(255, 255, 255, 0.14)) 0%,
+        var(--glass-2, rgba(255, 255, 255, 0.09)) 100%
+    );
     border-color: var(--stroke-2, rgba(255, 255, 255, 0.18));
 }
 
 .os-thumb--h.is-visible:hover,
 .os-thumb--h.is-dragging {
-    background: linear-gradient(90deg, var(--glass-3, rgba(255, 255, 255, 0.14)) 0%, var(--glass-2, rgba(255, 255, 255, 0.09)) 100%);
+    background: linear-gradient(
+        90deg,
+        var(--glass-3, rgba(255, 255, 255, 0.14)) 0%,
+        var(--glass-2, rgba(255, 255, 255, 0.09)) 100%
+    );
 }
 
 /* 不支持 backdrop-filter 的运行时：换成更实的玻璃底，别变成看不见的透明条 */

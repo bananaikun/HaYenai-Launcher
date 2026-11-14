@@ -41,6 +41,8 @@ export interface RoomMember {
     accountKind: string
     note: string
     joinedAt: number
+    /** 房间内的固定虚拟地址（房主 .1，成员按加入顺序 .2 起）。老数据可能为空。 */
+    virtualIp?: string | null
 }
 
 export interface HostInfo {
@@ -55,6 +57,9 @@ export interface PluginInfo {
 }
 
 export const roomList = () => invoke<RoomConfig[]>('room_list')
+
+/** 当前登录的 Minecraft 账号名。房间页用它当昵称，不再让用户手填。 */
+export const roomMyName = () => invoke<string | null>('room_my_name')
 
 export const roomCreate = (name: string, hostName: string) =>
     invoke<RoomConfig>('room_create', { name, hostName })
@@ -126,15 +131,18 @@ export const roomShareFile = (
     from: string,
     base?: string | null,
     code?: string | null,
-) => invoke<RoomMessage>('room_share_file', { roomId, path, from, base: base ?? null, code: code ?? null })
+) =>
+    invoke<RoomMessage>('room_share_file', {
+        roomId,
+        path,
+        from,
+        base: base ?? null,
+        code: code ?? null,
+    })
 
 /** 成员把本地文件推到房主服务。 */
-export const roomUploadFile = (
-    base: string,
-    code: string,
-    name: string,
-    bytes: number[],
-) => invoke<unknown>('room_upload_file', { base, code, name, bytes })
+export const roomUploadFile = (base: string, code: string, name: string, bytes: number[]) =>
+    invoke<unknown>('room_upload_file', { base, code, name, bytes })
 
 export const roomInstanceManifest = (instanceId: string) =>
     invoke<{
@@ -170,6 +178,12 @@ export interface LanPeer {
 export interface LanStatus {
     running: boolean
     elevated: boolean
+    /** 是否常驻托管（退房间不停）。 */
+    resident: boolean
+    /** 自动重连已用次数。 */
+    restarts: number
+    /** 自动重连已放弃，需要手动重连。 */
+    gaveUp: boolean
     virtualIp: string | null
     hostname: string | null
     publicIp: string | null
@@ -189,6 +203,9 @@ export interface LanConfig {
 
 export const lanEnv = () => invoke<LanEnv>('lan_env')
 export const lanStart = (config: LanConfig) => invoke<void>('lan_start', { config })
+
+/** 幂等启动：已经在跑同一个网络就什么都不做。进房间统一走这条。 */
+export const lanEnsure = (config: LanConfig) => invoke<void>('lan_ensure', { config })
 export const lanStop = () => invoke<void>('lan_stop')
 export const lanStatus = () => invoke<LanStatus>('lan_status')
 

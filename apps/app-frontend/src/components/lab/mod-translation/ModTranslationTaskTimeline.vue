@@ -138,7 +138,7 @@ function copyDebug(value: unknown) {
     overflow-y: auto;
     border: 1px solid var(--color-divider);
     border-radius: var(--radius-md);
-    background: var(--surface-4);
+    background: var(--glass-3);
     padding: 0.65rem 0.7rem;
 }
 .empty {
@@ -194,9 +194,9 @@ function copyDebug(value: unknown) {
     margin-top: 0.25rem;
 }
 .debug button {
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.2rem 0.4rem;
     color: var(--color-text-tertiary);
     font-size: 0.65rem;
@@ -207,7 +207,7 @@ function copyDebug(value: unknown) {
     overflow: auto;
     margin: 0;
     border-radius: var(--radius-sm);
-    background: var(--surface-1);
+    background: var(--glass-2);
     padding: 0.55rem;
     font-size: 0.62rem;
     white-space: pre-wrap;

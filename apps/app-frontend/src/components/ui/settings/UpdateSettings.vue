@@ -767,7 +767,7 @@ function onDatabaseOperationModalHide() {
     padding: var(--gap-md);
     border: 1px solid var(--surface-4);
     border-radius: var(--radius-md);
-    background: var(--surface-1);
+    background: var(--glass-2);
 }
 
 .database-isolation-copy {
@@ -855,7 +855,7 @@ function onDatabaseOperationModalHide() {
 .database-branch {
     width: 2.5rem;
     height: 1px;
-    background: var(--surface-5);
+    background: var(--glass-3);
 }
 
 .update-channel-panel {
@@ -881,7 +881,7 @@ function onDatabaseOperationModalHide() {
     padding: var(--gap-md);
     border: 1px solid var(--surface-4);
     border-radius: var(--radius-md);
-    background: var(--surface-1);
+    background: var(--glass-2);
     color: var(--color-text-tertiary);
     text-align: left;
     cursor: pointer;
@@ -894,7 +894,7 @@ function onDatabaseOperationModalHide() {
 
 .update-channel-card:hover {
     border-color: color-mix(in srgb, var(--color-brand) 55%, var(--surface-4));
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 
 .update-channel-card:active {
@@ -941,7 +941,7 @@ function onDatabaseOperationModalHide() {
     padding: var(--gap-sm) var(--gap-md);
     border: 1px solid var(--surface-4);
     border-radius: var(--radius-sm);
-    background: var(--surface-1);
+    background: var(--glass-2);
     color: var(--color-text-tertiary);
     font-size: 0.875rem;
     line-height: 1.4;

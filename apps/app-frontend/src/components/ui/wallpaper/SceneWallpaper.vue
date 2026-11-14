@@ -382,6 +382,37 @@ function safeCall(fn: () => void): void {
 }
 
 /** 销毁当前实例并解绑指针。幂等。 */
+/**
+ * 只换场景，不换渲染器。
+ *
+ * 以前每次切壁纸都走 teardown + mount：销毁 WebGL 上下文、重新 import 库、
+ * 重建容器，这套开销在切换时是实打实的停顿。库本身支持 `load(source)`，
+ * 所以这里复用同一个实例 —— 只有拿不到实例（首次进入 / 上次挂载失败）才真重挂。
+ */
+async function switchScene(): Promise<void> {
+    if (!instance) {
+        await mountEngine()
+        return
+    }
+    const startGeneration = generation
+    try {
+        const { httpSource } = await import('webwallgl')
+        await instance.load(httpSource(wallpaperBaseUrl(props.wallpaperId)))
+        if (startGeneration !== generation) return
+        // `load()` 会把属性表重置成包内默认值，用户选的 WE 属性要重推一次。
+        if (props.properties) {
+            instance.setProperties({ ...props.properties })
+        }
+        // ★ `load()` 不会像首次 mount 那样发 `first-frame`。上层（WallpaperLayer）
+        // 换包时会把 engineReady 置 false 并等这个事件，不发就一直等到超时 ——
+        // 表现就是「切壁纸卡在海报上不动」。这里必须补发。
+        emit('first-frame')
+    } catch (error) {
+        console.warn('[wallpaper] 复用渲染器换场景失败，退回重挂', error)
+        await mountEngine()
+    }
+}
+
 function teardownInstance(): void {
     detachPointer?.()
     detachAudio()
@@ -432,7 +463,8 @@ watch(
 watch(
     () => props.wallpaperId,
     () => {
-        void mountEngine()
+        // 换壁纸走复用路径；渲染器本身的其它参数变化仍然重挂。
+        void switchScene()
     },
 )
 
@@ -446,7 +478,13 @@ watch(
 
 // 帧率 / 后处理 / AA / 粒子都是热更，**不重挂**：重挂一张 100MB 的场景包是可感知的卡顿。
 watch(
-    () => [props.quality.fps, props.quality.postProcessing, props.quality.antiAliasing, props.quality.particles] as const,
+    () =>
+        [
+            props.quality.fps,
+            props.quality.postProcessing,
+            props.quality.antiAliasing,
+            props.quality.particles,
+        ] as const,
     ([fps, postProcessing, antiAliasing, particles]) => {
         const current = instance
         if (!current) return

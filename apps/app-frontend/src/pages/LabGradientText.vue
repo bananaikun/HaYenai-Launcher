@@ -1172,7 +1172,7 @@ function formatAdapterName(adapterId: GradientFormatId): string {
 
 .lab-segment:hover,
 .lab-segment.active {
-    background: var(--surface-4);
+    background: var(--glass-3);
     color: var(--color-text-primary);
 }
 

@@ -288,9 +288,7 @@
                 </template>
             </ContentPageHeader>
         </div>
-        <div
-            :class="['px-6', { 'shrink-0': isFixedRender, hidden: isStudioMode }]"
-        >
+        <div :class="['px-6', { 'shrink-0': isFixedRender, hidden: isStudioMode }]">
             <SymlinkInstanceWarning
                 v-if="instance?.symlink_target && !symlinkWarning.isHidden.value"
                 :symlink-target="instance.symlink_target"

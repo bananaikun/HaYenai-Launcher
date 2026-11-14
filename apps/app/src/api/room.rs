@@ -23,8 +23,6 @@ use tokio::net::TcpListener;
 
 /// 单条消息上限。房间是聊天室不是文件柜，分享走单独字段。
 const MAX_TEXT: usize = 4000;
-/// 内存里最多留这么多条。超出丢最旧的 —— 房间开一整天也不该把内存吃满。
-const MAX_MESSAGES: usize = 2000;
 /// 邀请码长度。32 位取自 64 字符集 ≈ 192 bit，暴力猜是不可能的。
 const CODE_LEN: usize = 32;
 /// 邀请码字符集。只用 URL 安全的符号，省掉一层转义 —— 它同时要进 URL 和 EasyTier 的密钥。
@@ -42,6 +40,10 @@ pub struct RoomConfig {
     pub created_at: u64,
     #[serde(default)]
     pub settings: RoomSettings,
+    /// 该房间最后一条消息的编号。消息本体在 `messages.jsonl` 里，
+    /// 这个计数随 rooms.json 一起落盘，发消息时不用去扫全文算 id。
+    #[serde(default)]
+    pub last_message_id: u64,
 }
 
 /// 房间设置。全部随房间一起持久化，重启不丢。
@@ -82,6 +84,21 @@ pub struct RoomQq {
 
 fn default_true() -> bool {
     true
+}
+
+/// 房间虚拟网段。房主固定 `.1`，成员从 `.2` 开始按加入顺序发。
+const VIRTUAL_PREFIX: &str = "10.126.126.";
+const HOST_VIRTUAL_IP: &str = "10.126.126.1";
+
+/// 在已有成员里找一个没被占用的尾号。
+fn next_member_octet(used: &std::collections::HashSet<u32>) -> u32 {
+    for octet in 2..=254u32 {
+        if !used.contains(&octet) {
+            return octet;
+        }
+    }
+    // 255 个位置都满了 —— 这种规模的「房间」早就不是聊天室了，给最后一个当兜底。
+    254
 }
 
 /// 内置模块清单。前端据此渲染开关，后端据此决定行为 —— 两边读同一份定义。
@@ -132,6 +149,12 @@ pub struct RoomMember {
     pub account_kind: String,
     pub note: String,
     pub joined_at: u64,
+    /// 房间内的固定虚拟地址（房主占 `.1`，成员按加入顺序 `.2` 起）。
+    ///
+    /// 固定下来的意义是「日志和成员列表里对得上人」，重连也不会换地址。
+    /// 老数据没有这个字段，`members()` 读的时候会补一次。
+    #[serde(default)]
+    pub virtual_ip: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -190,7 +213,11 @@ fn load<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<RoomStore> {
     }
     let text = std::fs::read_to_string(&path)
         .map_err(|error| input_error(format!("读房间数据失败：{error}")))?;
-    serde_json::from_str(&text).map_err(|error| input_error(format!("房间数据损坏：{error}")))
+    let mut store: RoomStore =
+        serde_json::from_str(&text).map_err(|error| input_error(format!("房间数据损坏：{error}")))?;
+    // 老数据自带 messages：读的时候顺手搬到 jsonl，之后这份 JSON 里就没有消息了。
+    migrate_messages(app, &mut store)?;
+    Ok(store)
 }
 
 /// 先写临时文件再改名 —— 中途断电不会留下半个 JSON，下次启动还能读。
@@ -258,6 +285,7 @@ pub fn create<R: tauri::Runtime>(
         },
         created_at: now_ms(),
         settings: RoomSettings::default(),
+        last_message_id: 0,
     };
     store.rooms.push(room.clone());
     save(&app, &store)?;
@@ -278,9 +306,115 @@ pub fn remove<R: tauri::Runtime>(app: tauri::AppHandle<R>, room_id: &str) -> Res
     let mut store = load(&app)?;
     store.rooms.retain(|room| room.id != room_id);
     // 聊天记录和成员跟着房间一起消失 —— 留着只会在下次同 id 时变成幽灵数据。
+    // 消息本体在 rooms/<id>/ 下，整个目录删掉（只删这一个房间的目录）。
+    if let Ok(dir) = app.path().app_data_dir() {
+        let _ = std::fs::remove_dir_all(dir.join("rooms").join(room_id));
+    }
     store.messages.retain(|message| message.room_id != room_id);
     store.members.retain(|member| member.room_id != room_id);
     save(&app, &store)
+}
+
+/* ------------------------------------------------------------------ *
+ * 消息存储：每房间一个 messages.jsonl，只追加
+ *
+ * 为什么不再塞进 rooms.json：那份文件一改就要整份重写，2000 条消息时
+ * 每发一句都在重写 400 KB；而且一条消息写坏会把整个房间库连带弄坏。
+ * 追加写只影响新加的那一行，坏行也能在读取时跳过。
+ * ------------------------------------------------------------------ */
+
+fn messages_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    room_id: &str,
+) -> Result<PathBuf> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| input_error(format!("拿不到数据目录：{error}")))?
+        .join("rooms")
+        .join(room_id);
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| input_error(format!("建房间目录失败：{error}")))?;
+    Ok(dir.join("messages.jsonl"))
+}
+
+fn read_messages<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    room_id: &str,
+) -> Result<Vec<RoomMessage>> {
+    let path = messages_path(app, room_id)?;
+    if !path.is_file() {
+        return Ok(Vec::new());
+    }
+    let text = std::fs::read_to_string(&path)
+        .map_err(|error| input_error(format!("读聊天记录失败：{error}")))?;
+    Ok(text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        // 单行坏了只丢那一条，不让整个房间读不出来。
+        .filter_map(|line| serde_json::from_str::<RoomMessage>(line).ok())
+        .filter(|message| message.room_id == room_id)
+        .collect())
+}
+
+fn append_message<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    message: &RoomMessage,
+) -> Result<()> {
+    use std::io::Write;
+    let path = messages_path(app, &message.room_id)?;
+    let line = serde_json::to_string(message)
+        .map_err(|error| input_error(format!("序列化消息失败：{error}")))?;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|error| input_error(format!("打开聊天记录失败：{error}")))?;
+    writeln!(file, "{line}").map_err(|error| input_error(format!("写聊天记录失败：{error}")))?;
+    Ok(())
+}
+
+/// 老版本把所有消息存在 rooms.json 里。这里一次性搬到 jsonl，
+/// 搬之前先留一份 `rooms.json.bak` —— 万一中途断电还能人工救回来。
+fn migrate_messages<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    store: &mut RoomStore,
+) -> Result<()> {
+    if store.messages.is_empty() {
+        return Ok(());
+    }
+    let path = store_path(app)?;
+    let _ = std::fs::copy(&path, path.with_extension("json.bak"));
+
+    let mut by_room: std::collections::HashMap<String, Vec<RoomMessage>> =
+        std::collections::HashMap::new();
+    for message in store.messages.drain(..) {
+        by_room
+            .entry(message.room_id.clone())
+            .or_default()
+            .push(message);
+    }
+
+    for (room_id, rows) in by_room {
+        // 早期消息可能没有 roomId（字段是后加的）。空 id 写下去会落到
+        // `rooms/messages.jsonl` 这个根目录垃圾文件里 —— 直接丢掉。
+        if room_id.trim().is_empty() {
+            continue;
+        }
+        // 已经有 jsonl 的房间不再重复写，否则每读一次就多一份历史。
+        if !read_messages(app, &room_id)?.is_empty() {
+            continue;
+        }
+        for row in &rows {
+            append_message(app, row)?;
+        }
+        if let Some(room) = store.rooms.iter_mut().find(|room| room.id == room_id) {
+            let max_id = rows.iter().map(|row| row.id).max().unwrap_or(0);
+            room.last_message_id = room.last_message_id.max(max_id);
+        }
+    }
+
+    save(app, store)
 }
 
 /* ------------------------------------------------------------------ *
@@ -300,8 +434,22 @@ pub fn push_message<R: tauri::Runtime>(
         return Err(input_error(format!("单条消息最多 {MAX_TEXT} 个字符")));
     }
     let mut store = load(&app)?;
+
+    // 有本地房间记录就用它的计数器；成员视角（room_id 是 member-xxx）没有记录，
+    // 退回去读一遍 jsonl 的尾巴 —— 那种情况消息量不会大。
+    let id = match store.rooms.iter_mut().find(|room| room.id == room_id) {
+        Some(room) => {
+            room.last_message_id += 1;
+            room.last_message_id
+        }
+        None => read_messages(&app, room_id)?
+            .last()
+            .map(|message| message.id + 1)
+            .unwrap_or(1),
+    };
+
     let message = RoomMessage {
-        id: store.messages.last().map(|m| m.id + 1).unwrap_or(1),
+        id,
         room_id: room_id.to_string(),
         from: from.trim().to_string(),
         kind: kind.to_string(),
@@ -309,12 +457,9 @@ pub fn push_message<R: tauri::Runtime>(
         payload,
         ts: now_ms(),
     };
-    store.messages.push(message.clone());
-    // 只留最近的，避免长时间开房把 JSON 撑大。
-    if store.messages.len() > MAX_MESSAGES {
-        let cut = store.messages.len() - MAX_MESSAGES;
-        store.messages.drain(0..cut);
-    }
+
+    // 先追加消息再更新元数据：中途断电最多让计数落后，下次按 jsonl 尾巴还能纠正。
+    append_message(&app, &message)?;
     save(&app, &store)?;
     Ok(message)
 }
@@ -325,12 +470,10 @@ pub fn messages_since<R: tauri::Runtime>(
     since: u64,
     limit: usize,
 ) -> Result<Vec<RoomMessage>> {
-    let store = load(&app)?;
     let limit = limit.clamp(1, 500);
-    let mut rows = store
-        .messages
+    let mut rows = read_messages(&app, room_id)?
         .into_iter()
-        .filter(|message| message.room_id == room_id && message.id > since)
+        .filter(|message| message.id > since)
         .collect::<Vec<_>>();
     if rows.len() > limit {
         rows = rows.split_off(rows.len() - limit);
@@ -338,11 +481,46 @@ pub fn messages_since<R: tauri::Runtime>(
     Ok(rows)
 }
 
+/// 已经分配出去的尾号。
+fn occupied_octets(members: &[RoomMember], room_id: &str) -> std::collections::HashSet<u32> {
+    members
+        .iter()
+        .filter(|member| member.room_id == room_id)
+        .filter_map(|member| member.virtual_ip.as_deref())
+        .filter_map(|ip| ip.rsplit('.').next())
+        .filter_map(|octet| octet.parse::<u32>().ok())
+        .collect()
+}
+
 pub fn members<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     room_id: &str,
 ) -> Result<Vec<RoomMember>> {
-    Ok(load(&app)?
+    let mut store = load(&app)?;
+
+    // 老房间的成员没有固定地址：这里按加入顺序补一次并落盘，
+    // 否则「固定 IP」对升级前建的房间就永远不生效。
+    let mut used = occupied_octets(&store.members, room_id);
+    let mut patched = false;
+    for member in store
+        .members
+        .iter_mut()
+        .filter(|member| member.room_id == room_id && member.virtual_ip.is_none())
+    {
+        let octet = if member.account_kind == "host" {
+            1
+        } else {
+            next_member_octet(&used)
+        };
+        member.virtual_ip = Some(format!("{VIRTUAL_PREFIX}{octet}"));
+        used.insert(octet);
+        patched = true;
+    }
+    if patched {
+        save(&app, &store)?;
+    }
+
+    Ok(store
         .members
         .into_iter()
         .filter(|member| member.room_id == room_id)
@@ -374,13 +552,23 @@ pub fn upsert_member<R: tauri::Runtime>(
                 existing.note = note.trim().to_string();
             }
         }
-        None => store.members.push(RoomMember {
-            room_id: room_id.to_string(),
-            name,
-            account_kind,
-            note: note.trim().to_string(),
-            joined_at: now_ms(),
-        }),
+        None => {
+            // 房主拿 .1，成员按已有占用情况往后排。
+            let virtual_ip = if account_kind == "host" {
+                HOST_VIRTUAL_IP.to_string()
+            } else {
+                let used = occupied_octets(&store.members, room_id);
+                format!("{VIRTUAL_PREFIX}{}", next_member_octet(&used))
+            };
+            store.members.push(RoomMember {
+                room_id: room_id.to_string(),
+                name,
+                account_kind,
+                note: note.trim().to_string(),
+                joined_at: now_ms(),
+                virtual_ip: Some(virtual_ip),
+            });
+        }
     }
     save(&app, &store)?;
     Ok(store.members)

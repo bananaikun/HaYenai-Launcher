@@ -237,6 +237,6 @@ function toggleNavShortcut(action: ShortcutAction, value: unknown) {
 .keybinding-trigger:hover,
 .keybinding-trigger:focus-visible {
     border-color: var(--surface-4);
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 </style>

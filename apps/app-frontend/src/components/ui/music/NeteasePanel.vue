@@ -222,8 +222,8 @@ onBeforeUnmount(() => {
 
             <div v-else class="net-cookie">
                 <p class="net-hint">
-                    在浏览器打开 music.163.com 并登录 → F12 → Network 任意请求 →
-                    复制请求头里的整条 <code>Cookie</code>（必须含 <code>MUSIC_U=</code>）。
+                    在浏览器打开 music.163.com 并登录 → F12 → Network 任意请求 → 复制请求头里的整条
+                    <code>Cookie</code>（必须含 <code>MUSIC_U=</code>）。
                 </p>
                 <textarea
                     v-model="cookieInput"
@@ -273,7 +273,12 @@ onBeforeUnmount(() => {
                     :disabled="pickingId !== null"
                     @click="pickPlaylist(playlist)"
                 >
-                    <img v-if="playlist.cover" class="net-item-cover" :src="playlist.cover" alt="" />
+                    <img
+                        v-if="playlist.cover"
+                        class="net-item-cover"
+                        :src="playlist.cover"
+                        alt=""
+                    />
                     <span v-else class="net-item-cover net-item-cover--empty">♪</span>
                     <span class="net-item-text">
                         <span class="net-item-name">{{ playlist.name }}</span>

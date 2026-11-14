@@ -184,57 +184,57 @@ watch(
    与其猜是哪一次竞态，不如让它自愈：只要"该播而没播"就补一发。
    条件收紧（active / 可见 / 有数据）到"确实该播却没播"才动手，不会跟用户的暂停抢。
    连续补 3 次仍起不来就停手（真的解不出来，交给父组件走海报兜底）。 */
-let watchdog: number | null = null;
-let resumeAttempts = 0;
+let watchdog: number | null = null
+let resumeAttempts = 0
 /* 「playing 但画面不动」的计数：currentTime 连续两拍没前进就认为解码卡死。
    实验室那类重页面会把主线程占满，视频解码随后停在最后一帧 —— 这时
    `paused` 仍是 false，老的看门狗只看 paused，于是永远不救（主人 22:58 报的现象）。 */
-let stuckTicks = 0;
-let lastTime = -1;
+let stuckTicks = 0
+let lastTime = -1
 
 function startWatchdog(): void {
-    if (watchdog !== null) return;
+    if (watchdog !== null) return
     watchdog = window.setInterval(() => {
-        const el = video.value;
-        if (disposed || !el || !props.active) return;
-        if (document.hidden) return;
-        if (el.readyState < 2) return;
+        const el = video.value
+        if (disposed || !el || !props.active) return
+        if (document.hidden) return
+        if (el.readyState < 2) return
 
         if (el.paused) {
             // 起播竞态：最多连补 5 次；补不动就交给海报兜底，但**不永久关掉**看门狗
-            if (resumeAttempts >= 5) return;
-            resumeAttempts += 1;
-            void play();
-            return;
+            if (resumeAttempts >= 5) return
+            resumeAttempts += 1
+            void play()
+            return
         }
 
         // 已在播：看时间有没有走
         if (el.currentTime === lastTime) {
-            stuckTicks += 1;
+            stuckTicks += 1
             if (stuckTicks >= 2) {
-                stuckTicks = 0;
+                stuckTicks = 0
                 // 轻轻 seek 一下通常就能唤回解码器，不必重设 src（那会闪一帧黑）
                 try {
-                    const next = el.currentTime + 0.05;
+                    const next = el.currentTime + 0.05
                     el.currentTime = Number.isFinite(el.duration)
                         ? Math.min(next, el.duration)
-                        : next;
+                        : next
                 } catch {
                     // 有的容器在 seek 期间会抛，忽略即可
                 }
-                void play();
+                void play()
             }
         } else {
-            stuckTicks = 0;
-            lastTime = el.currentTime;
+            stuckTicks = 0
+            lastTime = el.currentTime
         }
-    }, 1000);
+    }, 1000)
 }
 
 function stopWatchdog(): void {
     if (watchdog !== null) {
-        window.clearInterval(watchdog);
-        watchdog = null;
+        window.clearInterval(watchdog)
+        watchdog = null
     }
 }
 

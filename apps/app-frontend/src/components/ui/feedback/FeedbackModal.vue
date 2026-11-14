@@ -69,7 +69,8 @@ const messages = defineMessages({
     attachLog: { id: 'app.feedback.attach.log', defaultMessage: 'Launcher log tail' },
     attachLogHint: {
         id: 'app.feedback.attach.log.hint',
-        defaultMessage: 'Info level and above. Tokens, Minecraft tokens and IPs are replaced automatically.',
+        defaultMessage:
+            'Info level and above. Tokens, Minecraft tokens and IPs are replaced automatically.',
     },
     attachError: { id: 'app.feedback.attach.error', defaultMessage: 'Last error' },
     attachErrorHint: {
@@ -213,7 +214,12 @@ defineExpose({ show })
         <div class="flex flex-col gap-4">
             <p class="m-0 text-sm text-secondary">{{ formatMessage(messages.intro) }}</p>
 
-            <Chips v-model="kind" :items="kindItems" :format-label="kindLabel" :never-empty="true" />
+            <Chips
+                v-model="kind"
+                :items="kindItems"
+                :format-label="kindLabel"
+                :never-empty="true"
+            />
 
             <div class="flex flex-col gap-2">
                 <label class="text-sm font-medium text-primary" for="feedback-summary">
@@ -308,7 +314,12 @@ defineExpose({ show })
                     <Button type="quiet" @click="modal?.hide()">
                         {{ formatMessage(commonMessages.cancelButton) }}
                     </Button>
-                    <Button type="colored" color="brand" :disabled="busy || !canSubmit" @click="openIssue">
+                    <Button
+                        type="colored"
+                        color="brand"
+                        :disabled="busy || !canSubmit"
+                        @click="openIssue"
+                    >
                         {{ formatMessage(messages.openGithub) }}
                     </Button>
                 </div>

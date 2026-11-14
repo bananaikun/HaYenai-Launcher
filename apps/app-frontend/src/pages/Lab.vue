@@ -256,11 +256,7 @@ function favoriteFilterLabel(value: LabFavoriteFilter) {
             />
         </div>
 
-        <section
-            v-if="visibleTools.length"
-            aria-label="Lab tools"
-            class="flex flex-col gap-3"
-        >
+        <section v-if="visibleTools.length" aria-label="Lab tools" class="flex flex-col gap-3">
             <Card
                 v-for="tool in visibleTools"
                 :key="tool.id"

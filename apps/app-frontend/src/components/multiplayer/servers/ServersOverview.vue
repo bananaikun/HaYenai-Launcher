@@ -121,10 +121,7 @@ async function toggleRunning(server: ServerView) {
                     ><RefreshCwIcon :class="{ 'animate-spin': isRefreshing }" />
                     {{ formatMessage(messages.refresh) }}
                 </Button>
-                <Button
-                    type="colored"
-                    color="brand"
-                    @click="createModal?.show()"
+                <Button type="colored" color="brand" @click="createModal?.show()"
                     ><PlusIcon />
                     {{ formatMessage(messages.create) }}
                 </Button>

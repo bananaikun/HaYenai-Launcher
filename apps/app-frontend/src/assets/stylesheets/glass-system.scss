@@ -85,7 +85,9 @@ html.has-custom-background body :is(
        其它页面（下载页 / 文件列表）仍沿用本段，视觉不变。 */
     .bg-surface-content, .bg-surface-content-alt, .bg-surface-content-muted,
     /* 控件族 */
-    .button-base, .menu-surface, .home-floating-controls, .hy-glass-list,
+    /* 2026-11-13：`.button-base` 这个类其实**不存在**（真名是 Tailwind 的 bg-* + `button-frame--base`），
+       所以普通按钮一直没被收进来 —— 主人截图里「测试连接」那粒灰底就是这么来的。补真名。 */
+    .button-base, .button-frame--base, .menu-surface, .home-floating-controls, .hy-glass-list,
     .combobox-options-scrollbar,
     /* Tailwind 任意值类：`bg-[--_bg-color,var(--surface-4)]`。
        类名里**没有** `bg-surface-4` 字样，所以按类名列举的规则一律打不到它 ——
@@ -152,6 +154,60 @@ html.light-mode .home-glass-card {
     --glass-2: rgba(255, 255, 255, 0.07) !important;
     --glass-3: rgba(255, 255, 255, 0.1) !important;
     --stroke-1: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ---- 悬浮态不许变深色实块 -----------------------------------------------
+   2026-11-14 主人第三次指着截图：「鼠标悬浮在选项控件上还是出现深色背景」。
+   真身是 Tailwind 的 `hover:bg-surface-4` —— 深色档下 surface-4 是实心深灰，
+   在浅壁纸上就是一块黑砖。普通按钮（quiet / base）的悬浮统一吃玻璃档。
+   filled / colored 自己有品牌色，不动。 */
+/* 任何带 Tailwind `hover:bg-surface-*` 的触发器（菜单按钮、小组件工具条…）
+   悬浮时也不许变深色实块 —— 用属性选择器一网打尽，别再一个个补类名。 */
+html.has-custom-background body [class*='hover:bg-surface']:hover,
+html.has-custom-background body [class*='hover:bg-surface']:focus-visible {
+    background-color: var(--glass-3) !important;
+}
+
+html.has-custom-background body .button-frame--quiet:not(:disabled):not([aria-disabled='true']):hover,
+html.has-custom-background body .button-frame--quiet:not(:disabled):not([aria-disabled='true']):focus-visible,
+html.has-custom-background body .button-frame--base:not(:disabled):not([aria-disabled='true']):hover,
+html.has-custom-background body .button-frame--base:not(:disabled):not([aria-disabled='true']):focus-visible {
+    background-color: var(--glass-3) !important;
+}
+
+/* ---- 小组件「更多」菜单：紧凑排布 -------------------------------------
+   2026-11-14 主人：「小组件尺寸选择选项仍过大」。菜单项默认是 Button md（h-9 / text-base），
+   12 个尺寸叠起来就是一长条。这里只压缩这一个菜单（靠 `dropdown-id="home-widget-options"`），
+   不动全局菜单密度。 */
+/* 卡片本体也收一收：靠内容宽度，别拉满整屏（实测会撑到 1700px 宽） */
+#home-widget-options {
+    padding: 4px !important;
+    width: max-content !important;
+    min-width: 10rem !important;
+    max-width: 16rem !important;
+}
+
+/* 菜单项本身就是那颗按钮（reka as-child），不是子节点 */
+#home-widget-options [role='menuitem'] {
+    height: 26px !important;
+    min-height: 26px !important;
+    padding-inline: 6px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    column-gap: 4px !important;
+}
+
+#home-widget-options [role='menuitem'] svg {
+    width: 14px !important;
+    height: 14px !important;
+    min-width: 14px !important;
+    min-height: 14px !important;
+}
+
+#home-widget-options [role='separator'] {
+    margin-block: 2px !important;
+    margin-inline: 4px !important;
 }
 
 /* ---- 壁纸层不要实底（原来垫着 rgb(248,248,248)，把画面压成灰白板） ------ */

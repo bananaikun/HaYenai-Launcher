@@ -139,10 +139,7 @@ defineExpose({ show })
 
         <template #actions>
             <div class="flex items-center justify-between gap-4">
-                <Button
-                    type="quiet"
-                    :disabled="saving"
-                    @click="openUrl(BrandConfig.privacyUrl)"
+                <Button type="quiet" :disabled="saving" @click="openUrl(BrandConfig.privacyUrl)"
                     ><ExternalIcon />
                     {{ formatMessage(messages.privacyPolicy) }}
                 </Button>

@@ -211,6 +211,14 @@ tauri-plugin-window-state = { git = "https://github.com/Lintern/plugins-workspac
 # Keep incremental on (Cargo default). Disabling it forces full crate rebuilds
 # of ~170k-line app-lib on every touch and made local app:dev unusably slow.
 
+# `theseus`（就是 app-lib）在 debuginfo=2 下单个 rlib 能长到 3.5-3.8 GB，
+# 本机 16 GB 内存下 rustc 会随机以 0xc0000409（实为分配失败）崩掉，
+# 还会留下半截 rlib 让后续构建报 E0786 invalid metadata。
+# 把这一包的调试信息降到 1 档，体积/峰值内存大致减半，断点信息仍然够用。
+# 2026-11-13 起生效；要全量调试再加回 2。
+[profile.dev.package.theseus]
+debug = 1
+
 # Unoptimized hash compression makes export verification stall on large files.
 [profile.dev.package.sha2]
 opt-level = 3

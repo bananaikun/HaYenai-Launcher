@@ -167,8 +167,7 @@ const messages = defineMessages({
     splashTitle: { id: 'app.splash-settings.title', defaultMessage: 'Startup animation' },
     splashDescription: {
         id: 'app.splash-settings.description',
-        defaultMessage:
-            'Replace the cold-start screen with your own wallpaper, image or video.',
+        defaultMessage: 'Replace the cold-start screen with your own wallpaper, image or video.',
     },
     homeNavigationSectionTitle: {
         id: 'app.appearance-settings.sections.home-navigation',
@@ -283,7 +282,8 @@ const messages = defineMessages({
     glassDim: { id: 'app.appearance-settings.glass.dim', defaultMessage: 'Shell dimming' },
     glassDimDescription: {
         id: 'app.appearance-settings.glass.dim-description',
-        defaultMessage: 'Density of the dark base behind the sidebar and title bar. Too low and text gets hard to read.',
+        defaultMessage:
+            'Density of the dark base behind the sidebar and title bar. Too low and text gets hard to read.',
     },
     glassCard: { id: 'app.appearance-settings.glass.card', defaultMessage: 'Card opacity' },
     glassCardDescription: {
@@ -314,7 +314,8 @@ const messages = defineMessages({
     },
     advancedGlassDescription: {
         id: 'app.appearance-settings.advanced.glass-description',
-        defaultMessage: 'How much white the glass gradient carries. 0% is pure blur, higher is milkier.',
+        defaultMessage:
+            'How much white the glass gradient carries. 0% is pure blur, higher is milkier.',
     },
     advancedStroke: {
         id: 'app.appearance-settings.advanced.stroke',
@@ -347,7 +348,8 @@ const messages = defineMessages({
     },
     wallpaperAccentDescription: {
         id: 'app.appearance-settings.glass.wallpaper-accent-description',
-        defaultMessage: 'Samples the dominant colour of the current wallpaper and uses it as the accent colour.',
+        defaultMessage:
+            'Samples the dominant colour of the current wallpaper and uses it as the accent colour.',
     },
     wallpaperSchemeTitle: {
         id: 'app.appearance-settings.glass.wallpaper-scheme',
@@ -355,7 +357,8 @@ const messages = defineMessages({
     },
     wallpaperSchemeDescription: {
         id: 'app.appearance-settings.glass.wallpaper-scheme-description',
-        defaultMessage: 'Switches between the light and dark palette based on how bright the wallpaper is.',
+        defaultMessage:
+            'Switches between the light and dark palette based on how bright the wallpaper is.',
     },
     glassReset: { id: 'app.appearance-settings.glass.reset', defaultMessage: 'Reset to default' },
     customBackgroundTitle: {
@@ -1167,7 +1170,6 @@ watch(
              主题色现在只由两处决定：① 设置里的明暗主题；② 壁纸取色（可关）。
              强调色作为第三条独立色源会和前两者打架，直接把入口摘掉。
              `settings.accent_color` 字段保留（DB 层不动，默认 system），只是不再有 UI 入口。 -->
-
 
         <SettingsSection v-if="props.scope === 'interface'">
             <template #header>
@@ -2122,7 +2124,6 @@ watch(
 </template>
 
 <style scoped lang="scss">
-
 /* 外观页顶部的分组跳转条（sticky，与其它玻璃面同一套配方） */
 .appearance-jump {
     position: sticky;

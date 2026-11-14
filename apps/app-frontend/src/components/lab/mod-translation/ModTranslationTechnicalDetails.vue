@@ -51,7 +51,7 @@ pre {
     overflow: auto;
     margin: 0;
     border-radius: var(--radius-sm);
-    background: var(--surface-1);
+    background: var(--glass-2);
     padding: 0.65rem;
     font-size: 0.62rem;
     white-space: pre-wrap;

@@ -557,6 +557,22 @@ pub async fn remove_user(user: String) -> Result<()> {
     Ok(minecraft_auth::remove_user(&user).await?)
 }
 
+/// 当前登录的 Minecraft 账号名（房间页当昵称用）。
+///
+/// 放在 auth 模块是因为 `minecraft_auth` 只在这里的作用域里 —— 插件侧的 ACL
+/// 没给前端开这个插件，所以由主进程代读再暴露一个只读命令。
+#[tauri::command]
+pub async fn room_my_name() -> Result<Option<String>> {
+    // `get_default_user` 给的是 account id（`microsoft:<uuid>`），不是玩家名，
+    // 直接拿去当昵称会变成一串 uuid。这里取「正在使用」那条的 profile.name ——
+    // 也就是游戏内显示的名字。
+    let users = minecraft_auth::users(false).await?;
+    Ok(users
+        .into_iter()
+        .find(|user| user.active)
+        .map(|user| user.profile.name))
+}
+
 #[tauri::command]
 pub async fn get_default_user(offline_mode: bool) -> Result<Option<String>> {
     Ok(minecraft_auth::get_default_user(offline_mode).await?)

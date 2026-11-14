@@ -26,7 +26,7 @@
  * 转码是二期的事（架构文档 §11.4），一期只做「告诉用户」。
  */
 import { invoke } from '@tauri-apps/api/core'
-import { TrashIcon } from '@modrinth/assets'
+import { CheckIcon, ImageIcon, TrashIcon } from '@modrinth/assets'
 import {
     Button,
     ConfirmModal,
@@ -72,6 +72,7 @@ import {
     setRotation,
     toggleRotationId,
 } from '@/helpers/wallpaper-rotation'
+import ContextMenu from '@/components/ui/ContextMenu.vue'
 import WallpaperPropertiesPanel from './WallpaperPropertiesPanel.vue'
 import WallpaperRotationPicker from './WallpaperRotationPicker.vue'
 
@@ -136,6 +137,22 @@ const messages = defineMessages({
         defaultMessage: 'Load more',
     },
     use: { id: 'app.settings.wallpaper.use', defaultMessage: 'Use' },
+    menuUse: {
+        id: 'app.settings.wallpaper.menu-use',
+        defaultMessage: 'Set as launcher wallpaper',
+    },
+    menuSplash: {
+        id: 'app.settings.wallpaper.menu-splash',
+        defaultMessage: 'Set as splash background',
+    },
+    splashSet: {
+        id: 'app.settings.wallpaper.splash-set',
+        defaultMessage: 'Splash background updated — it shows on the next cold start.',
+    },
+    splashFailed: {
+        id: 'app.settings.wallpaper.splash-failed',
+        defaultMessage: "Couldn't use this wallpaper's poster as the splash background",
+    },
     inUse: { id: 'app.settings.wallpaper.in-use', defaultMessage: 'In use' },
     disable: {
         id: 'app.settings.wallpaper.disable',
@@ -536,9 +553,15 @@ const PARTICLE_OPTIONS: { id: WallpaperParticles; label: string }[] = [
     { id: 'high', label: '高' },
 ]
 
-const aaLabel = computed(() => AA_OPTIONS.find((o) => o.id === quality.value.antiAliasing)?.label ?? '关闭')
-const postLabel = computed(() => POST_OPTIONS.find((o) => o.id === quality.value.postProcessing)?.label ?? '启用（高）')
-const particleLabel = computed(() => PARTICLE_OPTIONS.find((o) => o.id === quality.value.particles)?.label ?? '高')
+const aaLabel = computed(
+    () => AA_OPTIONS.find((o) => o.id === quality.value.antiAliasing)?.label ?? '关闭',
+)
+const postLabel = computed(
+    () => POST_OPTIONS.find((o) => o.id === quality.value.postProcessing)?.label ?? '启用（高）',
+)
+const particleLabel = computed(
+    () => PARTICLE_OPTIONS.find((o) => o.id === quality.value.particles)?.label ?? '高',
+)
 
 function aaMenu() {
     return AA_OPTIONS.map((o) => ({
@@ -567,13 +590,32 @@ function particleMenu() {
 
 /** 轮播模式的下拉（用启动器自己的 OverflowMenu，和首页小组件设置一致）。 */
 const rotationModeOptions = computed(() => [
-    { id: 'off', label: '关闭', disabled: rotationState.mode === 'off', action: () => setRotation({ mode: 'off' as const }) },
-    { id: 'sequential', label: '按顺序', disabled: rotationState.mode === 'sequential', action: () => setRotation({ mode: 'sequential' as const }) },
-    { id: 'random', label: '随机', disabled: rotationState.mode === 'random', action: () => setRotation({ mode: 'random' as const }) },
+    {
+        id: 'off',
+        label: '关闭',
+        disabled: rotationState.mode === 'off',
+        action: () => setRotation({ mode: 'off' as const }),
+    },
+    {
+        id: 'sequential',
+        label: '按顺序',
+        disabled: rotationState.mode === 'sequential',
+        action: () => setRotation({ mode: 'sequential' as const }),
+    },
+    {
+        id: 'random',
+        label: '随机',
+        disabled: rotationState.mode === 'random',
+        action: () => setRotation({ mode: 'random' as const }),
+    },
 ])
 
 const rotationModeLabel = computed(() =>
-    rotationState.mode === 'sequential' ? '按顺序' : rotationState.mode === 'random' ? '随机' : '关闭',
+    rotationState.mode === 'sequential'
+        ? '按顺序'
+        : rotationState.mode === 'random'
+          ? '随机'
+          : '关闭',
 )
 
 /** 当前正在使用的那张（可调项面板只针对它）。 */
@@ -937,11 +979,108 @@ async function use(item: WallpaperMeta): Promise<void> {
             await refreshWallpapers()
         }
         await selectWallpaperAndRefresh(item.id)
+        // 选中后把 WE 场景渲染出的**一帧**缓存给启动画面用：
+        // 冷启动渲染不了 3D，但这一帧就是用户刚看到的画面。
+        void cacheSplashFrame()
     } catch (error) {
         console.warn('[wallpaper] 切换失败', error)
         notifyFailure(error)
     } finally {
         switching.value = null
+    }
+}
+
+const wallpaperMenu = ref<InstanceType<typeof ContextMenu> | null>(null)
+
+/** 右键壁纸卡片：设为启动器壁纸 / 设为启动动画背景。 */
+/**
+ * 鼠标停在场景壁纸卡片上时，把 webwallgl 这个约 1 MB 的 chunk 先解析掉。
+ *
+ * 模块加载是一次性的：真正点「使用」时就不用再等 `import()`。
+ * 只有场景类需要 —— 视频/图片壁纸根本不走这个库。
+ */
+function warmSceneEngine(item: WallpaperMeta): void {
+    if (item.type !== 'scene') return
+    void import('webwallgl').catch(() => undefined)
+}
+
+function openWallpaperMenu(event: MouseEvent, item: WallpaperMeta): void {
+    wallpaperMenu.value?.showMenu(event, item, [
+        { name: 'use', color: 'primary' },
+        { type: 'divider' },
+        { name: 'splash' },
+    ])
+}
+
+async function onWallpaperMenuOption(payload: {
+    item: WallpaperMeta
+    option: string
+}): Promise<void> {
+    const { item, option } = payload
+    if (option === 'use') {
+        await use(item)
+        return
+    }
+    if (option === 'splash') {
+        try {
+            await invoke('splash_set_media_from_wallpaper', { id: item.id })
+            addNotification({
+                title: item.title,
+                text: formatMessage(messages.splashSet),
+                type: 'success',
+            })
+        } catch (error) {
+            addNotification({
+                title: formatMessage(messages.splashFailed),
+                text: String(error),
+                type: 'error',
+            })
+        }
+    }
+}
+
+/**
+ * 把当前壁纸画面的一帧抓下来，存成启动画面背景。
+ *
+ * 顺序很重要（主人 2026-11-14）：「切换壁纸时先删除原壁纸缓存，再重新缓存新壁纸」，
+ * 所以先 `splash_clear_media`，等渲染器把新场景画出来，再抓帧写入。
+ * 抓帧失败就保持「没有缓存」，启动画面回退内置动画 —— 不能因为抓帧失败让人以为壁纸坏了。
+ */
+async function cacheSplashFrame(): Promise<void> {
+    try {
+        await invoke('splash_clear_media')
+        // 给渲染器一点时间出第一帧（场景解包 + 上传贴图不是同步的）。
+        await new Promise((resolve) => window.setTimeout(resolve, 1500))
+
+        // WE 场景走 canvas；视频壁纸只有 <video>，得先画到临时 canvas 上。
+        const sceneCanvas = document.querySelector<HTMLCanvasElement>(
+            '.wallpaper-layer canvas, [data-webwallgl]',
+        )
+        const video = document.querySelector<HTMLVideoElement>('.wallpaper-layer video')
+
+        let source: HTMLCanvasElement | null = null
+        if (sceneCanvas && sceneCanvas.width && sceneCanvas.height) {
+            source = sceneCanvas
+        } else if (video && video.videoWidth) {
+            const scratch = document.createElement('canvas')
+            scratch.width = video.videoWidth
+            scratch.height = video.videoHeight
+            scratch.getContext('2d')?.drawImage(video, 0, 0)
+            source = scratch
+        }
+        if (!source) return
+
+        const blob = await new Promise<Blob | null>((resolve) =>
+            source.toBlob((value) => resolve(value), 'image/png'),
+        )
+        if (!blob) return
+        // 太大就别存了：启动画面读一次要整块解码，收益不如代价。
+        if (blob.size > 24 * 1024 * 1024) return
+
+        const bytes = new Uint8Array(await blob.arrayBuffer())
+        await invoke('splash_set_media_from_bytes', { data: Array.from(bytes) })
+    } catch (error) {
+        console.warn('[splash] 启动画面帧缓存失败', error)
     }
 }
 
@@ -1217,8 +1356,8 @@ onBeforeUnmount(() => {
                                 </label>
 
                                 <p class="wp-quality-note">
-                                    阴影 / 体积照明 / 反射 属于 WE 的 3D 场景特性，当前 2D 图层合成无法实现。
-                                    纹理分辨率改动需重新加载壁纸才完全生效。
+                                    阴影 / 体积照明 / 反射 属于 WE 的 3D 场景特性，当前 2D
+                                    图层合成无法实现。 纹理分辨率改动需重新加载壁纸才完全生效。
                                 </p>
                             </div>
                         </details>
@@ -1241,6 +1380,10 @@ onBeforeUnmount(() => {
                                 :aria-pressed="isSelected(item)"
                                 :disabled="(!canUse(item) && !item.damaged) || switching !== null"
                                 @click="use(item)"
+                                @mouseenter="warmSceneEngine(item)"
+                                @contextmenu.prevent.stop="
+                                    (event) => openWallpaperMenu(event, item)
+                                "
                             >
                                 <img
                                     v-if="previewUrl(item)"
@@ -1480,6 +1623,18 @@ onBeforeUnmount(() => {
             :on-hide="onDeleteDialogHidden"
             @proceed="confirmDelete"
         />
+
+        <!-- 右键菜单必须挂到 body：设置页滚动容器带 transform（页面过渡），
+             `position: fixed` 的锚点在 transform 祖先里会变成相对该容器定位，
+             菜单就会跑到固定位置而不是鼠标处。 -->
+        <Teleport to="body">
+            <ContextMenu ref="wallpaperMenu" @option-clicked="onWallpaperMenuOption">
+                <template #use> <CheckIcon /> {{ formatMessage(messages.menuUse) }} </template>
+                <template #splash>
+                    <ImageIcon /> {{ formatMessage(messages.menuSplash) }}
+                </template>
+            </ContextMenu>
+        </Teleport>
     </SettingsSection>
 </template>
 
@@ -1489,7 +1644,7 @@ onBeforeUnmount(() => {
     align-items: center;
     padding: 0.0625rem 0.375rem;
     border-radius: var(--radius-sm);
-    background: var(--surface-4);
+    background: var(--glass-3);
     color: var(--color-text-tertiary);
     font-size: 0.6875rem;
     line-height: 1.4;
@@ -1652,10 +1807,15 @@ onBeforeUnmount(() => {
         background-position: right 6px center;
         background-size: 8px 5px;
         /* 小三角箭头（内联 SVG，避免额外图片请求） */
-        background-image: linear-gradient(180deg, var(--glass-2), var(--glass-1)),
+        background-image:
+            linear-gradient(180deg, var(--glass-2), var(--glass-1)),
             url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffffff' stroke-opacity='.7' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
-        background-position: right 6px center, right 6px center;
-        background-size: auto, 10px 6px;
+        background-position:
+            right 6px center,
+            right 6px center;
+        background-size:
+            auto,
+            10px 6px;
 
         option {
             background-color: #12151c;

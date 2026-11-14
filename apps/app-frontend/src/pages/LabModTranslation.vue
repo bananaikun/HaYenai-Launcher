@@ -317,9 +317,9 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 1rem;
 }
 
@@ -357,9 +357,9 @@ onMounted(() => {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: 999px;
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.3rem 0.65rem;
     font-size: 0.7rem;
     font-weight: 700;
@@ -402,9 +402,9 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-2);
     padding: 0.5rem 0.65rem;
 }
 
@@ -463,9 +463,9 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-2);
     padding: 0.35rem 0.55rem;
 }
 

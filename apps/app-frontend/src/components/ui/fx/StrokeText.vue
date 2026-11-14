@@ -64,7 +64,7 @@ function measure(text: string, src: CSSStyleDeclaration): Geo {
     let acc = 0
     const widths: number[] = []
     // Range 的索引单位是 UTF-16 code unit，渲染按码点切分：代理对必须整对取
-    for (let i = 0; i < text.length; ) {
+    for (let i = 0; i < text.length;) {
         const cp = text.codePointAt(i) ?? 0
         const step = cp > 0xffff ? 2 : 1
         range.setStart(node, i)
@@ -181,8 +181,7 @@ function charStyle(index: number): Record<string, string> {
     stroke-dasharray: var(--stx-len, 0);
     stroke-dashoffset: var(--stx-len, 0);
     animation:
-        stx-draw var(--stx-dur, 460ms) cubic-bezier(0.33, 0, 0.2, 1) var(--stx-delay, 0ms)
-            both,
+        stx-draw var(--stx-dur, 460ms) cubic-bezier(0.33, 0, 0.2, 1) var(--stx-delay, 0ms) both,
         stx-fill 260ms ease var(--stx-fill-delay, 0ms) both;
 }
 

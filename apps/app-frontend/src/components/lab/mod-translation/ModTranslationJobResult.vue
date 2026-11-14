@@ -171,7 +171,7 @@ function joinPaths(paths: readonly string[]): string {
     flex-direction: column;
     gap: 0.12rem;
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-2);
     padding: 0.45rem 0.55rem;
 }
 
@@ -216,7 +216,7 @@ function joinPaths(paths: readonly string[]): string {
     overflow: auto;
     margin: 0;
     border-radius: var(--radius-sm);
-    background: var(--surface-1);
+    background: var(--glass-2);
     padding: 0.55rem;
     color: var(--color-text-tertiary);
     font-size: 0.64rem;

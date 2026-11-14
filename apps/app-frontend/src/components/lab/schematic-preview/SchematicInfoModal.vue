@@ -156,7 +156,7 @@ defineExpose({ show: () => modal.value?.show() })
     gap: 0.5rem;
     border-radius: var(--radius-sm);
     padding: 0.5rem;
-    background: var(--surface-2);
+    background: var(--glass-2);
 }
 
 .region-row :deep(.checkbox-outer) {

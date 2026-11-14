@@ -10340,6 +10340,18 @@
   "app.settings.wallpaper.in-use": {
     "message": "使用中"
   },
+  "app.settings.wallpaper.menu-use": {
+    "message": "设置为启动器壁纸"
+  },
+  "app.settings.wallpaper.menu-splash": {
+    "message": "设置为启动动画背景"
+  },
+  "app.settings.wallpaper.splash-set": {
+    "message": "已设为启动动画背景，下次冷启动生效。"
+  },
+  "app.settings.wallpaper.splash-failed": {
+    "message": "这张壁纸的海报没法用作启动动画背景"
+  },
   "app.settings.wallpaper.library-title": {
     "message": "已导入的壁纸"
   },
@@ -14925,7 +14937,7 @@
     "message": "人格与方案"
   },
   "app.ai-presets.description": {
-    "message": "一个方案打包了人格、规则和负责执行它的模型。机器人与 Agent 直接选用方案，不必各自维护一套设定。"
+    "message": "一个方案只保存「它是谁、怎么说话」—— 人格与规则。用哪个模型在 Agent 页单独选择，方案本身不绑定。"
   },
   "app.ai-presets.empty": {
     "message": "还没有方案。新建一个，描述模型该怎么表现。"
@@ -15050,6 +15062,108 @@
   "app.splash-settings.saved": {
     "message": "启动动画已更新"
   },
+  "app.splash-settings.animation": {
+    "message": "内置动画"
+  },
+  "app.splash-settings.animation-hint": {
+    "message": "只有在「自定义背景」为空时生效；改完下次冷启动才看得到。"
+  },
+  "app.splash-settings.style": {
+    "message": "风格"
+  },
+  "app.splash-settings.style-auto": {
+    "message": "自动"
+  },
+  "app.splash-settings.style-shards": {
+    "message": "碎片"
+  },
+  "app.splash-settings.style-particles": {
+    "message": "粒子"
+  },
+  "app.splash-settings.style-static": {
+    "message": "静态"
+  },
+  "app.splash-settings.custom-adjust": {
+    "message": "自定义调整"
+  },
+  "app.splash-settings.adjust-title": {
+    "message": "自定义启动画面"
+  },
+  "app.splash-settings.adjust-hint": {
+    "message": "在预览里直接拖动标语或进度条，就能调整它们在启动画面上的位置。"
+  },
+  "app.splash-settings.scrim": {
+    "message": "压暗"
+  },
+  "app.splash-settings.blur": {
+    "message": "模糊"
+  },
+  "app.splash-settings.progress-style": {
+    "message": "进度条样式"
+  },
+  "app.splash-settings.progress-bar": {
+    "message": "条形"
+  },
+  "app.splash-settings.progress-dots": {
+    "message": "点状"
+  },
+  "app.splash-settings.progress-ring": {
+    "message": "环形"
+  },
+  "app.splash-settings.progress-none": {
+    "message": "隐藏"
+  },
+  "app.splash-settings.progress-stripes": {
+    "message": "斜纹"
+  },
+  "app.splash-settings.progress-pulse": {
+    "message": "呼吸"
+  },
+  "app.splash-settings.progress-wave": {
+    "message": "波浪"
+  },
+  "app.splash-settings.pick-wallpaper": {
+    "message": "从壁纸库选择"
+  },
+  "app.splash-settings.no-wallpapers": {
+    "message": "壁纸库里还没有壁纸。"
+  },
+  "app.splash-settings.pick-wallpaper-hint": {
+    "message": "场景壁纸会在启动画面里**实时渲染**（粒子/动画都会动）；视频和网页壁纸只能用封面帧。"
+  },
+  "app.splash-settings.theme-colors": {
+    "message": "跟随壁纸主题色"
+  },
+  "app.splash-settings.theme-colors-hint": {
+    "message": "从当前背景图取样，给进度条上色。"
+  },
+  "app.splash-settings.preview": {
+    "message": "预览"
+  },
+  "app.splash-settings.reset-layout": {
+    "message": "重置位置与效果"
+  },
+  "app.splash-settings.count": {
+    "message": "数量"
+  },
+  "app.splash-settings.speed": {
+    "message": "速度"
+  },
+  "app.splash-settings.glow": {
+    "message": "发光"
+  },
+  "app.splash-settings.shard-color": {
+    "message": "主色"
+  },
+  "app.splash-settings.accent-color": {
+    "message": "辅色"
+  },
+  "app.splash-settings.mouse": {
+    "message": "鼠标交互"
+  },
+  "app.splash-settings.reset-animation": {
+    "message": "恢复默认"
+  },
   "app.nav.agent": {
     "message": "Agent"
   },
@@ -15069,7 +15183,7 @@
     "message": "先到「设置 → AI 功能 → 人格与方案」建一个，并绑好厂商和模型。"
   },
   "app.agent.allow-write": {
-    "message": "允许修改"
+    "message": "完全访问"
   },
   "app.agent.allow-write-hint": {
     "message": "改实例名、调内存"
@@ -15100,6 +15214,99 @@
   },
   "app.agent.you": {
     "message": "你"
+  },
+  "app.agent.settings": {
+    "message": "设置"
+  },
+  "app.agent.new-chat": {
+    "message": "新对话"
+  },
+  "app.agent.history": {
+    "message": "历史对话"
+  },
+  "app.agent.instance": {
+    "message": "实例"
+  },
+  "app.agent.any-instance": {
+    "message": "不指定实例"
+  },
+  "app.agent.model": {
+    "message": "模型设置"
+  },
+  "app.agent.work": {
+    "message": "工作"
+  },
+  "app.agent.tasks": {
+    "message": "任务"
+  },
+  "app.agent.plan": {
+    "message": "执行计划"
+  },
+  "app.agent.todos": {
+    "message": "我的待办"
+  },
+  "app.agent.no-plan": {
+    "message": "还没有计划。需要多步完成的任务，AI 会在这里列出步骤并逐步勾掉。"
+  },
+  "app.agent.done": {
+    "message": "已完成"
+  },
+  "app.agent.persona": {
+    "message": "人格"
+  },
+  "app.agent.rules": {
+    "message": "规则"
+  },
+  "app.agent.save": {
+    "message": "保存"
+  },
+  "app.agent.saved": {
+    "message": "已保存"
+  },
+  "app.agent.no-history": {
+    "message": "还没有历史对话。"
+  },
+  "app.agent.permission": {
+    "message": "工具权限"
+  },
+  "app.agent.read-only-note": {
+    "message": "只读：只能读文件与日志，写工具不会出现在清单里。"
+  },
+  "app.agent.full-note": {
+    "message": "完全访问：你要求时可以改实例名、调内存。"
+  },
+  "app.agent.pick-model": {
+    "message": "厂商与模型"
+  },
+  "app.agent.manage-model": {
+    "message": "厂商、API 密钥在「设置 → AI 功能」里管理。"
+  },
+  "app.agent.delete": {
+    "message": "删除"
+  },
+  "app.agent.attach-image": {
+    "message": "添加图片"
+  },
+  "app.agent.phase-replying": {
+    "message": "正在生成…"
+  },
+  "app.agent.phase-thinking": {
+    "message": "正在思考…"
+  },
+  "app.agent.phase-tool": {
+    "message": "正在调用 {name}"
+  },
+  "app.agent.phase-done": {
+    "message": "用时 {seconds}s · {tools} 次工具调用"
+  },
+  "app.agent.remove-image": {
+    "message": "移除图片"
+  },
+  "app.agent.image-count": {
+    "message": "{count} 张图片"
+  },
+  "app.agent.image-too-large": {
+    "message": "这张图读不出来，或者太大了。"
   },
   "app.nav.rooms": {
     "message": "房间"
@@ -15202,5 +15409,38 @@
   },
   "app.rooms.system": {
     "message": "系统"
+  },
+  "app.rooms.no-room": {
+    "message": "未选择房间"
+  },
+  "app.rooms.online": {
+    "message": "在线"
+  },
+  "app.rooms.offline": {
+    "message": "离线"
+  },
+  "app.rooms.toggle-side": {
+    "message": "展开/收起详情"
+  },
+  "app.rooms.remove": {
+    "message": "删除房间"
+  },
+  "app.rooms.list": {
+    "message": "清单"
+  },
+  "app.rooms.today": {
+    "message": "今天"
+  },
+  "app.rooms.yesterday": {
+    "message": "昨天"
+  },
+  "app.rooms.reconnecting": {
+    "message": "重连中…"
+  },
+  "app.rooms.disconnected": {
+    "message": "已断开"
+  },
+  "app.rooms.member-count": {
+    "message": "{count} 位成员"
   }
 }

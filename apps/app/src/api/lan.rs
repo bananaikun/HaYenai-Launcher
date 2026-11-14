@@ -29,14 +29,35 @@ use tauri::{Manager, Runtime};
 /// RPC 端口。避开 EasyTier 默认的 15888，免得和用户自己装的 EasyTier 抢。
 const RPC_PORT: u16 = 15888;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Running {
     child: Option<Child>,
     /// 提权启动的进程拿不到句柄，只能记着「有这么个东西在跑」，停止时再提权去 kill。
     elevated: bool,
+    /// 记下这次用的配置：`start` 要拿它做幂等判断，守卫重启也要靠它。
+    config: LanConfig,
 }
 
 static RUNNING: Mutex<Option<Running>> = Mutex::new(None);
+
+/// 断线自动重启最多几次。超过就停手 —— 一直被防火墙拦的情况下
+/// 不停重拉只会刷失败日志，不如把错误摆到界面上让人处理。
+const MAX_RESTARTS: u32 = 3;
+
+#[derive(Clone, Debug, Default)]
+struct GuardState {
+    restarts: u32,
+    /// 已放弃自动重连，等用户手动点。
+    gave_up: bool,
+}
+
+static GUARD_STATE: Mutex<GuardState> = Mutex::new(GuardState {
+    restarts: 0,
+    gave_up: false,
+});
+
+/// 守卫线程只允许存在一份，免得每次 start 都叠一个监控循环。
+static GUARD_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -79,6 +100,12 @@ pub struct LanEnv {
 pub struct LanStatus {
     pub running: bool,
     pub elevated: bool,
+    /// 是否处于「常驻托管」——退房间不停，只有主动 stop 或退出应用才停。
+    pub resident: bool,
+    /// 自动重连已用次数。
+    pub restarts: u32,
+    /// 自动重连已放弃（到上限或提权失败）。
+    pub gave_up: bool,
     pub virtual_ip: Option<String>,
     pub hostname: Option<String>,
     pub public_ip: Option<String>,
@@ -262,28 +289,20 @@ pub fn build_args(config: &LanConfig) -> Vec<String> {
     args
 }
 
-pub fn start<R: Runtime>(app: tauri::AppHandle<R>, config: LanConfig) -> Result<()> {
-    let mut guard = RUNNING.lock().map_err(|_| lock_error())?;
-    if guard.is_some() {
-        return Err(input_error("联机已经在跑了"));
-    }
-
-    if config.network_name.trim().is_empty() || config.network_secret.trim().is_empty() {
-        return Err(input_error("网络名和密钥不能为空 —— 它们是房间的身份"));
-    }
-
-    let dir = binaries_dir(&app)
+/// 真正把进程拉起来。`start` 与守卫重启都走这里，避免两套拉起逻辑漂移。
+fn spawn_process<R: Runtime>(app: &tauri::AppHandle<R>, config: &LanConfig) -> Result<Running> {
+    let dir = binaries_dir(app)
         .ok_or_else(|| input_error("缺少内置的 EasyTier 运行时，安装包可能不完整"))?;
     let core = dir.join("easytier-core.exe");
     if !core.is_file() {
         return Err(input_error("找不到 easytier-core.exe"));
     }
 
-    let args = build_args(&config);
+    let args = build_args(config);
     let elevated = !is_admin();
     let log_path = std::env::temp_dir().join("hayenai-easytier.log");
 
-    if elevated {
+    let child = if elevated {
         // TUN 必须要管理员。用 ShellExecute 的 runas 拉起来，拿不到句柄 ——
         // 后面靠 RPC 端口响应判断「到底起没起来」，比盲信 spawn 成功更实在。
         let arg_line = args
@@ -317,10 +336,7 @@ pub fn start<R: Runtime>(app: tauri::AppHandle<R>, config: LanConfig) -> Result<
             }
             Err(error) => return Err(input_error(format!("没法调起提权：{error}"))),
         }
-        *guard = Some(Running {
-            child: None,
-            elevated: true,
-        });
+        None
     } else {
         let log = std::fs::File::create(&log_path).ok();
         let mut command = Command::new(&core);
@@ -344,16 +360,124 @@ pub fn start<R: Runtime>(app: tauri::AppHandle<R>, config: LanConfig) -> Result<
         let child = command
             .spawn()
             .map_err(|error| input_error(format!("启动 EasyTier 失败：{error}")))?;
-        *guard = Some(Running {
-            child: Some(child),
-            elevated: false,
-        });
+        Some(child)
+    };
+
+    Ok(Running {
+        child,
+        elevated,
+        config: config.clone(),
+    })
+}
+
+/// 同一个网络 = 网络名与密钥都相同。只有这俩变了才需要重启进程。
+fn same_network(a: &LanConfig, b: &LanConfig) -> bool {
+    a.network_name == b.network_name && a.network_secret == b.network_secret
+}
+
+pub fn start<R: Runtime>(app: tauri::AppHandle<R>, config: LanConfig) -> Result<()> {
+    if config.network_name.trim().is_empty() || config.network_secret.trim().is_empty() {
+        return Err(input_error("网络名和密钥不能为空 —— 它们是房间的身份"));
     }
 
+    {
+        let guard = RUNNING.lock().map_err(|_| lock_error())?;
+        if let Some(existing) = guard.as_ref() {
+            // 幂等：同一个网络已经在跑就直接复用。来回切同一个房间不会反复提权 ——
+            // 「一次授权后静默」的全部秘密就是进程不退出，UAC 自然不会再来。
+            if same_network(&existing.config, &config) {
+                return Ok(());
+            }
+            return Err(input_error("已经在跑另一个房间的网络，先停再开"));
+        }
+    }
+
+    let running = spawn_process(&app, &config)?;
+    *RUNNING.lock().map_err(|_| lock_error())? = Some(running);
+    spawn_guard(app);
     Ok(())
 }
 
+/// 断线守卫：RPC 连续 3 次不通就重拉进程，最多 `MAX_RESTARTS` 次。
+fn spawn_guard<R: Runtime + 'static>(app: tauri::AppHandle<R>) {
+    use std::sync::atomic::Ordering;
+    if GUARD_ON.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    std::thread::spawn(move || {
+        let mut misses = 0u32;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(8));
+
+            let config = match RUNNING.lock() {
+                Ok(guard) => match guard.as_ref() {
+                    Some(running) => running.config.clone(),
+                    // 用户主动停了 —— 守卫跟着退出。
+                    None => break,
+                },
+                Err(_) => break,
+            };
+
+            if run_cli(&app, &["node"]).is_some() {
+                misses = 0;
+                continue;
+            }
+            misses += 1;
+            if misses < 3 {
+                continue;
+            }
+            misses = 0;
+
+            let (gave_up, restarts) = GUARD_STATE
+                .lock()
+                .map(|state| (state.gave_up, state.restarts))
+                .unwrap_or((true, MAX_RESTARTS));
+            if gave_up || restarts >= MAX_RESTARTS {
+                if let Ok(mut state) = GUARD_STATE.lock() {
+                    state.gave_up = true;
+                }
+                break;
+            }
+
+            // 先清托管记录再杀：否则旧句柄会挂在一个已经死掉的进程上。
+            if let Ok(mut guard) = RUNNING.lock() {
+                if let Some(mut running) = guard.take() {
+                    if let Some(mut child) = running.child.take() {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                }
+            }
+            kill_by_name(true);
+            std::thread::sleep(std::time::Duration::from_millis(700));
+
+            match spawn_process(&app, &config) {
+                Ok(running) => {
+                    if let Ok(mut guard) = RUNNING.lock() {
+                        *guard = Some(running);
+                    }
+                    if let Ok(mut state) = GUARD_STATE.lock() {
+                        state.restarts += 1;
+                    }
+                }
+                Err(_) => {
+                    if let Ok(mut state) = GUARD_STATE.lock() {
+                        state.gave_up = true;
+                    }
+                    break;
+                }
+            }
+        }
+        GUARD_ON.store(false, Ordering::SeqCst);
+    });
+}
+
 pub fn stop<R: Runtime>(app: tauri::AppHandle<R>) -> Result<()> {
+    // 用户主动停 = 重置自动重连的计数，下次开房重新享有 3 次机会。
+    if let Ok(mut state) = GUARD_STATE.lock() {
+        *state = GuardState::default();
+    }
     let mut guard = RUNNING.lock().map_err(|_| lock_error())?;
     let Some(mut running) = guard.take() else {
         // 没托管进程：可能是上次启动器被强杀留下的，顺手清一下。
@@ -432,11 +556,19 @@ pub fn status<R: Runtime>(app: tauri::AppHandle<R>) -> LanStatus {
         .map(|guard| guard.as_ref().map(|r| r.elevated).unwrap_or(false))
         .unwrap_or(false);
 
+    let (restarts, gave_up) = GUARD_STATE
+        .lock()
+        .map(|state| (state.restarts, state.gave_up))
+        .unwrap_or((0, false));
+
     // 以 RPC 是否响应为准，而不是「我们以为它在跑」—— 提权拉起的进程根本没句柄。
     let Some(node) = run_cli(&app, &["node"]) else {
         return LanStatus {
             running: false,
             elevated,
+            resident: managed,
+            restarts,
+            gave_up,
             virtual_ip: None,
             hostname: None,
             public_ip: None,
@@ -450,11 +582,26 @@ pub fn status<R: Runtime>(app: tauri::AppHandle<R>) -> LanStatus {
         .map(|value| parse_peers(&value))
         .unwrap_or_default();
 
+    let hostname = pick(&node, &["Hostname", "hostname"]);
+    // ★ 新版 `easytier-cli node` 的输出里没有虚拟地址字段（实测只有 hostname /
+    //   public_ip / nat_type），但自己的地址会出现在 `peer` 列表里，hostname 相同。
+    //   只认 node 的话 virtualIp 永远是 null，前端等 30 秒后一直显示「连接中」。
+    let virtual_ip = pick(&node, &["Virtual IP", "virtual_ip", "ipv4"]).or_else(|| {
+        let me = hostname.as_deref()?;
+        peers
+            .iter()
+            .find(|peer| !peer.ipv4.is_empty() && peer.hostname == me)
+            .map(|peer| peer.ipv4.clone())
+    });
+
     LanStatus {
         running: true,
         elevated,
-        virtual_ip: pick(&node, &["Virtual IP", "virtual_ip", "ipv4"]),
-        hostname: pick(&node, &["Hostname", "hostname"]),
+        resident: managed,
+        restarts,
+        gave_up,
+        virtual_ip,
+        hostname,
         public_ip: pick(&node, &["Public IPv4", "public_ip"]),
         nat_type: pick(&node, &["UDP Stun Type", "udp_nat_type", "nat_type"]),
         peers,
@@ -520,6 +667,15 @@ pub async fn lan_env(app: tauri::AppHandle) -> Result<LanEnv> {
 
 #[tauri::command]
 pub async fn lan_start(app: tauri::AppHandle, config: LanConfig) -> Result<()> {
+    blocking(move || start(app, config)).await?
+}
+
+/// 幂等启动：已经跑同一个网络就什么都不做。
+///
+/// 前端切房间统一走这条，而不是 `lan_start` —— 后者在已启动时会报错，
+/// 让「进房间」这种重复动作变得不可重入。
+#[tauri::command]
+pub async fn lan_ensure(app: tauri::AppHandle, config: LanConfig) -> Result<()> {
     blocking(move || start(app, config)).await?
 }
 

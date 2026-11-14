@@ -409,6 +409,6 @@ const projectLinks = [
     padding: 1.25rem;
     border: 1px solid var(--surface-4);
     border-radius: var(--radius-md);
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 </style>

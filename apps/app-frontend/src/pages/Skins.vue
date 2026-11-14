@@ -1169,10 +1169,7 @@ await refreshSelectedAccount()
         </section>
     </Teleport>
 
-    <div
-        v-if="currentUser"
-        class="skin-layout box-border min-h-full p-4"
-    >
+    <div v-if="currentUser" class="skin-layout box-border min-h-full p-4">
         <div class="sticky top-6 self-start p-2 pt-0">
             <h1 class="m-0 text-2xl font-bold flex items-center gap-2">
                 {{ formatMessage(messages.skinSelectorTitle) }}
@@ -1309,10 +1306,7 @@ await refreshSelectedAccount()
         </div>
     </div>
 
-    <div
-        v-else
-        class="box-border flex min-h-full items-center justify-center pt-[25%]"
-    >
+    <div v-else class="box-border flex min-h-full items-center justify-center pt-[25%]">
         <div
             class="relative mx-auto flex w-full max-w-xl flex-col gap-5 rounded-lg bg-surface-3 p-7 shadow-lg"
         >

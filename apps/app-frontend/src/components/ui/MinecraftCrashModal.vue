@@ -1714,7 +1714,7 @@ defineExpose({
 }
 
 .crash-modal-sidebar {
-    border-right: 1px solid var(--surface-5);
+    border-right: 1px solid var(--stroke-1);
 }
 
 .crash-modal-ai-output,
@@ -1764,7 +1764,7 @@ defineExpose({
         max-height: none;
         overflow: visible;
         border-right: 0;
-        border-bottom: 1px solid var(--surface-5);
+        border-bottom: 1px solid var(--stroke-1);
     }
 
     .crash-modal-workspace {

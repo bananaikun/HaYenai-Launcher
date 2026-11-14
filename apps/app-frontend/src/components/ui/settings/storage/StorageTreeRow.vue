@@ -147,7 +147,7 @@ const openActionLabel = computed(() => formatMessage(storageMessages.openAction)
     top: 0;
     bottom: 0;
     width: 1px;
-    background-color: var(--surface-5);
+    background-color: var(--glass-3);
 }
 .tree-row.is-expanded .guide-line:last-child::before {
     background-color: var(--color-brand);

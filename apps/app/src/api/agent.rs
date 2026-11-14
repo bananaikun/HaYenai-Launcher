@@ -455,13 +455,13 @@ pub async fn turn(
         .map(|p| p.provider_id.clone())
         .filter(|value| !value.is_empty())
         .or(request.provider_id)
-        .ok_or_else(|| bad_args("还没选模型。先到「AI 功能 → 人格与方案」绑一个厂商和模型。"))?;
+        .ok_or_else(|| bad_args("还没选模型。到 Agent 页的「模型」下拉里挑一个。"))?;
     let model_id = preset
         .as_ref()
         .map(|p| p.model_id.clone())
         .filter(|value| !value.is_empty())
         .or(request.model_id)
-        .ok_or_else(|| bad_args("方案里没有绑定模型，也没指定用哪个。"))?;
+        .ok_or_else(|| bad_args("还没选模型。到 Agent 页的「模型」下拉里挑一个。"))?;
 
     let mut messages = request.messages;
     // 人格/规则永远排第一，且不让前端传的 system 覆盖掉 —— 方案是唯一真源。
@@ -483,6 +483,7 @@ pub async fn turn(
             tool_calls: Vec::new(),
             tool_call_id: None,
             opaque: Value::Null,
+            attachments: Vec::new(),
         },
     );
 

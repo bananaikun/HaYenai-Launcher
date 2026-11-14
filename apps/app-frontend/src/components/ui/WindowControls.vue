@@ -80,9 +80,7 @@ let resizeTimer
 const alwaysShowAppControls = computed(() => themeStore.getFeatureFlag('always_show_app_controls'))
 
 const showControls = computed(
-    () =>
-        alwaysShowAppControls.value ||
-        os.value === 'Windows' || os.value === 'Linux',
+    () => alwaysShowAppControls.value || os.value === 'Windows' || os.value === 'Linux',
 )
 
 onMounted(async () => {

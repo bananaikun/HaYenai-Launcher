@@ -329,9 +329,9 @@ function invertBiomes() {
     flex: 0 0 auto;
     align-items: center;
     gap: 0.5rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-4);
+    background: var(--glass-3);
     padding: 0 0.6rem;
     color: var(--color-text-primary);
     font-size: 0.75rem;
@@ -390,9 +390,9 @@ function invertBiomes() {
 
 .biome-picker-group {
     min-width: 0;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.25rem;
 }
 
@@ -411,7 +411,7 @@ function invertBiomes() {
 }
 
 .biome-picker-groups :deep(.biome-picker-group-trigger:hover) {
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .biome-picker-groups :deep(.biome-picker-group-trigger > div) {
@@ -430,7 +430,7 @@ function invertBiomes() {
 
 .biome-picker-dimension {
     flex: 0 0 auto;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
     padding: 0.12rem 0.35rem;
     color: var(--color-text-tertiary);
@@ -463,7 +463,7 @@ function invertBiomes() {
 }
 
 .biome-picker-groups :deep(.checkbox-outer:hover) {
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .biome-picker-groups :deep(.checkbox-outer > span:last-child) {
@@ -477,7 +477,7 @@ function invertBiomes() {
     width: 1.75rem;
     height: 1.75rem;
     flex: 0 0 auto;
-    border: 1px solid color-mix(in srgb, var(--biome-color) 70%, var(--surface-5));
+    border: 1px solid color-mix(in srgb, var(--biome-color) 70%, var(--stroke-1));
     border-radius: var(--radius-sm);
     background: var(--biome-color);
     image-rendering: pixelated;

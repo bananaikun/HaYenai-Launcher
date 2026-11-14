@@ -9,8 +9,16 @@
  * 免得把 1900 行的 AISettings.vue 再撑大一圈。
  */
 import { CheckIcon, PlusIcon, SpinnerIcon, TrashIcon } from '@modrinth/assets'
-import { Button, Combobox, defineMessages, injectNotificationManager, StyledInput, useVIntl } from '@modrinth/ui'
+import {
+    Button,
+    defineMessages,
+    injectNotificationManager,
+    StyledInput,
+    useVIntl,
+} from '@modrinth/ui'
 import { computed, onMounted, ref } from 'vue'
+
+import { readGlobalModel } from '@/helpers/ai-model'
 
 import {
     type AIPreset,
@@ -47,7 +55,10 @@ const messages = defineMessages({
     create: { id: 'app.ai-presets.create', defaultMessage: 'New preset' },
     duplicate: { id: 'app.ai-presets.duplicate', defaultMessage: 'Duplicate' },
     name: { id: 'app.ai-presets.name', defaultMessage: 'Name' },
-    namePlaceholder: { id: 'app.ai-presets.name.placeholder', defaultMessage: 'e.g. 阿罗娜 · 助手' },
+    namePlaceholder: {
+        id: 'app.ai-presets.name.placeholder',
+        defaultMessage: 'e.g. 阿罗娜 · 助手',
+    },
     provider: { id: 'app.ai-presets.provider', defaultMessage: 'Provider' },
     model: { id: 'app.ai-presets.model', defaultMessage: 'Model' },
     followProvider: {
@@ -157,36 +168,23 @@ function selectPreset(preset: AIPreset): void {
 /** 复制当前草稿成一个新方案：人格那段通常要微调而不是重写。 */
 function duplicatePreset(): void {
     if (!draft.value) return
-    draft.value = { ...draft.value, id: '', name: `${draft.value.name} 副本`, createdAt: Date.now() }
-}
-
-const providerOptions = computed(() => [
-    { value: '', label: formatMessage(messages.followProvider) },
-    ...props.providers.map((provider) => ({ value: provider.providerId, label: provider.label })),
-])
-
-const modelOptions = computed(() => {
-    const provider = props.providers.find((item) => item.providerId === draft.value?.providerId)
-    return [
-        { value: '', label: formatMessage(messages.followProvider) },
-        ...(provider?.models ?? []).map((model) => ({ value: model.id, label: model.name || model.id })),
-    ]
-})
-
-/** 换厂商时模型必须一起清空，否则会留下一个不属于该厂商的 model id。 */
-function onProviderChange(value: string): void {
-    if (!draft.value) return
-    draft.value.providerId = value
-    const provider = props.providers.find((item) => item.providerId === value)
-    const stillValid = provider?.models.some((model) => model.id === draft.value?.modelId)
-    if (!stillValid) draft.value.modelId = ''
+    draft.value = {
+        ...draft.value,
+        id: '',
+        name: `${draft.value.name} 副本`,
+        createdAt: Date.now(),
+    }
 }
 
 async function save(): Promise<void> {
     const current = draft.value
     if (!current) return
     if (!current.name.trim()) {
-        addNotification({ title: formatMessage(messages.title), text: formatMessage(messages.needsName), type: 'warning' })
+        addNotification({
+            title: formatMessage(messages.title),
+            text: formatMessage(messages.needsName),
+            type: 'warning',
+        })
         return
     }
     busy.value = true
@@ -201,7 +199,11 @@ async function save(): Promise<void> {
         })
         draft.value = { ...saved }
         await refresh()
-        addNotification({ title: formatMessage(messages.title), text: formatMessage(messages.saved), type: 'success' })
+        addNotification({
+            title: formatMessage(messages.title),
+            text: formatMessage(messages.saved),
+            type: 'success',
+        })
     } catch (error) {
         reportError(error)
     } finally {
@@ -217,7 +219,11 @@ async function remove(): Promise<void> {
         await removeAIPreset(current.id)
         draft.value = null
         await refresh()
-        addNotification({ title: formatMessage(messages.title), text: formatMessage(messages.deleted), type: 'success' })
+        addNotification({
+            title: formatMessage(messages.title),
+            text: formatMessage(messages.deleted),
+            type: 'success',
+        })
     } catch (error) {
         reportError(error)
     } finally {
@@ -241,14 +247,23 @@ async function runTest(): Promise<void> {
     const current = draft.value
     if (!current?.id) return
     if (!testPrompt.value.trim()) return
-    if (!current.providerId || !current.modelId) {
-        addNotification({ title: formatMessage(messages.title), text: formatMessage(messages.needsModel), type: 'warning' })
+    // 模型是全局设置，不在方案里。没选过就在 Agent 页/设置里先挑一个。
+    const model = readGlobalModel()
+    if (!model) {
+        addNotification({
+            title: formatMessage(messages.title),
+            text: formatMessage(messages.needsModel),
+            type: 'warning',
+        })
         return
     }
     busy.value = true
     testReply.value = ''
     try {
-        testReply.value = await completeWithAIPreset(current.id, testPrompt.value.trim())
+        testReply.value = await completeWithAIPreset(current.id, testPrompt.value.trim(), {
+            providerId: model.providerId,
+            modelId: model.modelId,
+        })
     } catch (error) {
         reportError(error)
     } finally {
@@ -273,7 +288,10 @@ async function runTest(): Promise<void> {
                 <SpinnerIcon class="size-5 animate-spin text-[var(--color-text-tertiary)]" />
             </div>
 
-            <p v-else-if="!presets.length" class="m-0 px-3 py-6 text-sm text-[var(--color-text-tertiary)]">
+            <p
+                v-else-if="!presets.length"
+                class="m-0 px-3 py-6 text-sm text-[var(--color-text-tertiary)]"
+            >
                 {{ formatMessage(messages.empty) }}
             </p>
 
@@ -315,7 +333,11 @@ async function runTest(): Promise<void> {
                         <Button v-if="draft.id" type="quiet" @click="duplicatePreset">
                             {{ formatMessage(messages.duplicate) }}
                         </Button>
-                        <Button v-if="draft.id && activeId !== draft.id" type="base" @click="useThis">
+                        <Button
+                            v-if="draft.id && activeId !== draft.id"
+                            type="base"
+                            @click="useThis"
+                        >
                             {{ formatMessage(messages.setActive) }}
                         </Button>
                         <Button v-if="draft.id" type="quiet" color="red" @click="remove">
@@ -337,28 +359,11 @@ async function runTest(): Promise<void> {
                         />
                     </label>
 
-                    <div class="ai-preset-row">
-                        <label class="ai-preset-field">
-                            <span class="ai-preset-label">{{ formatMessage(messages.provider) }}</span>
-                            <Combobox
-                                :model-value="draft.providerId"
-                                :options="providerOptions"
-                                @update:model-value="onProviderChange"
-                            />
-                        </label>
-                        <label class="ai-preset-field">
-                            <span class="ai-preset-label">{{ formatMessage(messages.model) }}</span>
-                            <Combobox
-                                v-model="draft.modelId"
-                                :options="modelOptions"
-                                :disabled="!draft.providerId"
-                            />
-                        </label>
-                    </div>
-
                     <label class="ai-preset-field">
                         <span class="ai-preset-label">{{ formatMessage(messages.persona) }}</span>
-                        <span class="ai-preset-hint">{{ formatMessage(messages.personaHint) }}</span>
+                        <span class="ai-preset-hint">{{
+                            formatMessage(messages.personaHint)
+                        }}</span>
                         <textarea
                             v-model="draft.persona"
                             class="ai-preset-textarea"
@@ -397,8 +402,12 @@ async function runTest(): Promise<void> {
                             </Button>
                         </div>
                         <div v-if="testReply" class="ai-preset-reply">
-                            <span class="ai-preset-hint">{{ formatMessage(messages.testReply) }}</span>
-                            <p class="m-0 whitespace-pre-wrap text-sm text-[var(--color-text-primary)]">
+                            <span class="ai-preset-hint">{{
+                                formatMessage(messages.testReply)
+                            }}</span>
+                            <p
+                                class="m-0 whitespace-pre-wrap text-sm text-[var(--color-text-primary)]"
+                            >
                                 {{ testReply }}
                             </p>
                         </div>
@@ -460,11 +469,11 @@ async function runTest(): Promise<void> {
 }
 
 .ai-preset-item:hover {
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .ai-preset-item.selected {
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .ai-preset-detail {
@@ -534,9 +543,9 @@ async function runTest(): Promise<void> {
     width: 100%;
     min-height: 5rem;
     padding: 0.625rem 0.75rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: 0.5rem;
-    background: var(--surface-2);
+    background: var(--glass-2);
     color: var(--color-text-primary);
     font-family: inherit;
     font-size: 0.875rem;
@@ -564,7 +573,7 @@ async function runTest(): Promise<void> {
     gap: 0.25rem;
     padding: 0.75rem;
     border-radius: 0.5rem;
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 
 @media (max-width: 900px) {

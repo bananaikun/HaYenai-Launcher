@@ -57,8 +57,7 @@ function orderOf(id: string): number {
 <template>
     <NewModal ref="modal" :header="'选择轮播壁纸'" max-width="720px">
         <p class="wp-picker-hint">
-            点图加入或移出轮播。顺序模式下按勾选先后轮播（图上会标序号）；
-            随机模式下无顺序。
+            点图加入或移出轮播。顺序模式下按勾选先后轮播（图上会标序号）； 随机模式下无顺序。
         </p>
 
         <p v-if="!items.length" class="wp-picker-empty">还没有导入任何壁纸。</p>

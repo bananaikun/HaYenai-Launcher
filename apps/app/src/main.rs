@@ -953,6 +953,9 @@ fn main() {
             api::splash::splash_get_config,
             api::splash::splash_set_config,
             api::splash::splash_set_media,
+            api::splash::splash_set_media_from_wallpaper,
+            api::splash::splash_set_media_from_bytes,
+            api::splash::splash_set_media_from_scene,
             api::splash::splash_clear_media,
             api::splash::splash_media_path,
             // AI Agent 面板（工具驱动，走主 handler 避开插件 ACL 快照）
@@ -962,6 +965,7 @@ fn main() {
             // P2P 组网（EasyTier 子进程，承载房间服务）
             api::lan::lan_env,
             api::lan::lan_start,
+            api::lan::lan_ensure,
             api::lan::lan_stop,
             api::lan::lan_status,
             // 房间：聊天 / 成员 / 房主本地服务
@@ -974,6 +978,8 @@ fn main() {
             api::room::room_host_start,
             api::room::room_host_stop,
             api::room::room_host_info,
+            // 命令实现在 auth 模块（那边能访问 minecraft_auth），这里注册到主 handler。
+            api::auth::room_my_name,
             api::room::room_send,
             api::room::room_pull,
             api::room::room_plugins,
@@ -1032,6 +1038,14 @@ fn main() {
                     tracing::warn!(
                         "Failed to stop multiplayer services before exit: {error}"
                     );
+                }
+
+                // EasyTier 是独立进程，不跟着主进程退出。常驻的代价就是这里必须
+                // 主动收尾 —— 否则关掉启动器后虚拟网卡还挂着，占着路由和流量。
+                if matches!(&event, tauri::RunEvent::ExitRequested { .. }) {
+                    if let Err(error) = api::lan::stop(app.clone()) {
+                        tracing::warn!("Failed to stop LAN service before exit: {error}");
+                    }
                 }
 
                 #[cfg(feature = "updater")]

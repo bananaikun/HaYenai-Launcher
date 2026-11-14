@@ -17,7 +17,7 @@
  */
 import { reactive } from 'vue'
 
-import { selectWallpaper, wallpaperState } from '@/helpers/wallpaper'
+import { selectWallpaperAndRefresh, wallpaperState } from '@/helpers/wallpaper'
 
 export type RotationMode = 'off' | 'sequential' | 'random'
 
@@ -50,11 +50,17 @@ function load(): WallpaperRotation {
         /* 兼容旧存档：以前存的是"分钟"（1/5/10/30/60），现在统一按"秒"。
            读到旧字段就 ×60，再钳到 5~90。 */
         const legacyMinutes = Number((parsed as { intervalMinutes?: number }).intervalMinutes)
-        const rawSeconds = Number(parsed.intervalSeconds ?? (Number.isFinite(legacyMinutes) ? legacyMinutes * 60 : NaN))
-        const seconds = Number.isFinite(rawSeconds) && rawSeconds > 0 ? rawSeconds : DEFAULTS.intervalSeconds
+        const rawSeconds = Number(
+            parsed.intervalSeconds ?? (Number.isFinite(legacyMinutes) ? legacyMinutes * 60 : NaN),
+        )
+        const seconds =
+            Number.isFinite(rawSeconds) && rawSeconds > 0 ? rawSeconds : DEFAULTS.intervalSeconds
         return {
             mode,
-            intervalSeconds: Math.min(ROTATION_INTERVAL_MAX, Math.max(ROTATION_INTERVAL_MIN, Math.round(seconds))),
+            intervalSeconds: Math.min(
+                ROTATION_INTERVAL_MAX,
+                Math.max(ROTATION_INTERVAL_MIN, Math.round(seconds)),
+            ),
             ids: Array.isArray(parsed.ids)
                 ? parsed.ids.filter((id): id is string => typeof id === 'string')
                 : [],
@@ -104,7 +110,10 @@ async function tick(): Promise<void> {
     const next = pickNext()
     if (!next) return
     try {
-        await selectWallpaper(next)
+        // ⚠ 必须用 …AndRefresh：`selectWallpaper` 只写 Rust 侧 config，
+        // 前端的 wallpaperState.config.selected 不变 ⇒ 画面不动，
+        // 只有外观页自己刷新配置时才“看起来生效”。
+        await selectWallpaperAndRefresh(next)
     } catch (error) {
         console.warn('[wallpaper-rotation] 切换失败', error)
     }

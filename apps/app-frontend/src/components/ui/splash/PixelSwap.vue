@@ -45,9 +45,9 @@ const emit = defineEmits<{ done: [] }>()
 
 const layer = ref<HTMLElement>()
 const reducedMotion = ref(false)
-const tiles = ref<{ id: number; x: number; y: number; size: number; delay: number; order: number }[]>(
-    [],
-)
+const tiles = ref<
+    { id: number; x: number; y: number; size: number; delay: number; order: number }[]
+>([])
 
 let raf = 0
 let startedAt = 0

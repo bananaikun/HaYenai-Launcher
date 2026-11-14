@@ -153,7 +153,11 @@ async function load(): Promise<void> {
     }
 }
 
-watch(() => props.wallpaperId, () => void load(), { immediate: true })
+watch(
+    () => props.wallpaperId,
+    () => void load(),
+    { immediate: true },
+)
 </script>
 
 <template>

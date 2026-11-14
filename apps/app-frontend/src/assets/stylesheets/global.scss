@@ -1020,7 +1020,10 @@ html.light .home-glass-card {
 input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='color']),
 select,
 textarea {
-    background-color: color-mix(in srgb, var(--surface-2-opaque) 62%, transparent);
+    /* 2026-11-13：原来是 `--surface-2-opaque 62%` —— 深色档下就是一块实心深灰
+       （主人：「仍然还是有地方使用这样的深色控件背景」，截图是「歌单 ID」输入框）。
+       输入框也吃玻璃令牌，与卡片同族；聚焦只提一档白，不再加深。 */
+    background-color: var(--glass-1);
     border: 1px solid var(--stroke-1);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
     backdrop-filter: blur(14px) saturate(140%);
@@ -1029,7 +1032,7 @@ textarea {
     &:focus,
     &:focus-visible {
         border-color: var(--c-a);
-        background-color: color-mix(in srgb, var(--surface-2-opaque) 74%, transparent);
+        background-color: var(--glass-2);
     }
 }
 

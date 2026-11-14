@@ -1962,9 +1962,9 @@ function slotEditorSlots(type: RecipeType): RecipeSlot[] {
 .lab-panel {
     min-width: 0;
     overflow: hidden;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-lg);
-    background: var(--surface-2);
+    background: var(--glass-2);
     box-shadow: var(--shadow-card);
 }
 

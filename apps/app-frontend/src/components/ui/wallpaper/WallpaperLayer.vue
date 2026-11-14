@@ -507,14 +507,17 @@ defineExpose({
     /** 调试用：设备能力探测结果。 */
     caps,
 })
-
 </script>
 
 <template>
     <div ref="rootEl" class="wallpaper-layer" aria-hidden="true">
+        <!--
+            2026-11-14：原来这里写了 `:key="scene:${meta.id}"`，换包时整个组件被销毁重建，
+            SceneWallpaper 里「复用渲染器、只 load 新场景」那条路根本走不到，
+            每次切换都要重挂 WebGL 上下文 —— 这是切壁纸卡顿的主因。去掉 key 走复用。
+        -->
         <SceneWallpaper
             v-if="mode === 'scene' && meta && propertiesReady"
-            :key="`scene:${meta.id}`"
             :wallpaper-id="meta.id"
             :quality="props.quality"
             :active="engineActive"
@@ -662,7 +665,6 @@ defineExpose({
 .wallpaper-poster-leave-active {
     transition: opacity 320ms ease;
 }
-
 
 .wallpaper-poster-leave-to {
     opacity: 0;

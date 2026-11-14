@@ -1662,7 +1662,7 @@ onMounted(async () => {
 }
 
 .ai-provider-item:hover {
-    background: var(--surface-3);
+    background: var(--glass-2);
     color: var(--color-text-primary);
 }
 
@@ -1726,7 +1726,7 @@ onMounted(async () => {
     box-sizing: border-box;
     padding: 0 0.4rem;
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-2);
     color: var(--color-text-tertiary);
     font-size: 0.75rem;
     font-weight: 700;
@@ -1742,15 +1742,15 @@ onMounted(async () => {
     /* One rung above the settings content panel this sits on, matching
 	   `SettingsSection`; at `surface-2` the card would match the panel exactly
 	   and disappear. */
-    background: var(--surface-3);
+    background: var(--glass-2);
     transition:
         border-color 150ms ease,
         background-color 150ms ease;
 }
 
 .ai-provider-card:hover {
-    border-color: var(--surface-5);
-    background: var(--surface-4);
+    border-color: var(--stroke-1);
+    background: var(--glass-3);
 }
 
 .ai-provider-card-main {
@@ -1886,7 +1886,7 @@ onMounted(async () => {
 }
 
 .ai-model-row:hover {
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 
 .oauth-code-row {
@@ -1896,7 +1896,7 @@ onMounted(async () => {
     padding: 0.75rem;
     border: 1px solid var(--surface-4);
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 
 @media (max-width: 760px) {

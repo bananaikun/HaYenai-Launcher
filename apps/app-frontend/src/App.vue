@@ -281,7 +281,16 @@ const navCollapsed = ref(false)
 
 /** 设置里被勾掉的项目 + 未开放的功能，一起交给 SideBar 过滤 */
 const hiddenNavItems = computed(() => {
-    const ids = ['home', 'screenshots', 'worlds', 'discover', 'skins', 'multiplayer', 'library', 'lab']
+    const ids = [
+        'home',
+        'screenshots',
+        'worlds',
+        'discover',
+        'skins',
+        'multiplayer',
+        'library',
+        'lab',
+    ]
     const hidden = ids.filter((id) => themeStore.isNavItemHidden(id))
     if (!themeStore.featureFlags.worlds_tab) hidden.push('worlds')
     return hidden
@@ -389,8 +398,11 @@ function scheduleWallpaperLoad() {
     const load = () => {
         void ensureWallpapersLoaded().then(() => startRotation())
     }
-    const idle = (window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number })
-        .requestIdleCallback
+    const idle = (
+        window as Window & {
+            requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number
+        }
+    ).requestIdleCallback
     if (typeof idle === 'function') idle(load, { timeout: 2000 })
     else window.setTimeout(load, 800)
 }
@@ -510,10 +522,7 @@ function applyWindowAppearance() {
 }
 
 watch(
-    () => [
-        themeStore.transparentBackground,
-        themeStore.transparentBackgroundBlur,
-    ],
+    () => [themeStore.transparentBackground, themeStore.transparentBackgroundBlur],
     () => {
         if (appearanceReady.value) void applyWindowAppearance()
     },
@@ -542,6 +551,14 @@ const splashFinished = ref(false)
  * the splash up, so the reveal is forced through after this long.
  */
 const SPLASH_GPU_GATE_TIMEOUT_MS = 2000
+/**
+ * 兜底时间已经过了。
+ *
+ * 单独记一个标记是因为：定时器到点时 `stateInitialized` 可能还没好（状态从数据库
+ * 加载要几秒），`startSplashSwap(true)` 会被它挡回去；而定时器是一次性的，
+ * 之后就没人再叫醒换场了 —— 实测冷启动会一直停在启动画面。
+ */
+const gpuGateExpired = ref(false)
 let splashGateTimer: number | undefined
 
 /** Clears the gate timeout; safe to call repeatedly. */
@@ -578,11 +595,26 @@ const wallpaperLayerActive = computed(
 
 function startSplashSwap(force = false) {
     if (splashSwapping.value || splashFinished.value) return
-    if (!splashReady.value || !stateInitialized.value) return
-    if (!gpuReady.value && !force) return
+    // 唯一硬门槛是「应用状态就绪」——没有它换场会露出白屏。
+    if (!stateInitialized.value) return
+    // force = 兜底放行：连 splashReady / gpuReady 都不再等。
+    // ⚠ 原先 force 仍要求 splashReady，而 splashReady 由子组件的 @ready 触发，
+    // 子组件里任何一步抛错就永远不放行 ⇒ 启动画面永久挂在最上层（实机复现过）。
+    if (!force && (!splashReady.value || !gpuReady.value)) return
     clearSplashGateTimer()
     splashSwapping.value = true
 }
+
+/**
+ * 初始化完成时补叫一次换场。
+ *
+ * 兜底定时器（2s）很可能早于状态初始化（读数据库）到点，那一次 force 会被
+ * `stateInitialized` 挡回去。没有这个 watch 就会出现「两边条件后来都满足了，
+ * 但没人再调一次」的死锁。
+ */
+watch(stateInitialized, (ready) => {
+    if (ready) startSplashSwap(gpuGateExpired.value)
+})
 
 /** The background painted (or degraded); the reveal may proceed. */
 function onGpuReady() {
@@ -920,6 +952,7 @@ onMounted(async () => {
     // being replaced by the reveal overlay.
     splashGateTimer = window.setTimeout(() => {
         splashGateTimer = undefined
+        gpuGateExpired.value = true
         if (!gpuReady.value) {
             console.warn('[splash] background never reported ready; revealing anyway')
         }
@@ -3133,10 +3166,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
                 </template>
             </NavRail>
         </div>
-        <div
-            data-tauri-drag-region
-            class="app-grid-statusbar h-[--top-bar-height] flex"
-        >
+        <div data-tauri-drag-region class="app-grid-statusbar h-[--top-bar-height] flex">
             <div data-tauri-drag-region class="flex min-w-0 flex-1 overflow-hidden p-3">
                 <div data-tauri-drag-region class="flex shrink-0 items-center gap-2">
                     <AppLogo class="h-full w-auto shrink-0 pointer-events-none" />
@@ -3641,7 +3671,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
     grid-template-rows: auto 1fr;
     position: relative;
     //z-index: 0;
-    background-color: var(--surface-3);
+    background-color: var(--glass-2);
     height: 100vh;
 }
 
@@ -4007,7 +4037,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
     inset: 0;
     border-top-left-radius: var(--radius-xl);
     box-shadow: 1px 1px 15px rgba(0, 0, 0, 0.1) inset;
-    border-color: var(--surface-5);
+    border-color: var(--stroke-1);
     border-width: 1px;
     border-style: solid;
     pointer-events: none;

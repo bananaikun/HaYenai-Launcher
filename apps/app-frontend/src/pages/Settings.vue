@@ -463,11 +463,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
                     </p>
                 </div>
 
-                <nav
-                    v-else
-                    class="settings-sidebar-list"
-                    :aria-label="formatMessage(pageTitle)"
-                >
+                <nav v-else class="settings-sidebar-list" :aria-label="formatMessage(pageTitle)">
                     <section
                         v-for="group in visibleGroups"
                         :key="group.id"
@@ -526,11 +522,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
                             "
                             @click="toggleDeveloperMode"
                         >
-                            <img
-                                class="size-8 object-contain"
-                                src="@/assets/hayenai.png"
-                                alt=""
-                            />
+                            <img class="size-8 object-contain" src="@/assets/hayenai.png" alt="" />
                         </button>
                         <div class="settings-footer-version min-w-0">
                             <p class="m-0 break-words">
@@ -568,11 +560,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
                         :class="activeCategory?.flushContent ? 'is-flush' : ''"
                     >
                         <Transition name="settings-content-skeleton">
-                            <div
-                                v-if="false"
-                                class="settings-content-skeleton"
-                                aria-hidden="true"
-                            >
+                            <div v-if="false" class="settings-content-skeleton" aria-hidden="true">
                                 <div class="settings-content-skeleton-inner">
                                     <div class="h-6 w-40 rounded bg-surface-3" />
                                     <div class="h-3 w-72 max-w-full rounded bg-surface-2" />
@@ -774,12 +762,12 @@ const pageTitle: MessageDescriptor = settingsPageTitle
 }
 
 .settings-search-result:hover {
-    background: var(--surface-3);
+    background: var(--glass-2);
     color: var(--color-text-primary);
 }
 
 .settings-search-result:active {
-    background: var(--surface-4);
+    background: var(--glass-3);
     transform: scale(0.985);
 }
 
@@ -912,7 +900,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
     flex-shrink: 0;
     margin-top: 0.15rem;
     border-radius: 9999px;
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 
 .settings-search-skeleton-copy {
@@ -926,7 +914,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
 .settings-search-skeleton-line {
     height: 0.75rem;
     border-radius: var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-2);
 }
 
 .settings-search-skeleton-line.is-wide {
@@ -941,7 +929,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
 
 .settings-search-skeleton-line.is-short {
     width: 40%;
-    background: var(--surface-2);
+    background: var(--glass-2);
 }
 
 .settings-content {
@@ -984,7 +972,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
     /* A full-cover overlay on the content panel, so it takes that panel's own
 	   rung. `--surface-1` here would paint the page colour over the panel and
 	   flash a darker sheet on every category switch. */
-    background: var(--surface-2);
+    background: var(--glass-2);
 }
 
 .settings-content-skeleton-inner {
@@ -1083,7 +1071,7 @@ const pageTitle: MessageDescriptor = settingsPageTitle
     }
 
     50% {
-        background: var(--surface-3);
+        background: var(--glass-2);
     }
 }
 

@@ -203,7 +203,7 @@ function retrySave() {
                             v-tooltip="systemToggleTooltip"
                             type="button"
                             role="switch"
-                            class="inline-flex min-h-9 max-w-full shrink-0 flex-wrap items-center gap-1.5 rounded-xl border border-[var(--surface-5)] bg-[var(--surface-4)] px-2.5 py-2 text-[0.8125rem] font-semibold text-[var(--color-text-tertiary)] cursor-pointer transition-colors language-system-toggle"
+                            class="inline-flex min-h-9 max-w-full shrink-0 flex-wrap items-center gap-1.5 rounded-xl border border-[var(--stroke-1)] bg-[var(--surface-4)] px-2.5 py-2 text-[0.8125rem] font-semibold text-[var(--color-text-tertiary)] cursor-pointer transition-colors language-system-toggle"
                             :class="{ 'is-active': followSystem }"
                             :aria-checked="followSystem"
                             :aria-label="formatMessage(messages.systemLanguage)"
@@ -234,7 +234,7 @@ function retrySave() {
 }
 
 .language-system-toggle:hover:not(:disabled) {
-    border-color: var(--surface-5);
+    border-color: var(--stroke-1);
     color: var(--color-text-primary);
 }
 

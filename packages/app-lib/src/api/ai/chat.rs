@@ -13,11 +13,48 @@ pub struct ToolCall {
     pub args: Value,
 }
 
+/// 一张随消息一起发出去的图片。
+///
+/// `data` 是**纯 base64**（不带 `data:` 前缀），由前端先缩放到合理尺寸再送进来 ——
+/// 原图动辄 4 MB，base64 之后还会再涨 33%，直接塞进请求体会把上游打爆。
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChatAttachment {
+    /// MIME，例 `image/png`。
+    pub mime: String,
+    /// 纯 base64。
+    pub data: String,
+}
+
+impl ChatAttachment {
+    /// `data:image/png;base64,xxx` —— OpenAI 兼容协议与 Responses API 都吃这个。
+    fn data_url(&self) -> String {
+        format!("data:{};base64,{}", self.mime, self.data)
+    }
+
+    /// Anthropic 只要裸 base64 + media_type。
+    fn media_type(&self) -> &str {
+        &self.mime
+    }
+
+    /// Google 的 inlineData 只要 `image/png` 这种短名，不要前缀。
+    fn google_mime(&self) -> &str {
+        &self.mime
+    }
+
+    /// Bedrock 要 `png` / `jpeg` / `gif` / `webp` 这种裸格式名。
+    fn bedrock_format(&self) -> &str {
+        self.mime.rsplit('/').next().unwrap_or("png")
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
     #[serde(default)]
     pub content: String,
+    /// 随消息附带的图片。空数组 = 纯文本，老调用方不用改。
+    #[serde(default)]
+    pub attachments: Vec<ChatAttachment>,
     #[serde(default)]
     pub tool_calls: Vec<ToolCall>,
     pub tool_call_id: Option<String>,
@@ -268,6 +305,20 @@ impl ChatModel {
                     if !message.content.is_empty() { input.push(json!({ "role": "assistant", "content": message.content })); }
                     for call in &message.tool_calls { input.push(json!({ "type": "function_call", "call_id": call.id, "name": call.name, "arguments": call.args.to_string() })); }
                 }
+                _ if !message.attachments.is_empty() => {
+                    // Responses API 的图片类型叫 `input_image`，且 image_url 直接是字符串。
+                    let mut parts = Vec::new();
+                    if !message.content.is_empty() {
+                        parts.push(json!({ "type": "input_text", "text": message.content }));
+                    }
+                    for attachment in &message.attachments {
+                        parts.push(json!({
+                            "type": "input_image",
+                            "image_url": attachment.data_url(),
+                        }));
+                    }
+                    input.push(json!({ "role": message.role, "content": parts }));
+                }
                 _ => input.push(json!({ "role": message.role, "content": message.content })),
             }
         }
@@ -380,6 +431,7 @@ fn assistant() -> ChatMessage {
         tool_calls: Vec::new(),
         tool_call_id: None,
         opaque: Value::Null,
+        attachments: Vec::new(),
     }
 }
 
@@ -400,6 +452,21 @@ fn validate_output(message: ChatMessage) -> crate::Result<ChatMessage> {
 fn openai_messages(messages: &[ChatMessage], ollama: bool) -> Vec<Value> {
     messages.iter().map(|message| {
         let mut value = json!({ "role": message.role, "content": message.content });
+        // 有图就把 content 从字符串换成 parts 数组；纯文本保持原样，
+        // 免得把「字符串 content」当成必须字段的上游（Ollama 老版本）判错。
+        if !message.attachments.is_empty() && message.role == "user" {
+            let mut parts = Vec::new();
+            if !message.content.is_empty() {
+                parts.push(json!({ "type": "text", "text": message.content }));
+            }
+            for attachment in &message.attachments {
+                parts.push(json!({
+                    "type": "image_url",
+                    "image_url": { "url": attachment.data_url() },
+                }));
+            }
+            value["content"] = json!(parts);
+        }
         if message.role == "tool" { value["tool_call_id"] = json!(message.tool_call_id); }
         if !message.tool_calls.is_empty() {
             value["tool_calls"] = json!(message.tool_calls.iter().map(|call| json!({ "id": call.id, "type": "function", "function": { "name": call.name, "arguments": if ollama { call.args.clone() } else { json!(call.args.to_string()) } } })).collect::<Vec<_>>());
@@ -458,6 +525,16 @@ fn anthropic_messages(messages: &[ChatMessage]) -> (String, Vec<Value>) {
             message.opaque.clone()
         } else {
             let mut parts = Vec::new();
+            for attachment in &message.attachments {
+                parts.push(json!({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": attachment.media_type(),
+                        "data": attachment.data,
+                    },
+                }));
+            }
             if !message.content.is_empty() {
                 parts.push(json!({ "type": "text", "text": message.content }));
             }
@@ -536,6 +613,70 @@ fn parse_responses(value: &Value) -> crate::Result<ChatMessage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 纯文本绝对不能带 parts —— 老上游（Ollama 某些版本）只认字符串 content。
+    #[test]
+    fn openai_keeps_plain_text_untouched() {
+        let message = ChatMessage {
+            role: "user".into(),
+            content: "hi".into(),
+            attachments: Vec::new(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            opaque: Value::Null,
+        };
+        let out = openai_messages(&[message], false);
+        assert_eq!(out[0]["content"], json!("hi"));
+    }
+
+    /// 有图时 OpenAI 兼容协议要的是 `content: [{type:"image_url",...}]`。
+    #[test]
+    fn openai_emits_image_url_parts() {
+        let message = ChatMessage {
+            role: "user".into(),
+            content: "看看这张".into(),
+            attachments: vec![ChatAttachment {
+                mime: "image/jpeg".into(),
+                data: "QUJD".into(),
+            }],
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            opaque: Value::Null,
+        };
+        let out = openai_messages(&[message], false);
+        let parts = out[0]["content"].as_array().expect("content 应该是数组");
+        assert_eq!(parts[0], json!({ "type": "text", "text": "看看这张" }));
+        assert_eq!(
+            parts[1],
+            json!({ "type": "image_url", "image_url": { "url": "data:image/jpeg;base64,QUJD" } })
+        );
+    }
+
+    /// Anthropic 是 `{type:"image", source:{type:"base64", media_type, data}}`，且图在前。
+    #[test]
+    fn anthropic_emits_base64_image_first() {
+        let message = ChatMessage {
+            role: "user".into(),
+            content: "看看这张".into(),
+            attachments: vec![ChatAttachment {
+                mime: "image/png".into(),
+                data: "QUJD".into(),
+            }],
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            opaque: Value::Null,
+        };
+        let (_, messages) = anthropic_messages(&[message]);
+        let parts = messages[0]["content"].as_array().expect("content 应该是数组");
+        assert_eq!(
+            parts[0],
+            json!({
+                "type": "image",
+                "source": { "type": "base64", "media_type": "image/png", "data": "QUJD" }
+            })
+        );
+        assert_eq!(parts[1], json!({ "type": "text", "text": "看看这张" }));
+    }
 
     #[tokio::test]
     async fn responses_stream_handles_fragmented_utf8_and_requires_completion()

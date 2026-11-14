@@ -133,10 +133,35 @@ function area(values: number[]): string {
 }
 
 const series = computed(() => [
-    { key: 'cpu', label: formatMessage(messages.cpu), value: cpuLabel.value, cls: 'is-cpu', data: history.value.cpu },
-    { key: 'gpu', label: formatMessage(messages.gpu), value: gpuLabel.value, cls: 'is-gpu', data: history.value.gpu, note: stats.value.gpu === null },
-    { key: 'disk', label: formatMessage(messages.disk), value: memLabel.value, cls: 'is-disk', data: history.value.disk },
-    { key: 'net', label: formatMessage(messages.network), value: netLabel.value, cls: 'is-net', data: history.value.net },
+    {
+        key: 'cpu',
+        label: formatMessage(messages.cpu),
+        value: cpuLabel.value,
+        cls: 'is-cpu',
+        data: history.value.cpu,
+    },
+    {
+        key: 'gpu',
+        label: formatMessage(messages.gpu),
+        value: gpuLabel.value,
+        cls: 'is-gpu',
+        data: history.value.gpu,
+        note: stats.value.gpu === null,
+    },
+    {
+        key: 'disk',
+        label: formatMessage(messages.disk),
+        value: memLabel.value,
+        cls: 'is-disk',
+        data: history.value.disk,
+    },
+    {
+        key: 'net',
+        label: formatMessage(messages.network),
+        value: netLabel.value,
+        cls: 'is-net',
+        data: history.value.net,
+    },
 ])
 
 const cpuLabel = computed(() => `${Math.round(stats.value.cpu)}%`)
@@ -160,7 +185,12 @@ onBeforeUnmount(stop)
                 <i v-if="s.note" class="home-sys-note">{{ formatMessage(messages.unavailable) }}</i>
             </span>
         </div>
-        <svg class="home-sys-chart" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+        <svg
+            class="home-sys-chart"
+            viewBox="0 0 100 40"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+        >
             <defs>
                 <linearGradient
                     v-for="s in series"

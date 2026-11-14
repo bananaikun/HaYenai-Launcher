@@ -192,14 +192,17 @@ onBeforeUnmount(() => {
 
         <ul v-else class="home-srv-list">
             <li v-for="entry in entries" :key="entry.id" class="home-srv-row">
-                <span class="home-srv-ping" :class="latencyClass((stateOf(entry.id) as ServerStatus)?.latencyMs ?? null)">
+                <span
+                    class="home-srv-ping"
+                    :class="latencyClass((stateOf(entry.id) as ServerStatus)?.latencyMs ?? null)"
+                >
                     <i />
                     {{
                         stateOf(entry.id) === 'pending'
                             ? '…'
-                            : ((stateOf(entry.id) as ServerStatus)?.latencyMs != null
+                            : (stateOf(entry.id) as ServerStatus)?.latencyMs != null
                               ? `${(stateOf(entry.id) as ServerStatus).latencyMs} ms`
-                              : formatMessage(messages.offline))
+                              : formatMessage(messages.offline)
                     }}
                 </span>
 
@@ -213,8 +216,10 @@ onBeforeUnmount(() => {
                             draggable="false"
                         />
                         <i v-else class="home-srv-icon is-fallback">
-                            {{ entry.host.slice(0, 1).toUpperCase() }}
-                        </i>{{ entry.host }}<template v-if="entry.port !== 25565">:{{ entry.port }}</template></span>
+                            {{ entry.host.slice(0, 1).toUpperCase() }} </i
+                        >{{ entry.host
+                        }}<template v-if="entry.port !== 25565">:{{ entry.port }}</template></span
+                    >
                     <span class="home-srv-motd">
                         {{
                             stateOf(entry.id) === 'pending'
@@ -228,9 +233,14 @@ onBeforeUnmount(() => {
 
                 <span class="home-srv-players">
                     <template v-if="(stateOf(entry.id) as ServerStatus)?.playersOnline != null">
-                        {{ (stateOf(entry.id) as ServerStatus).playersOnline }}<span class="sep">/</span>{{ (stateOf(entry.id) as ServerStatus).playersMax ?? '?' }}
+                        {{ (stateOf(entry.id) as ServerStatus).playersOnline
+                        }}<span class="sep">/</span
+                        >{{ (stateOf(entry.id) as ServerStatus).playersMax ?? '?' }}
                     </template>
-                    <i v-else-if="(stateOf(entry.id) as ServerStatus)?.statusBlocked" class="home-srv-blocked">
+                    <i
+                        v-else-if="(stateOf(entry.id) as ServerStatus)?.statusBlocked"
+                        class="home-srv-blocked"
+                    >
                         {{ formatMessage(messages.blocked) }}
                     </i>
                 </span>

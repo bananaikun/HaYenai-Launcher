@@ -56,7 +56,7 @@ const emit = defineEmits<{
 }
 
 .boolean-control-off[aria-pressed='true'] {
-    background-color: var(--surface-4);
+    background-color: var(--glass-3);
     box-shadow: inset 0 0 0 1px var(--surface-5);
 }
 </style>

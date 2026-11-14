@@ -262,11 +262,7 @@ onMounted(async () => {
                 )
             "
         >
-            <div
-                v-if="!localSetup"
-                id="settings-target-log-share"
-                class="p-4"
-            >
+            <div v-if="!localSetup" id="settings-target-log-share" class="p-4">
                 <LogAgentSourcePicker
                     :model-value="aiSettings.ai_source"
                     :disabled="saving"

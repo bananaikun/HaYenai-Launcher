@@ -13,14 +13,14 @@
   早先那层 30px 投影在浅色壁纸下会让底部像被压暗了一道。
 -->
 <script setup lang="ts">
-import StrokeText from '@/components/ui/fx/StrokeText.vue'
-import InstanceIcon from '@/components/ui/InstanceIcon.vue'
 import { ChevronLeftIcon, ChevronRightIcon, PauseIcon, PlayIcon } from '@modrinth/assets'
 import { defineMessages, injectNotificationManager, useVIntl } from '@modrinth/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
+import StrokeText from '@/components/ui/fx/StrokeText.vue'
+import InstanceIcon from '@/components/ui/InstanceIcon.vue'
 import { install_job_listener } from '@/helpers/events'
 import { list as listInstances, run as runInstance } from '@/helpers/instance'
 import { BAND_COUNT, readBands } from '@/helpers/music/music-analyser'
@@ -159,7 +159,6 @@ const versionLabel = computed(() => {
     const loader = row.loader ? row.loader[0].toUpperCase() + row.loader.slice(1) : 'Vanilla'
     return `${loader} ${row.game_version ?? ''}`.trim()
 })
-
 
 /**
  * 声波：每帧把频段平均响度写进 `--a`，高度由样式换算。
@@ -446,7 +445,6 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', scheduleMarqueeMeasure)
     if (marqueeTimer !== null) window.clearTimeout(marqueeTimer)
     stopStats()
-    if (typeTimer !== null) window.clearInterval(typeTimer)
     if (waveRaf) cancelAnimationFrame(waveRaf)
     waveRaf = 0
     unlistenJobs?.()
@@ -456,7 +454,7 @@ onBeforeUnmount(() => {
 <template>
     <div
         class="magnetic-bar"
-        :class="`is-${mode}`, { 'is-dragging': dragging }"
+        :class="(`is-${mode}`, { 'is-dragging': dragging })"
         :style="{
             transform: `translate(calc(-50% + ${offset.x}px), ${offset.y}px)`,
             transition: dragging ? 'none' : undefined,
@@ -485,7 +483,11 @@ onBeforeUnmount(() => {
                         >
                             <template v-if="!music.settings.lyrics">纯音乐</template>
                             <template v-else-if="music.activeLyric">
-                                <span ref="lyricTrackRef" class="mb-title-track" :style="marqueeStyle">
+                                <span
+                                    ref="lyricTrackRef"
+                                    class="mb-title-track"
+                                    :style="marqueeStyle"
+                                >
                                     <StrokeText
                                         :key="music.activeLyric"
                                         class="mb-title-stx"
@@ -583,10 +585,10 @@ onBeforeUnmount(() => {
             <button
                 v-for="item in MODES"
                 :key="item"
+                v-tooltip="formatMessage(messages[item])"
                 type="button"
                 class="mb-dot"
                 :class="{ on: item === mode }"
-                v-tooltip="formatMessage(messages[item])"
                 :aria-label="formatMessage(messages[item])"
                 @click="mode = item"
             />
@@ -594,28 +596,28 @@ onBeforeUnmount(() => {
 
         <div class="mb-actions">
             <button
+                v-tooltip="formatMessage(messages.previous)"
                 type="button"
                 class="mb-ctl"
-                v-tooltip="formatMessage(messages.previous)"
                 @click="musicPrev"
             >
                 <ChevronLeftIcon class="size-3.5" />
             </button>
             <button
-                type="button"
-                class="mb-ctl is-main"
                 v-tooltip="
                     music.playing ? formatMessage(messages.pause) : formatMessage(messages.play)
                 "
+                type="button"
+                class="mb-ctl is-main"
                 @click="musicToggle"
             >
                 <PauseIcon v-if="music.playing" class="size-3.5" />
                 <PlayIcon v-else class="size-3.5" />
             </button>
             <button
+                v-tooltip="formatMessage(messages.nextTrack)"
                 type="button"
                 class="mb-ctl"
-                v-tooltip="formatMessage(messages.nextTrack)"
                 @click="musicNext"
             >
                 <ChevronRightIcon class="size-3.5" />
@@ -652,10 +654,13 @@ onBeforeUnmount(() => {
 .magnetic-bar {
     position: fixed;
     left: 50%;
-    bottom: 18px;
+    /* 页面有底部输入框时会写 --composer-offset，磁悬条按它上移，不压输入框 */
+    bottom: calc(18px + var(--composer-offset, 0px));
     z-index: 120;
     /* 水平居中交给内联 transform（拖动时要叠加偏移），这里只给回位过渡 */
-    transition: transform 320ms var(--ease-out);
+    transition:
+        transform 320ms var(--ease-out),
+        bottom 240ms var(--ease-out);
     touch-action: none;
     cursor: grab;
 

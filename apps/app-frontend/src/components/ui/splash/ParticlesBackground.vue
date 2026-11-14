@@ -200,8 +200,7 @@ function seedParticles() {
         // Bands of speed and size give a sense of depth without a z buffer.
         const depth = Math.random()
         velocities[index * 2] = (Math.random() - 0.5) * 0.0007
-        velocities[index * 2 + 1] =
-            (props.drift === 'forward' ? y : 1) * 0.0003 * (0.4 + depth)
+        velocities[index * 2 + 1] = (props.drift === 'forward' ? y : 1) * 0.0003 * (0.4 + depth)
         phases[index] = Math.random() * Math.PI * 2
 
         const color = palette[Math.floor(Math.random() * palette.length) % palette.length]
@@ -243,9 +242,7 @@ function buildGeometry(elapsed: number) {
         particleVertexData[base] = positions[index * 2]
         particleVertexData[base + 1] = positions[index * 2 + 1]
         const twinkle =
-            1 -
-            twinkleDepth +
-            twinkleDepth * (0.5 + 0.5 * Math.sin(elapsed * 2.4 + phases[index]))
+            1 - twinkleDepth + twinkleDepth * (0.5 + 0.5 * Math.sin(elapsed * 2.4 + phases[index]))
         // Alpha slot is pre-multiplied by the twinkle factor each frame.
         const depthAlpha = 0.3 + ((particleVertexData[base + 7] - 1.6) / 3.4) * 0.55
         particleVertexData[base + 6] = depthAlpha * twinkle
@@ -253,11 +250,7 @@ function buildGeometry(elapsed: number) {
 
     linkVertexCount = 0
     if (props.connections) {
-        for (
-            let left = 0;
-            left < particleCount && linkVertexCount < MAX_LINKS * 2;
-            left += 1
-        ) {
+        for (let left = 0; left < particleCount && linkVertexCount < MAX_LINKS * 2; left += 1) {
             for (
                 let right = left + 1;
                 right < particleCount && linkVertexCount < MAX_LINKS * 2;

@@ -140,7 +140,7 @@ function formatWeight(value: number): string {
     flex: 0 0 auto;
     place-items: center;
     border-radius: 999px;
-    background: var(--surface-4);
+    background: var(--glass-3);
     color: var(--color-text-tertiary);
     transition:
         background 0.25s ease,
@@ -184,7 +184,7 @@ function formatWeight(value: number): string {
     height: 0.42rem;
     overflow: hidden;
     border-radius: 999px;
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .fill {
@@ -273,7 +273,7 @@ function formatWeight(value: number): string {
     align-items: center;
     gap: 0.3rem;
     border-radius: 999px;
-    background: var(--surface-4);
+    background: var(--glass-3);
     padding: 0.2rem 0.55rem;
     font-size: 0.65rem;
     font-weight: 700;

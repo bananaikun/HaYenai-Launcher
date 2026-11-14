@@ -11522,6 +11522,18 @@
   "app.settings.wallpaper.in-use": {
     "message": "In use"
   },
+  "app.settings.wallpaper.menu-use": {
+    "message": "Set as launcher wallpaper"
+  },
+  "app.settings.wallpaper.menu-splash": {
+    "message": "Set as splash background"
+  },
+  "app.settings.wallpaper.splash-set": {
+    "message": "Splash background updated — it shows on the next cold start."
+  },
+  "app.settings.wallpaper.splash-failed": {
+    "message": "Couldn't use this wallpaper's poster as the splash background"
+  },
   "app.settings.wallpaper.library-title": {
     "message": "Imported wallpapers"
   },
@@ -14844,7 +14856,7 @@
     "message": "Persona & presets"
   },
   "app.ai-presets.description": {
-    "message": "A preset bundles a persona, its rules and the model that runs it. Bots and agents pick a preset instead of carrying their own instructions."
+    "message": "A preset only stores who the assistant is and how it speaks — persona and rules. The model is chosen separately on the Agent page; presets do not bind one."
   },
   "app.ai-presets.empty": {
     "message": "No presets yet. Create one to describe how the model should behave."
@@ -14969,6 +14981,108 @@
   "app.splash-settings.saved": {
     "message": "Startup animation updated"
   },
+  "app.splash-settings.animation": {
+    "message": "Built-in animation"
+  },
+  "app.splash-settings.animation-hint": {
+    "message": "Only applies when no custom background is set. Changes take effect on the next cold start."
+  },
+  "app.splash-settings.style": {
+    "message": "Style"
+  },
+  "app.splash-settings.style-auto": {
+    "message": "Auto"
+  },
+  "app.splash-settings.style-shards": {
+    "message": "Shards"
+  },
+  "app.splash-settings.style-particles": {
+    "message": "Particles"
+  },
+  "app.splash-settings.style-static": {
+    "message": "Static"
+  },
+  "app.splash-settings.custom-adjust": {
+    "message": "Customise"
+  },
+  "app.splash-settings.adjust-title": {
+    "message": "Customise startup screen"
+  },
+  "app.splash-settings.adjust-hint": {
+    "message": "Drag the tagline or the progress indicator inside the preview to place them."
+  },
+  "app.splash-settings.scrim": {
+    "message": "Dimming"
+  },
+  "app.splash-settings.blur": {
+    "message": "Blur"
+  },
+  "app.splash-settings.progress-style": {
+    "message": "Progress style"
+  },
+  "app.splash-settings.progress-bar": {
+    "message": "Bar"
+  },
+  "app.splash-settings.progress-dots": {
+    "message": "Dots"
+  },
+  "app.splash-settings.progress-ring": {
+    "message": "Ring"
+  },
+  "app.splash-settings.progress-none": {
+    "message": "Hidden"
+  },
+  "app.splash-settings.progress-stripes": {
+    "message": "Stripes"
+  },
+  "app.splash-settings.progress-pulse": {
+    "message": "Pulse"
+  },
+  "app.splash-settings.progress-wave": {
+    "message": "Wave"
+  },
+  "app.splash-settings.pick-wallpaper": {
+    "message": "From wallpaper library"
+  },
+  "app.splash-settings.no-wallpapers": {
+    "message": "No wallpapers found in the library yet."
+  },
+  "app.splash-settings.pick-wallpaper-hint": {
+    "message": "Scene wallpapers are rendered live on the startup screen; videos and web wallpapers fall back to their cover frame."
+  },
+  "app.splash-settings.theme-colors": {
+    "message": "Match wallpaper colours"
+  },
+  "app.splash-settings.theme-colors-hint": {
+    "message": "Samples the current background and tints the progress bar with it."
+  },
+  "app.splash-settings.preview": {
+    "message": "Preview"
+  },
+  "app.splash-settings.reset-layout": {
+    "message": "Reset layout"
+  },
+  "app.splash-settings.count": {
+    "message": "Amount"
+  },
+  "app.splash-settings.speed": {
+    "message": "Speed"
+  },
+  "app.splash-settings.glow": {
+    "message": "Glow"
+  },
+  "app.splash-settings.shard-color": {
+    "message": "Main colour"
+  },
+  "app.splash-settings.accent-color": {
+    "message": "Accent colour"
+  },
+  "app.splash-settings.mouse": {
+    "message": "Mouse interaction"
+  },
+  "app.splash-settings.reset-animation": {
+    "message": "Reset"
+  },
   "app.nav.agent": {
     "message": "Agent"
   },
@@ -14988,7 +15102,7 @@
     "message": "Create one under Settings → AI → Persona & presets, with a provider and model bound."
   },
   "app.agent.allow-write": {
-    "message": "Allow changes"
+    "message": "Full access"
   },
   "app.agent.allow-write-hint": {
     "message": "Renaming instances and changing memory"
@@ -15019,6 +15133,99 @@
   },
   "app.agent.you": {
     "message": "You"
+  },
+  "app.agent.settings": {
+    "message": "Settings"
+  },
+  "app.agent.new-chat": {
+    "message": "New chat"
+  },
+  "app.agent.history": {
+    "message": "History"
+  },
+  "app.agent.instance": {
+    "message": "Instance"
+  },
+  "app.agent.any-instance": {
+    "message": "Any instance"
+  },
+  "app.agent.model": {
+    "message": "Model settings"
+  },
+  "app.agent.work": {
+    "message": "Work"
+  },
+  "app.agent.tasks": {
+    "message": "Tasks"
+  },
+  "app.agent.plan": {
+    "message": "Plan"
+  },
+  "app.agent.todos": {
+    "message": "My to-dos"
+  },
+  "app.agent.no-plan": {
+    "message": "No plan yet. For a task that needs several steps, the AI lists them here and ticks them off."
+  },
+  "app.agent.done": {
+    "message": "Done"
+  },
+  "app.agent.persona": {
+    "message": "Persona"
+  },
+  "app.agent.rules": {
+    "message": "Rules"
+  },
+  "app.agent.save": {
+    "message": "Save"
+  },
+  "app.agent.saved": {
+    "message": "Saved"
+  },
+  "app.agent.no-history": {
+    "message": "No previous chats yet."
+  },
+  "app.agent.permission": {
+    "message": "Tool permission"
+  },
+  "app.agent.read-only-note": {
+    "message": "Reads files and logs only; write tools are hidden."
+  },
+  "app.agent.full-note": {
+    "message": "Can rename instances and change memory when you ask."
+  },
+  "app.agent.pick-model": {
+    "message": "Provider & model"
+  },
+  "app.agent.manage-model": {
+    "message": "Providers and API keys live in Settings → AI."
+  },
+  "app.agent.delete": {
+    "message": "Delete"
+  },
+  "app.agent.attach-image": {
+    "message": "Attach image"
+  },
+  "app.agent.phase-replying": {
+    "message": "Replying…"
+  },
+  "app.agent.phase-thinking": {
+    "message": "Thinking…"
+  },
+  "app.agent.phase-tool": {
+    "message": "Calling {name}"
+  },
+  "app.agent.phase-done": {
+    "message": "Done in {seconds}s · {tools} tool call(s)"
+  },
+  "app.agent.remove-image": {
+    "message": "Remove image"
+  },
+  "app.agent.image-count": {
+    "message": "{count} image(s)"
+  },
+  "app.agent.image-too-large": {
+    "message": "That image could not be read, or it is too large."
   },
   "app.nav.rooms": {
     "message": "Rooms"
@@ -15121,5 +15328,38 @@
   },
   "app.rooms.system": {
     "message": "System"
+  },
+  "app.rooms.no-room": {
+    "message": "No room selected"
+  },
+  "app.rooms.online": {
+    "message": "Online"
+  },
+  "app.rooms.offline": {
+    "message": "Offline"
+  },
+  "app.rooms.toggle-side": {
+    "message": "Toggle details"
+  },
+  "app.rooms.remove": {
+    "message": "Delete room"
+  },
+  "app.rooms.list": {
+    "message": "Contents"
+  },
+  "app.rooms.today": {
+    "message": "Today"
+  },
+  "app.rooms.yesterday": {
+    "message": "Yesterday"
+  },
+  "app.rooms.reconnecting": {
+    "message": "Reconnecting…"
+  },
+  "app.rooms.disconnected": {
+    "message": "Disconnected"
+  },
+  "app.rooms.member-count": {
+    "message": "{count} member(s)"
   }
 }

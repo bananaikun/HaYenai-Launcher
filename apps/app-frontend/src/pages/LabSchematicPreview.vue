@@ -2392,19 +2392,19 @@ onBeforeUnmount(() => {
     flex-shrink: 0;
     align-items: center;
     gap: 1rem;
-    border-bottom: 1px solid var(--surface-5);
+    border-bottom: 1px solid var(--stroke-1);
     padding: 0.65rem 1rem;
-    background: var(--surface-2);
+    background: var(--glass-2);
 }
 
 .schematic-command-group {
     display: flex;
     align-items: center;
     gap: 0.125rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
     padding: 0.125rem;
-    background: var(--surface-2);
+    background: var(--glass-2);
 }
 
 .schematic-command-chevron {
@@ -2452,7 +2452,7 @@ onBeforeUnmount(() => {
     min-height: 0;
     flex: 1;
     grid-template-columns: minmax(0, 1fr) 340px;
-    background: var(--surface-1);
+    background: var(--glass-2);
 }
 
 .schematic-viewport {
@@ -2461,7 +2461,7 @@ onBeforeUnmount(() => {
     min-height: 0;
     overflow: hidden;
     border-right: 1px solid var(--color-divider);
-    background: var(--surface-1);
+    background: var(--glass-2);
     box-shadow: inset 0 0 0 1px var(--color-divider);
 }
 
@@ -2477,7 +2477,7 @@ onBeforeUnmount(() => {
 .schematic-tool-context,
 .schematic-canvas-controls {
     z-index: 10;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
     padding: 0.25rem;
     background: color-mix(in srgb, var(--color-bg) 90%, transparent);
@@ -2508,7 +2508,7 @@ onBeforeUnmount(() => {
     height: 1.25rem;
     margin: 0 0.15rem;
     flex: none;
-    background: var(--surface-5);
+    background: var(--glass-3);
 }
 
 .schematic-tool-context {
@@ -2723,7 +2723,7 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
     padding: 0.45rem 0.65rem;
     background: color-mix(in srgb, var(--color-bg) 90%, transparent);
@@ -2778,10 +2778,10 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
     padding: 0.65rem 0.75rem;
-    background: var(--surface-3);
+    background: var(--glass-2);
     color: var(--color-text-primary);
 }
 
@@ -2862,7 +2862,7 @@ onBeforeUnmount(() => {
 }
 
 .material-row:hover {
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .material-swatch {
@@ -2922,7 +2922,7 @@ onBeforeUnmount(() => {
 
     .schematic-inspector {
         min-height: 0;
-        border-top: 1px solid var(--surface-5);
+        border-top: 1px solid var(--stroke-1);
         border-left: 0;
     }
 

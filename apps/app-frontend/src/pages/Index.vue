@@ -487,7 +487,7 @@ onUnmounted(() => {
     box-sizing: border-box;
     border: 1px solid var(--color-divider);
     border-radius: 9999px;
-    background: var(--surface-3);
+    background: var(--glass-2);
     box-shadow:
         var(--shadow-button),
         0 0.25rem 0.75rem rgb(0 0 0 / 20%);
@@ -514,7 +514,7 @@ onUnmounted(() => {
 }
 
 .home-floating-action:hover {
-    background: var(--surface-4);
+    background: var(--glass-3);
     color: var(--color-text-primary);
 }
 
@@ -556,7 +556,7 @@ onUnmounted(() => {
     padding: 0;
     border: 0;
     border-radius: 9999px;
-    background: var(--surface-4);
+    background: var(--glass-3);
     cursor: pointer;
     isolation: isolate;
     transition:

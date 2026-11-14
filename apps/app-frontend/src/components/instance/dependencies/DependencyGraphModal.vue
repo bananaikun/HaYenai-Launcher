@@ -1335,7 +1335,7 @@ defineExpose({ show, hide, setItems })
 <style scoped>
 .dependency-graph-viewport {
     min-height: 0;
-    background-color: var(--surface-1);
+    background-color: var(--glass-2);
     background-image:
         linear-gradient(color-mix(in srgb, var(--surface-4) 76%, transparent) 1px, transparent 1px),
         linear-gradient(

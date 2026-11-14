@@ -36,13 +36,11 @@ export const utilityRoutes: RouteRecordRaw[] = [
             discordActivity: 'Listening to music...',
         },
     },
+    // 2026-11-14 房间功能暂时下线：路由保留但重定向到首页，避免旧书签/旧链接
+    // 打开一个「看起来还能用」的空房间页。恢复时改回 component 那一行即可。
     {
         path: '/rooms',
-        name: 'Rooms',
-        component: () => import('@/pages/Rooms.vue'),
-        meta: {
-            breadcrumb: [{ name: 'Rooms' }],
-        },
+        redirect: '/',
     },
     {
         path: '/agent',

@@ -89,7 +89,19 @@ fn messages(messages: &[ChatMessage]) -> Vec<Value> {
         } else if message.role == "assistant" && message.opaque.is_array() {
             message.opaque.clone()
         } else {
-            json!([{ "text": message.content }])
+            // Bedrock Converse 的图片是 `{"image": {"format","source":{"bytes"}}}`，
+            // bytes 必须是裸 base64。
+            let mut parts = Vec::new();
+            for attachment in &message.attachments {
+                parts.push(json!({
+                    "image": {
+                        "format": attachment.bedrock_format(),
+                        "source": { "bytes": attachment.data },
+                    },
+                }));
+            }
+            parts.push(json!({ "text": message.content }));
+            json!(parts)
         };
         let role = if message.role == "assistant" {
             "assistant"

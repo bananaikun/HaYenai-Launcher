@@ -3227,9 +3227,9 @@ function clampWorldCoordinate(value: number) {
 .map-scale-badge {
     flex: 0 0 auto;
     min-width: 7.5rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.35rem 0.55rem;
     color: var(--color-text-tertiary);
     font-size: 0.7rem;
@@ -3244,9 +3244,9 @@ function clampWorldCoordinate(value: number) {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.75rem;
 }
 
@@ -3266,7 +3266,7 @@ function clampWorldCoordinate(value: number) {
     grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: end;
     gap: 0.75rem;
-    border-top: 1px solid var(--surface-5);
+    border-top: 1px solid var(--stroke-1);
     padding-top: 0.75rem;
 }
 
@@ -3311,7 +3311,7 @@ function clampWorldCoordinate(value: number) {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    border-bottom: 1px solid var(--seed-history-border, var(--surface-5));
+    border-bottom: 1px solid var(--seed-history-border, var(--stroke-1));
     padding: 0.1rem 0.2rem 0.6rem;
     color: var(--color-text-primary);
     font-size: 0.8rem;
@@ -3333,7 +3333,7 @@ function clampWorldCoordinate(value: number) {
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 0.6rem 0.2rem 0.1rem 0;
-    scrollbar-color: var(--seed-history-border, var(--surface-5)) transparent;
+    scrollbar-color: var(--seed-history-border, var(--stroke-1)) transparent;
     scrollbar-width: thin;
 }
 
@@ -3341,7 +3341,7 @@ function clampWorldCoordinate(value: number) {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    border: 1px solid var(--seed-history-border, var(--surface-5));
+    border: 1px solid var(--seed-history-border, var(--stroke-1));
     border-radius: var(--radius-sm);
     background: var(--seed-history-row-bg, var(--surface-4));
     padding-right: 0.25rem;
@@ -3355,7 +3355,7 @@ function clampWorldCoordinate(value: number) {
     border-color: color-mix(
         in srgb,
         var(--color-brand) 45%,
-        var(--seed-history-border, var(--surface-5))
+        var(--seed-history-border, var(--stroke-1))
     );
     background: var(--seed-history-row-hover-bg, var(--surface-3));
 }
@@ -3425,7 +3425,7 @@ function clampWorldCoordinate(value: number) {
     --seed-history-panel-bg: var(--surface-2);
     --seed-history-row-bg: var(--surface-4);
     --seed-history-row-hover-bg: var(--surface-3);
-    --seed-history-border: var(--surface-5);
+    --seed-history-border: var(--stroke-1);
     --seed-history-shadow: 0 18px 48px color-mix(in srgb, var(--surface-5) 55%, transparent);
     z-index: 10050 !important;
 }
@@ -3439,7 +3439,7 @@ function clampWorldCoordinate(value: number) {
         var(--surface-5) 70%,
         var(--color-text-primary)
     );
-    --seed-history-border: color-mix(in srgb, var(--surface-5) 80%, var(--color-text-primary));
+    --seed-history-border: color-mix(in srgb, var(--stroke-1) 80%, var(--color-text-primary));
     --seed-history-shadow: 0 18px 48px color-mix(in srgb, var(--surface-5) 38%, transparent);
 }
 
@@ -3459,7 +3459,7 @@ function clampWorldCoordinate(value: number) {
     width: 0.6rem;
     height: 0.6rem;
     margin-right: 0.4rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: 50%;
 }
 
@@ -3543,10 +3543,10 @@ function clampWorldCoordinate(value: number) {
     align-items: center;
     gap: 0.5rem;
     min-height: 4rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     padding: 0.45rem 0.6rem;
     border-radius: var(--radius-md) var(--radius-md) 0 0;
-    background: var(--surface-3);
+    background: var(--glass-2);
     box-shadow: 0 8px 20px rgb(0 0 0 / 0.2);
 }
 
@@ -3565,9 +3565,9 @@ function clampWorldCoordinate(value: number) {
     flex-direction: column;
     gap: 0.5rem;
     overflow: hidden;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-3);
+    background: var(--glass-2);
     box-shadow: 0 16px 34px rgb(0 0 0 / 0.36);
     padding: 0.6rem;
 }
@@ -3592,9 +3592,9 @@ function clampWorldCoordinate(value: number) {
     display: flex;
     align-items: center;
     gap: 0.2rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.2rem;
     text-transform: none;
 }
@@ -3631,9 +3631,9 @@ function clampWorldCoordinate(value: number) {
     gap: 0.35rem 0.75rem;
     overflow-y: auto;
     overscroll-behavior: contain;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.65rem;
 }
 
@@ -3644,7 +3644,7 @@ function clampWorldCoordinate(value: number) {
 }
 
 .layer-checklist > :deep(button:hover) {
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .layer-checklist-label img,
@@ -3680,9 +3680,9 @@ function clampWorldCoordinate(value: number) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.65rem 1rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-2);
+    background: var(--glass-2);
     padding: 0.65rem;
 }
 
@@ -3746,9 +3746,9 @@ function clampWorldCoordinate(value: number) {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-3);
+    background: var(--glass-2);
     box-shadow: 0 8px 20px rgb(0 0 0 / 0.28);
     padding: 0.35rem;
 }
@@ -3774,9 +3774,9 @@ function clampWorldCoordinate(value: number) {
 
 .map-coordinate-ruler-x span,
 .map-coordinate-ruler-z span {
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-    background: var(--surface-3);
+    background: var(--glass-2);
     padding: 0.15rem 0.35rem;
     box-shadow: 0 3px 8px rgb(0 0 0 / 0.24);
 }
@@ -3798,9 +3798,9 @@ function clampWorldCoordinate(value: number) {
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-3);
+    background: var(--glass-2);
     padding: 0.35rem 0.55rem;
     color: var(--color-text-tertiary);
     font-size: 0.72rem;
@@ -3832,9 +3832,9 @@ function clampWorldCoordinate(value: number) {
     position: absolute;
     z-index: 8;
     width: min(17rem, calc(100% - 1rem));
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-3);
+    background: var(--glass-2);
     box-shadow: 0 12px 28px rgb(0 0 0 / 0.28);
     padding: 0.75rem;
 }
@@ -3878,7 +3878,7 @@ function clampWorldCoordinate(value: number) {
 }
 
 .marker-jump:hover {
-    background: var(--surface-4);
+    background: var(--glass-3);
 }
 
 .marker-jump i {
@@ -3903,9 +3903,9 @@ function clampWorldCoordinate(value: number) {
 
 .feature-completed-checkbox {
     min-height: 2rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-4);
+    background: var(--glass-3);
     padding: 0.35rem 0.55rem;
 }
 
@@ -3917,9 +3917,9 @@ function clampWorldCoordinate(value: number) {
 }
 
 .ore-hit-details span {
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-4);
+    background: var(--glass-3);
     padding: 0.2rem 0.4rem;
     color: var(--color-text-tertiary);
     font-size: 0.68rem;
@@ -3947,9 +3947,9 @@ function clampWorldCoordinate(value: number) {
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
-    background: var(--surface-3);
+    background: var(--glass-2);
     padding: 0.5rem 0.6rem;
     box-shadow: 0 10px 26px rgb(0 0 0 / 0.3);
 }
@@ -3977,9 +3977,9 @@ function clampWorldCoordinate(value: number) {
 .marker-color-input {
     width: 2.25rem;
     height: 2.25rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-sm);
-    background: var(--surface-4);
+    background: var(--glass-3);
     padding: 0.2rem;
 }
 

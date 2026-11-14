@@ -605,6 +605,7 @@ defineExpose({ openWidgetPicker, setLayout })
                             <span class="home-widget-size-label">{{ widget.size }}</span>
                             <div class="home-widget-options">
                                 <OverflowMenu
+                                    dropdown-id="home-widget-options"
                                     class="relative inline-flex size-6 min-w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border border-solid border-transparent bg-transparent p-0 text-[var(--color-text-default)] transition-[background-color,color,filter,transform] duration-150 hover:bg-surface-4 hover:brightness-[--hover-brightness] active:scale-[0.97] [&>svg]:size-4"
                                     :options="widgetOptions(widget, index)"
                                     :tooltip="formatMessage(messages.options)"
@@ -819,8 +820,9 @@ defineExpose({ openWidgetPicker, setLayout })
     padding: 0.125rem;
     border: 1px solid var(--stroke-1);
     border-radius: var(--r-lg);
-    /* 编辑工具条浮在卡片之上，用更实的玻璃档，避免和卡片底叠成一片糊 */
-    background: var(--glass-deep-2);
+    /* 2026-11-14：原来用 `--glass-deep-2`，深色档下是 #121319(74%) —— 悬浮在亮壁纸上
+       就是一块黑药丸（主人指的就是这里）。改用与其它悬浮控件同一档的 light 玻璃。 */
+    background: var(--glass-3);
     box-shadow: var(--sh-1), var(--inset-1);
     backdrop-filter: blur(18px) saturate(160%);
     -webkit-backdrop-filter: blur(18px) saturate(160%);

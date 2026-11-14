@@ -89,7 +89,18 @@ fn messages(messages: &[ChatMessage]) -> (String, Vec<Value>) {
         } else if message.role == "assistant" && message.opaque.is_array() {
             message.opaque.clone()
         } else {
-            json!([{ "text": message.content }])
+            // 图片走 inlineData（Google 不接受 data URL）。
+            let mut parts = Vec::new();
+            for attachment in &message.attachments {
+                parts.push(json!({
+                    "inlineData": {
+                        "mimeType": attachment.google_mime(),
+                        "data": attachment.data,
+                    },
+                }));
+            }
+            parts.push(json!({ "text": message.content }));
+            json!(parts)
         };
         let role = if message.role == "assistant" {
             "model"

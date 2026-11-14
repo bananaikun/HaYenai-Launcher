@@ -163,7 +163,9 @@ defineExpose({ show })
                             selectedStateKey === schematicBlockStateKey(block),
                     }"
                     :aria-selected="selectedStateKey === schematicBlockStateKey(block)"
-                    v-tooltip="`${displayName(block.name)}\n${block.name}${stateProperties(block) ? ` [${stateProperties(block)}]` : ''}`"
+                    v-tooltip="
+                        `${displayName(block.name)}\n${block.name}${stateProperties(block) ? ` [${stateProperties(block)}]` : ''}`
+                    "
                     role="option"
                     @click="selectedStateKey = schematicBlockStateKey(block)"
                     @dblclick="confirm"
@@ -220,10 +222,10 @@ defineExpose({ show })
     grid-template-columns: 2.5rem minmax(0, 1fr);
     align-items: center;
     gap: 0.625rem;
-    border: 1px solid var(--surface-5);
+    border: 1px solid var(--stroke-1);
     border-radius: var(--radius-md);
     padding: 0.625rem;
-    background: var(--surface-2);
+    background: var(--glass-2);
     color: var(--color-text-primary);
     font: inherit;
     text-align: left;
@@ -235,8 +237,8 @@ defineExpose({ show })
 }
 
 .block-picker-option:hover {
-    border-color: var(--surface-5);
-    background: var(--surface-4);
+    border-color: var(--stroke-1);
+    background: var(--glass-3);
 }
 
 .block-picker-option-selected {

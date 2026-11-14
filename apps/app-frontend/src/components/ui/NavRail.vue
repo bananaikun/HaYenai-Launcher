@@ -20,6 +20,7 @@ import {
     HomeIcon,
     ImagesIcon,
     LibraryIcon,
+    MessagesSquareIcon,
     SettingsIcon,
     BotIcon,
     UsersIcon,
@@ -93,7 +94,10 @@ const messages = defineMessages({
     lab: { id: 'app.navigation.lab', defaultMessage: 'Lab' },
     modpacks: { id: 'app.browse.project-type.modpacks', defaultMessage: 'Modpacks' },
     mods: { id: 'app.browse.project-type.mods', defaultMessage: 'Mods' },
-    resourcepacks: { id: 'app.browse.project-type.resourcepacks', defaultMessage: 'Resource packs' },
+    resourcepacks: {
+        id: 'app.browse.project-type.resourcepacks',
+        defaultMessage: 'Resource packs',
+    },
     shaders: { id: 'app.browse.project-type.shaders', defaultMessage: 'Shaders' },
     datapacks: { id: 'app.browse.project-type.datapacks', defaultMessage: 'Data packs' },
     favorites: { id: 'app.browse.project-type.favorites', defaultMessage: 'Favorites' },
@@ -250,13 +254,8 @@ const allGroups = computed<NavGroup[]>(() => [
                     },
                 ],
             },
-            {
-                id: 'rooms',
-                label: formatMessage(messages.roomsNav),
-                en: 'ROOMS',
-                to: '/rooms',
-                icon: MessageSquareIcon,
-            },
+            // 2026-11-14 房间功能暂时下线：入口从这里移除（代码与后端命令全部保留）。
+            // 要恢复就把上面这几行加回来 —— 路由也一并恢复即可。
             {
                 id: 'agent',
                 label: formatMessage(messages.agent),
@@ -681,10 +680,14 @@ function goCreate() {
                     type="button"
                     class="icon-btn side-toggle"
                     v-tooltip.top="
-                        collapsed ? formatMessage(messages.expand) : formatMessage(messages.collapse)
+                        collapsed
+                            ? formatMessage(messages.expand)
+                            : formatMessage(messages.collapse)
                     "
                     :aria-label="
-                        collapsed ? formatMessage(messages.expand) : formatMessage(messages.collapse)
+                        collapsed
+                            ? formatMessage(messages.expand)
+                            : formatMessage(messages.collapse)
                     "
                     :aria-expanded="!collapsed"
                     @click="collapsed = !collapsed"

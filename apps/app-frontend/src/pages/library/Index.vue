@@ -78,11 +78,7 @@ onUnmounted(() => {
                 <NewInstanceImage />
             </div>
             <h3>{{ formatMessage(messages.noInstances) }}</h3>
-            <Button
-                type="colored"
-                color="brand"
-                :disabled="offline"
-                @click="router.push('/create')"
+            <Button type="colored" color="brand" :disabled="offline" @click="router.push('/create')"
                 ><PlusIcon />
                 {{ formatMessage(messages.createInstance) }}
             </Button>

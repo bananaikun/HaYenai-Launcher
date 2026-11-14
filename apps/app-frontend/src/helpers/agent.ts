@@ -1,5 +1,11 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
 
+/** 一张随消息发出去的图。`data` 是纯 base64（不带 data: 前缀）。 */
+export interface AgentAttachment {
+    mime: string
+    data: string
+}
+
 /** 与 Rust 侧 `ChatMessage` 一一对应。字段名不能改，serde 按名匹配。 */
 export interface AgentMessage {
     role: 'system' | 'user' | 'assistant' | 'tool'
@@ -7,6 +13,8 @@ export interface AgentMessage {
     tool_calls?: AgentToolCall[]
     tool_call_id?: string | null
     opaque?: unknown
+    /** 只有 user 消息会带；后端按各协议拆成对应的图片 part。 */
+    attachments?: AgentAttachment[]
 }
 
 export interface AgentToolCall {
