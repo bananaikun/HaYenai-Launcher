@@ -116,6 +116,14 @@ const messages = defineMessages({
     kindInstance: { id: 'app.magnetic.kind.instance', defaultMessage: 'Launch' },
     noResults: { id: 'app.magnetic.no-results', defaultMessage: 'Nothing matched.' },
     dialogLabel: { id: 'app.magnetic.dialog-label', defaultMessage: 'Floating bar menu' },
+    optAlignX: { id: 'app.magnetic.opt-align-x', defaultMessage: 'Horizontal position' },
+    optAlignY: { id: 'app.magnetic.opt-align-y', defaultMessage: 'Vertical position' },
+    optAlignLeft: { id: 'app.magnetic.opt-align-left', defaultMessage: 'Left' },
+    optAlignCenter: { id: 'app.magnetic.opt-align-center', defaultMessage: 'Center' },
+    optAlignRight: { id: 'app.magnetic.opt-align-right', defaultMessage: 'Right' },
+    optAlignTop: { id: 'app.magnetic.opt-align-top', defaultMessage: 'Top' },
+    optAlignMiddle: { id: 'app.magnetic.opt-align-middle', defaultMessage: 'Middle' },
+    optAlignBottom: { id: 'app.magnetic.opt-align-bottom', defaultMessage: 'Bottom' },
 })
 
 const settings = ref<MagneticSettings>(readMagneticSettings())
@@ -500,6 +508,14 @@ function saveSettings(): void {
  *
  * 位置用 `calc(100% / 12 * 列数)` 折算，所以面板宽度变了卡片比例不变形。
  */
+/** 对齐值 → flex 的 align-items（end 用 flex-end，Chromium 里 safe 更稳）。 */
+const ALIGN_MAP: Record<string, string> = {
+    start: 'flex-start',
+    center: 'center',
+    end: 'safe flex-end',
+}
+const TEXT_MAP: Record<string, string> = { start: 'start', center: 'center', end: 'end' }
+
 function cardProps(id: MagneticWidgetId) {
     const pref = widgetPref(id)
     const live = livePos.value?.id === id ? livePos.value : null
@@ -520,6 +536,10 @@ function cardProps(id: MagneticWidgetId) {
             width: `calc(100% / ${COL} * ${w} - ${COL_GAP}px)`,
             top: `${y}px`,
             height: `${h}px`,
+            // 内容位置：只影响文字类内容，铺满型子在 CSS 里自己 align-self: stretch
+            '--mbp-align': ALIGN_MAP[optsOf(id).alignX] ?? 'center',
+            '--mbp-justify': ALIGN_MAP[optsOf(id).alignY] ?? 'safe center',
+            '--mbp-text': TEXT_MAP[optsOf(id).alignX] ?? 'center',
         },
         tabindex: 0,
         onPointerdown: (event: PointerEvent) => onCardPointerDown(event, id),
@@ -606,7 +626,7 @@ type OptionRow = {
     /** toggle 开关 / seg 分段选择 / instances 实例多选 / text 文本 */
     kind: 'toggle' | 'seg' | 'instances' | 'text'
     /** seg 的每个选项：既可以是写死的字面量（"1s"），也可以是一条 i18n 文案。 */
-    options?: { value: number; label: SegLabel }[]
+    options?: { value: number | string; label: SegLabel }[]
     placeholder?: string
 }
 
@@ -700,8 +720,39 @@ const OPTION_ROWS: Partial<Record<MagneticWidgetId, OptionRow[]>> = {
     lyrics: [{ key: 'lyricsCover', label: messages.optCover, kind: 'toggle' }],
 }
 
+/**
+ * 通用行：内容位置。
+ *
+ * 用户 2026-11-14：不同卡片想要的位置不一样（时间想居中、实例列表想靠左），
+ * 与其每种卡片写一套排版，不如给所有组件加「水平/垂直」两组硬选项。
+ * 铺满型内容（列表/仪表/图标格/月历）在 CSS 里 `align-self: stretch`，
+ * 不受这里影响 —— 只有文字类内容会跟着动。
+ */
+const ALIGN_ROWS: OptionRow[] = [
+    {
+        key: 'alignX',
+        label: messages.optAlignX,
+        kind: 'seg',
+        options: [
+            { value: 'start', label: messages.optAlignLeft },
+            { value: 'center', label: messages.optAlignCenter },
+            { value: 'end', label: messages.optAlignRight },
+        ],
+    },
+    {
+        key: 'alignY',
+        label: messages.optAlignY,
+        kind: 'seg',
+        options: [
+            { value: 'start', label: messages.optAlignTop },
+            { value: 'center', label: messages.optAlignMiddle },
+            { value: 'end', label: messages.optAlignBottom },
+        ],
+    },
+]
+
 const optionRows = computed<OptionRow[]>(() =>
-    settingsFor.value ? (OPTION_ROWS[settingsFor.value] ?? []) : [],
+    settingsFor.value ? [...(OPTION_ROWS[settingsFor.value] ?? []), ...ALIGN_ROWS] : [],
 )
 
 /** 弹窗里某个选项的当前值（模板里直接调，避免模板里写强制断言）。 */
@@ -717,6 +768,15 @@ function toggleOption(key: keyof MagneticWidgetOptions, value?: boolean): void {
     // Toggle 直接给目标值；不传就按「取反」处理（旧调用点仍可用）。
     const next = value === undefined ? !optsOf(id)[key] : value
     item.opts = { ...(item.opts ?? {}), [key]: next }
+    saveSettings()
+}
+
+function setOptionValue(key: keyof MagneticWidgetOptions, value: number | string): void {
+    const id = settingsFor.value
+    if (!id) return
+    const item = widgetPref(id)
+    if (!item) return
+    item.opts = { ...(item.opts ?? {}), [key]: value }
     saveSettings()
 }
 
@@ -2106,9 +2166,12 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                                         :key="option.value"
                                         type="button"
                                         :class="{
-                                            active: Number(optValue(row.key)) === option.value,
+                                            active:
+                                                (typeof option.value === 'string'
+                                                    ? String(optValue(row.key))
+                                                    : Number(optValue(row.key))) === option.value,
                                         }"
-                                        @click="setOptionNumber(row.key, option.value)"
+                                        @click="setOptionValue(row.key, option.value)"
                                     >
                                         {{ segLabel(option.label) }}
                                     </button>
@@ -2317,8 +2380,11 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     /* 与全站一致：玻璃 + 模糊 + 发丝描边。不要用实心底去"买"可读性 —— 
        2026-11-14 主人明确要求遵循启动器风格统一原则。 */
     background: var(--glass-1);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
-    backdrop-filter: blur(18px) saturate(160%);
+    /*
+     * 不再给卡片单独加 backdrop-filter：面板已经模糊过背景，卡内再采一次背景
+     * 视觉上几乎看不出差别，却要每帧多做一次采样 —— 5 张卡就是 5 次。
+     * 面板拖动/滚动时这里是主要的 GPU 开销。
+     */
     /*
      * 自由摆放要求高度可算：画布多高、拖到哪算对齐都靠它。
      * 尺寸由 inline style 的 width/height 决定（拖右下角可改），内容自己滚动。
@@ -2361,8 +2427,14 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
      */
     font-size: clamp(9px, min(4.3cqw, max(3.2cqw, 8.4cqh)), 15px);
     line-height: 1.25;
-    /* 内容少时垂直居中，内容超出时安全退回顶部（safe：不裁掉第一行） */
-    justify-content: safe center;
+    /*
+     * 内容位置由组件设置里的「水平 / 垂直」驱动（--mbp-align / --mbp-justify，
+     * 由 cardProps 写在 .mbp-card 上再继承下来）。
+     * 默认 safe center：内容少时居中，超出时退回顶部（safe 前缀避免裁掉第一行）。
+     */
+    align-items: var(--mbp-align, center);
+    justify-content: var(--mbp-justify, safe center);
+    text-align: var(--mbp-text, center);
     overflow: auto;
     scrollbar-width: none;
     border-radius: inherit;
@@ -3206,14 +3278,28 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     align-content: stretch;
 }
 
+/* 铺满型内容（列表/仪表/图标格/月历/歌词）永远撑满宽度，
+   否则把它们都居中了会出现「进度条缩成一小段」。 */
+.mbp-rows,
+.mbp-gauges,
+.mbp-icon-grid,
+.mbp-datecal,
+.mbp-jobs,
+.mbp-lyric,
+.mbp-server {
+    align-self: stretch;
+    width: 100%;
+    text-align: start;
+}
+
 .mbp-rows {
     align-content: start;
 }
 
 /* 时钟：跟着卡片宽度放大（宽卡不该还留一大片空白） */
 .mbp-clock {
-    font-size: clamp(1.95em, 0.28em + 8cqw, 3.4em);
-    line-height: 1.05;
+    font-size: clamp(1.7em, 0.26em + 3.6cqw, 2.7em);
+    line-height: 1.1;
 }
 
 /* 日期卡 = 月历 */

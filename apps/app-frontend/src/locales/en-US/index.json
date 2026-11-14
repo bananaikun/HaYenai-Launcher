@@ -6476,6 +6476,30 @@
   "app.magnetic.opt-24h": {
     "message": "24-hour clock"
   },
+  "app.magnetic.opt-align-bottom": {
+    "message": "Bottom"
+  },
+  "app.magnetic.opt-align-center": {
+    "message": "Center"
+  },
+  "app.magnetic.opt-align-left": {
+    "message": "Left"
+  },
+  "app.magnetic.opt-align-middle": {
+    "message": "Middle"
+  },
+  "app.magnetic.opt-align-right": {
+    "message": "Right"
+  },
+  "app.magnetic.opt-align-top": {
+    "message": "Top"
+  },
+  "app.magnetic.opt-align-x": {
+    "message": "Horizontal position"
+  },
+  "app.magnetic.opt-align-y": {
+    "message": "Vertical position"
+  },
   "app.magnetic.opt-cover": {
     "message": "Show cover"
   },

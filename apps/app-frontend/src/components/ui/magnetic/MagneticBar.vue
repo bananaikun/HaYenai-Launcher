@@ -181,22 +181,31 @@ const bandRef = ref<HTMLElement | null>(null)
 const bands = new Float32Array(BAND_COUNT)
 let waveRaf = 0
 let waveLevel = ''
+/** 隔帧计数：声波按 30fps 更新即可。 */
+let waveTick = 0
 
 function pulse() {
     waveRaf = 0
     // 没在放音乐就别占一帧：原来无论放不放都每帧读一次频谱、写两次 CSS 变量，
     // 等于给全站多加一条常驻 rAF（滚动时和列表渲染抢同一帧）。
     if (!music.playing) return
-    readBands(bands)
-    let sum = 0
-    for (let i = 0; i < BAND_COUNT; i++) sum += bands[i]
-    const level = (sum / BAND_COUNT).toFixed(3)
-    // 只在肉眼能看出差别时才写 DOM（千分位抖动没必要触发样式重算）
-    if (level !== waveLevel) {
-        waveLevel = level
-        waveRef.value?.style.setProperty('--a', level)
-        // 底边那条振幅带（后台 LyricBar 的 .lyric-bg 同款）：用 scaleX 而不是宽度，避免每帧重排
-        bandRef.value?.style.setProperty('--a', level)
+
+    // 30fps 足够：声波/振幅带的视觉变化远没有 60fps 那么细，
+    // 但每帧写 style 会触发样式重算 —— 实测它是空闲期 RecalcStyle 的最大来源
+    // （5 秒 524 次 inline style 写入）。隔帧更新直接砍掉一半。
+    waveTick = (waveTick + 1) % 2
+    if (waveTick === 0) {
+        readBands(bands)
+        let sum = 0
+        for (let i = 0; i < BAND_COUNT; i++) sum += bands[i]
+        // 两位小数：千分位抖动肉眼看不见，却会让每次比较都不相等、每次都写 DOM
+        const level = (sum / BAND_COUNT).toFixed(2)
+        if (level !== waveLevel) {
+            waveLevel = level
+            // 只写真正消费 --a 的元素：`.mb-wave` 是纯 CSS 呼吸动画，读不到这个变量，
+            // 以前每帧写它纯属白白触发一次样式重算。
+            bandRef.value?.style.setProperty('--a', level)
+        }
     }
     waveRaf = requestAnimationFrame(pulse)
 }
@@ -209,7 +218,6 @@ function syncWaveLoop(): void {
         cancelAnimationFrame(waveRaf)
         waveRaf = 0
         waveLevel = ''
-        waveRef.value?.style.setProperty('--a', '0')
         bandRef.value?.style.setProperty('--a', '0')
     }
 }
@@ -1064,8 +1072,14 @@ onBeforeUnmount(() => {
         width: 3px;
         border-radius: 2px 2px 1px 1px;
         background: var(--grad-c);
-        height: 5px;
-        transition: height 420ms var(--ease);
+        /*
+         * 用 scaleY 而不是 height：height 动画每帧都要重新布局（5 根柱子 × 60fps），
+         * scaleY 只走合成器，主线程零成本。24px × 0.25 ≈ 6px，和原来 6↔24px 等价。
+         */
+        height: 24px;
+        transform: scaleY(0.25);
+        transform-origin: bottom center;
+        transition: transform 420ms var(--ease);
     }
 
     &.on i {
@@ -1091,10 +1105,10 @@ onBeforeUnmount(() => {
 @keyframes mb-wave-beat {
     0%,
     100% {
-        height: 6px;
+        transform: scaleY(0.25);
     }
     50% {
-        height: 24px;
+        transform: scaleY(1);
     }
 }
 

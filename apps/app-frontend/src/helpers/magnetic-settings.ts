@@ -87,6 +87,10 @@ export interface MagneticWidgetOptions {
     showDisk?: boolean
     /** 服务器：探测超时（ms）。 */
     serverTimeout?: number
+    /** 通用：内容水平位置（tile 型卡片会拉伸铺满，只影响文字类卡片）。 */
+    alignX?: 'start' | 'center' | 'end'
+    /** 通用：内容垂直位置。 */
+    alignY?: 'start' | 'center' | 'end'
 }
 
 /** 默认值集中在这里，组件里不用到处写 `?? true`。 */
@@ -111,6 +115,8 @@ export const MAGNETIC_WIDGET_OPTION_DEFAULTS: Required<MagneticWidgetOptions> = 
     statsInterval: 1000,
     showDisk: false,
     serverTimeout: 4000,
+    alignX: 'center',
+    alignY: 'center',
 }
 
 export interface MagneticWidgetPref {

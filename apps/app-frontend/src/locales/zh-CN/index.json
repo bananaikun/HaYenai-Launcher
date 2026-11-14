@@ -152,6 +152,30 @@
   "app.magnetic.opt-24h": {
     "message": "24 小时制"
   },
+  "app.magnetic.opt-align-bottom": {
+    "message": "靠下"
+  },
+  "app.magnetic.opt-align-center": {
+    "message": "居中"
+  },
+  "app.magnetic.opt-align-left": {
+    "message": "靠左"
+  },
+  "app.magnetic.opt-align-middle": {
+    "message": "居中"
+  },
+  "app.magnetic.opt-align-right": {
+    "message": "靠右"
+  },
+  "app.magnetic.opt-align-top": {
+    "message": "靠上"
+  },
+  "app.magnetic.opt-align-x": {
+    "message": "内容水平位置"
+  },
+  "app.magnetic.opt-align-y": {
+    "message": "内容垂直位置"
+  },
   "app.magnetic.opt-cover": {
     "message": "显示封面"
   },
