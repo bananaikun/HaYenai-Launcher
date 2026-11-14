@@ -38,6 +38,11 @@ pub struct WallpaperAccent {
     pub lum_max: Vec<u8>,
     /// 逐格 WCAG 相对亮度 ×255，**跨帧取最小**（深字的最坏情况看这里）
     pub lum_min: Vec<u8>,
+    /// 网格里**最鲜艳那一格**的平均色（`#rrggbb`）。
+    ///
+    /// 用途：字体渐变要把「壁纸最艳的一块」跟主题色拼起来，而不是用整图主色
+    /// （主色常被大片背景稀释成灰蓝）。无彩色可用时为空串。
+    pub vivid: String,
 }
 
 /// 网格长边格数。64 保证「左侧栏一条竖带」在 16:9 下仍有约 5×34 个采样点，
@@ -148,6 +153,9 @@ struct Sampler {
     colored: f64,
     /// 首帧的逐格亮度，用于 `luminance`（中位）
     first_lums: Vec<f32>,
+    /// 逐格 RGB 累加与像素数（只为算「最鲜艳格」；4096 格 × 16B ≈ 64KB）
+    cell_rgb: Vec<[u32; 3]>,
+    cell_count: Vec<u32>,
 }
 
 impl Sampler {
@@ -170,6 +178,8 @@ impl Sampler {
             lsum: [0.0; BUCKETS],
             colored: 0.0,
             first_lums: Vec::new(),
+            cell_rgb: vec![[0, 0, 0]; n],
+            cell_count: vec![0; n],
         }
     }
 
@@ -204,6 +214,13 @@ impl Sampler {
                 }
             }
 
+            // 记这一格的颜色和，收尾时算平均色再挑饱和度最高的那格
+            let cell = &mut self.cell_rgb[i];
+            cell[0] += u32::from(r);
+            cell[1] += u32::from(g);
+            cell[2] += u32::from(b);
+            self.cell_count[i] += 1;
+
             // 主色投票：无彩色像素只记面积（亮度已单独处理），不参与色相
             let rf = r as f32 / 255.0;
             let gf = g as f32 / 255.0;
@@ -226,6 +243,36 @@ impl Sampler {
     fn finish(self) -> Option<WallpaperAccent> {
         if self.empty {
             return None;
+        }
+
+        /*
+         * 最鲜艳格：逐格算平均色 → HSL 饱和度。
+         * 排除太暗/太亮的格（纯黑背景、纯白高光饱和度数值会虚高，但拿去做渐变就是一片脏灰），
+         * 亮度压在 0.18–0.86 之间才算候选。
+         */
+        let mut vivid = String::new();
+        let mut best_score = 0.0f32;
+        for (i, sum) in self.cell_rgb.iter().enumerate() {
+            let count = self.cell_count[i];
+            if count == 0 {
+                continue;
+            }
+            let rgb = [
+                (sum[0] / count) as u8,
+                (sum[1] / count) as u8,
+                (sum[2] / count) as u8,
+            ];
+            let (_, sat, light) = rgb_to_hsl(rgb);
+            if !(0.18..=0.86).contains(&light) {
+                continue;
+            }
+            // 权重：饱和度为主，亮度离中段越近越可信（避免整格都是一点点色偏的暗部）
+            let weight = 1.0 - ((light - 0.5).abs() / 0.5) * 0.35;
+            let score = sat * weight;
+            if score > best_score {
+                best_score = score;
+                vivid = format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
+            }
         }
 
         let median = {
@@ -275,6 +322,7 @@ impl Sampler {
             grid_h: self.gh,
             lum_max: self.lum_max,
             lum_min: self.lum_min,
+            vivid,
         })
     }
 }

@@ -64,6 +64,12 @@ import {
 import AccentColorOption from './AccentColorOption.vue'
 import SettingsRow from './SettingsRow.vue'
 import SettingsSection from './SettingsSection.vue'
+import {
+    FONT_COLOR_PRESETS,
+    fontTheme,
+    refreshVividColor,
+    setFontTheme,
+} from '@/helpers/font-theme'
 import SplashSettingsSection from '@/components/ui/settings/SplashSettingsSection.vue'
 /* 壁纸面板（200+ 张贴图 + 属性面板）首次挂载实测要 220ms / +40MB，
    而它位于「外观」页很靠下的位置。改成异步 chunk + 滚进视野才挂载。 */
@@ -80,6 +86,15 @@ const themeStore = useTheming()
 const wallpaperSentinel = ref<HTMLElement | null>(null)
 const wallpaperPanelMounted = ref(false)
 let wallpaperObserver: IntersectionObserver | null = null
+
+const fontTone = ref({ mode: fontTheme.mode, color: fontTheme.color, vivid: fontTheme.vivid })
+
+function updateFontTone(patch: Partial<typeof fontTheme>): void {
+    setFontTheme(patch)
+    Object.assign(fontTone.value, { mode: fontTheme.mode, color: fontTheme.color, vivid: fontTheme.vivid })
+    // 切到渐变时顺手取一次壁纸最鲜艳格（解码封面要几百毫秒，不能挂在渲染路径）
+    if (patch.mode === 'gradient') void refreshVividColor()
+}
 
 const { formatMessage } = useVIntl()
 const { handleError } = injectNotificationManager()
@@ -189,6 +204,25 @@ const messages = defineMessages({
         id: 'app.appearance-settings.color-theme.description',
         defaultMessage: 'Select your preferred color theme for HaYenai.',
     },
+    fontColorTitle: { id: 'app.settings.font-color.title', defaultMessage: 'Font color' },
+    fontColorDescription: {
+        id: 'app.settings.font-color.description',
+        defaultMessage:
+            'Applies to headings and emphasized text; body text keeps the theme default.',
+    },
+    fontColorDefault: { id: 'app.settings.font-color.default', defaultMessage: 'Follow theme' },
+    fontColorDefaultDescription: {
+        id: 'app.settings.font-color.default-description',
+        defaultMessage: 'Black or white, chosen by the theme and wallpaper brightness.',
+    },
+    fontColorPreset: { id: 'app.settings.font-color.preset', defaultMessage: 'Preset color' },
+    fontColorGradient: { id: 'app.settings.font-color.gradient', defaultMessage: 'Gradient text' },
+    fontColorGradientDescription: {
+        id: 'app.settings.font-color.gradient-description',
+        defaultMessage:
+            'Top to bottom: the most vivid cell of your wallpaper (64×64 sample) fading into the accent color.',
+    },
+    fontColorVivid: { id: 'app.settings.font-color.vivid', defaultMessage: 'Wallpaper highlight' },
     accentColorTitle: {
         id: 'app.appearance-settings.accent-color.title',
         defaultMessage: 'Accent color',
@@ -1300,6 +1334,110 @@ watch(
                 <Button @click="resetUiGlass">
                     {{ formatMessage(messages.glassReset) }}
                 </Button>
+            </div>
+        </SettingsSection>
+
+        <!-- 字体颜色：主人 2026-11-15「只有黑白太单调」 -->
+        <SettingsSection v-if="props.scope === 'interface'" icon="palette">
+            <template #header>
+                <h2
+                    id="settings-target-font-color"
+                    tabindex="-1"
+                    class="m-0 text-lg font-semibold text-[var(--color-text-primary)]"
+                >
+                    {{ formatMessage(messages.fontColorTitle) }}
+                </h2>
+                <p class="m-0 mt-1 text-sm leading-relaxed text-[var(--color-text-tertiary)]">
+                    {{ formatMessage(messages.fontColorDescription) }}
+                </p>
+            </template>
+
+            <div class="mt-2 grid gap-4">
+                <SettingsRow>
+                    <template #label>
+                        {{ formatMessage(messages.fontColorDefault) }}
+                    </template>
+                    <template #description>
+                        {{ formatMessage(messages.fontColorDefaultDescription) }}
+                    </template>
+                    <template #control>
+                        <Toggle
+                            id="font-color-default"
+                            :model-value="fontTone.mode === 'default'"
+                            @update:model-value="
+                                (value) => updateFontTone({ mode: value ? 'default' : 'preset' })
+                            "
+                        />
+                    </template>
+                </SettingsRow>
+
+                <div v-if="fontTone.mode === 'preset'" class="flex flex-col gap-2">
+                    <span class="text-sm font-semibold text-[var(--color-text-primary)]">
+                        {{ formatMessage(messages.fontColorPreset) }}
+                    </span>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-for="preset in FONT_COLOR_PRESETS"
+                            :key="preset.value"
+                            type="button"
+                            class="size-8 rounded-full border-2 border-solid transition-transform"
+                            :class="
+                                fontTone.color === preset.value
+                                    ? 'border-[var(--color-brand)] scale-110'
+                                    : 'border-white/25 hover:scale-105'
+                            "
+                            :style="{ background: preset.value }"
+                            :title="preset.label"
+                            :aria-label="preset.label"
+                            :aria-pressed="fontTone.color === preset.value"
+                            @click="updateFontTone({ color: preset.value })"
+                        />
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2 border-0 border-t border-solid border-button-border pt-4">
+                    <SettingsRow>
+                        <template #label>
+                            {{ formatMessage(messages.fontColorGradient) }}
+                        </template>
+                        <template #description>
+                            {{ formatMessage(messages.fontColorGradientDescription) }}
+                        </template>
+                        <template #control>
+                            <Toggle
+                                id="font-color-gradient"
+                                :model-value="fontTone.mode === 'gradient'"
+                                @update:model-value="
+                                    (value) =>
+                                        updateFontTone({ mode: value ? 'gradient' : 'preset' })
+                                "
+                            />
+                        </template>
+                    </SettingsRow>
+
+                    <div v-if="fontTone.mode === 'gradient'" class="flex flex-col gap-2">
+                        <div class="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
+                            <span>{{ formatMessage(messages.fontColorVivid) }}</span>
+                            <span
+                                class="inline-block size-4 rounded border border-solid border-white/25"
+                                :style="{ background: fontTone.vivid || 'var(--color-brand)' }"
+                            />
+                            <code class="tabular-nums">{{ fontTone.vivid || '—' }}</code>
+                        </div>
+                        <!-- 预览：与真实规则同一套渐变方向（上下） -->
+                        <div
+                            class="rounded-xl border border-solid border-button-border bg-surface-4 px-4 py-3 text-center text-2xl font-extrabold"
+                            :style="{
+                                backgroundImage: `linear-gradient(to bottom, ${fontTone.vivid || 'var(--color-brand)'}, var(--color-brand))`,
+                                WebkitBackgroundClip: 'text',
+                                backgroundClip: 'text',
+                                color: 'transparent',
+                            }"
+                        >
+                            HaYenai 字体渐变预览
+                        </div>
+                    </div>
+                </div>
             </div>
         </SettingsSection>
 

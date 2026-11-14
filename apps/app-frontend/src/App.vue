@@ -98,6 +98,7 @@ import OfflineAccountRestrictionModal from '@/components/ui/OfflineAccountRestri
 import OverlayScrollbar from '@/components/ui/OverlayScrollbar.vue'
 import MagneticBar from '@/components/ui/magnetic/MagneticBar.vue'
 import { readMagneticSettings } from '@/helpers/magnetic-settings'
+import { applyFontTheme, fontTheme, refreshVividColor } from '@/helpers/font-theme'
 import { applyWallpaperTheme } from '@/helpers/wallpaper-theme'
 import { startRotation, stopRotation } from '@/helpers/wallpaper-rotation'
 import NavRail from '@/components/ui/NavRail.vue'
@@ -222,6 +223,9 @@ import { AppNotificationManager } from './providers/app-notifications'
 import { AppPopupNotificationManager } from './providers/app-popup-notifications'
 
 const themeStore = useTheming()
+
+// 字体颜色 / 渐变：启动时按上次的选择先应用一次（设置页改完也会即时调用）
+applyFontTheme()
 /** While a dialog is open no shortcut fires, including the one being recorded. */
 const { hasModal } = useModalStack()
 const router = useRouter()
@@ -352,6 +356,8 @@ watch(
     () => wallpaperMeta.value?.id ?? null,
     (id) => {
         void applyWallpaperTheme(id)
+        // 渐变字体用的「壁纸最鲜艳格」跟着壁纸走；取色在 Rust 侧解码封面
+        if (fontTheme.mode === 'gradient') void refreshVividColor()
     },
     { immediate: true },
 )
@@ -4133,6 +4139,9 @@ body.modrinth-console-fullscreen-active .app-sidebar {
 }
 </style>
 <style>
+/* 字体颜色 / 渐变字体：规则都在这个文件里，靠根元素的 data-font-tone 生效 */
+@import './assets/stylesheets/font-theme.css';
+
 .os-theme-dark,
 .os-theme-light {
     --os-handle-bg: var(--color-scrollbar) !important;

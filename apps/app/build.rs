@@ -209,6 +209,12 @@ fn main() {
     // https://github.com/tauri-apps/tauri/issues/10075
     tauri_build::try_build(
         tauri_build::Attributes::new()
+            // 启动器需要管理员权限（内存优化的系统级清理、部分实例目录操作）。
+            // 清单里写 requireAdministrator ⇒ 每次启动弹一次 UAC。
+            .windows_attributes(
+                tauri_build::WindowsAttributes::new()
+                    .app_manifest(include_str!("app.manifest")),
+            )
             .codegen(tauri_build::CodegenContext::new())
             .plugin(
                 "auth",

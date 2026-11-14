@@ -8606,6 +8606,30 @@
   "app.settings.feature-flags.reset-to-default": {
     "message": "恢复默认值"
   },
+  "app.settings.font-color.default": {
+    "message": "跟随主题"
+  },
+  "app.settings.font-color.default-description": {
+    "message": "由主题与壁纸亮度决定黑字或白字。"
+  },
+  "app.settings.font-color.description": {
+    "message": "作用于标题与强调文字，正文保持主题默认。"
+  },
+  "app.settings.font-color.gradient": {
+    "message": "渐变字体"
+  },
+  "app.settings.font-color.gradient-description": {
+    "message": "上下渐变：壁纸（缩成 64×64）里最鲜艳那一格的颜色，渐变到主题色。"
+  },
+  "app.settings.font-color.preset": {
+    "message": "预设颜色"
+  },
+  "app.settings.font-color.title": {
+    "message": "字体颜色"
+  },
+  "app.settings.font-color.vivid": {
+    "message": "壁纸取色"
+  },
   "app.settings.game-options.category.accessibility.description": {
     "message": "无障碍设置"
   },

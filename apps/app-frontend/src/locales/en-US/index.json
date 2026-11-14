@@ -9542,6 +9542,30 @@
   "app.settings.feature-flags.worlds-tab": {
     "message": "Worlds tab"
   },
+  "app.settings.font-color.default": {
+    "message": "Follow theme"
+  },
+  "app.settings.font-color.default-description": {
+    "message": "Black or white, chosen by the theme and wallpaper brightness."
+  },
+  "app.settings.font-color.description": {
+    "message": "Applies to headings and emphasized text; body text keeps the theme default."
+  },
+  "app.settings.font-color.gradient": {
+    "message": "Gradient text"
+  },
+  "app.settings.font-color.gradient-description": {
+    "message": "Top to bottom: the most vivid cell of your wallpaper (64×64 sample) fading into the accent color."
+  },
+  "app.settings.font-color.preset": {
+    "message": "Preset color"
+  },
+  "app.settings.font-color.title": {
+    "message": "Font color"
+  },
+  "app.settings.font-color.vivid": {
+    "message": "Wallpaper highlight"
+  },
   "app.settings.game-options.category.accessibility.description": {
     "message": "Accessibility preferences"
   },
