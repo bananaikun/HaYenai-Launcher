@@ -1,9 +1,381 @@
 {
+  "app.agent.ask-example": {
+    "message": "举个例子"
+  },
+  "app.agent.ask-fix": {
+    "message": "直接修好"
+  },
+  "app.agent.ask-more": {
+    "message": "再多讲讲"
+  },
+  "app.agent.ask-title": {
+    "message": "快捷回复"
+  },
+  "app.agent.copy": {
+    "message": "复制"
+  },
+  "app.agent.regenerate": {
+    "message": "重新生成"
+  },
   "app.content-install.retained-instance.title": {
     "message": "已保留创建的实例"
   },
   "app.content-install.retained-instance.description": {
     "message": "已创建 {name}。内容安装已取消，你可以在实例库中管理或删除此实例。"
+  },
+  "app.home.lyrics.empty": {
+    "message": "没有正在播放"
+  },
+  "app.home.lyrics.hint": {
+    "message": "去开音乐播放器"
+  },
+  "app.magnetic-settings.bar-pages": {
+    "message": "条子上的页面"
+  },
+  "app.magnetic-settings.bar-pages-desc": {
+    "message": "条子本身显示哪几页（滚动或点圆点切换）。这里的顺序就是条子上的顺序。"
+  },
+  "app.magnetic-settings.enabled": {
+    "message": "显示磁悬条"
+  },
+  "app.magnetic-settings.enabled-desc": {
+    "message": "挡住东西的时候可以把整条关掉：不渲染、不轮询、不订阅下载事件。"
+  },
+  "app.magnetic-settings.move-down": {
+    "message": "下移"
+  },
+  "app.magnetic-settings.move-up": {
+    "message": "上移"
+  },
+  "app.magnetic-settings.opacity": {
+    "message": "背景不透明度"
+  },
+  "app.magnetic-settings.opacity-desc": {
+    "message": "条子背景的实心程度。0 只保留模糊与描边。"
+  },
+  "app.magnetic-settings.reset-layout": {
+    "message": "组件布局"
+  },
+  "app.magnetic-settings.reset-layout-action": {
+    "message": "恢复默认"
+  },
+  "app.magnetic-settings.reset-layout-desc": {
+    "message": "组件在面板里是自由摆放的，直接拖就行。这里把它们全部放回默认行列。"
+  },
+  "app.magnetic-settings.scale": {
+    "message": "大小"
+  },
+  "app.magnetic-settings.scale-desc": {
+    "message": "调整条子的高度与内边距。"
+  },
+  "app.magnetic-settings.server": {
+    "message": "服务器状态"
+  },
+  "app.magnetic-settings.server-desc": {
+    "message": "给「服务器状态」组件用。填 host:port 走 MC 协议 ping（真实延迟与在线人数），填 http(s) 地址则探测是否返回 2xx。"
+  },
+  "app.magnetic-settings.server-name": {
+    "message": "显示名称"
+  },
+  "app.magnetic-settings.server-url": {
+    "message": "地址"
+  },
+  "app.magnetic-settings.title": {
+    "message": "磁悬条"
+  },
+  "app.magnetic-settings.widgets": {
+    "message": "面板里的组件"
+  },
+  "app.magnetic-settings.widgets-desc": {
+    "message": "勾选即显示，箭头调整顺序。这里的顺序就是面板里的顺序。"
+  },
+  "app.magnetic-settings.width": {
+    "message": "面板宽度"
+  },
+  "app.magnetic-settings.width-desc": {
+    "message": "展开面板有多宽。越窄越紧凑。"
+  },
+  "app.magnetic.add-widget": {
+    "message": "添加组件"
+  },
+  "app.magnetic.all-added": {
+    "message": "所有组件都已经在面板里了。"
+  },
+  "app.magnetic.common-title": {
+    "message": "布局"
+  },
+  "app.magnetic.dbl-launch": {
+    "message": "双击启动"
+  },
+  "app.magnetic.dialog-label": {
+    "message": "磁悬条菜单"
+  },
+  "app.magnetic.disk": {
+    "message": "磁盘"
+  },
+  "app.magnetic.done": {
+    "message": "完成"
+  },
+  "app.magnetic.free": {
+    "message": "可用"
+  },
+  "app.magnetic.kind.instance": {
+    "message": "启动"
+  },
+  "app.magnetic.kind.route": {
+    "message": "跳转到"
+  },
+  "app.magnetic.kind.widget": {
+    "message": "组件"
+  },
+  "app.magnetic.no-download": {
+    "message": "当前没有下载任务"
+  },
+  "app.magnetic.no-favorites": {
+    "message": "没有收藏的实例"
+  },
+  "app.magnetic.no-lyric": {
+    "message": "没有正在播放的音乐"
+  },
+  "app.magnetic.no-options": {
+    "message": "这个组件没有专属设置项。"
+  },
+  "app.magnetic.no-results": {
+    "message": "没有匹配项。"
+  },
+  "app.magnetic.no-widgets": {
+    "message": "没有启用任何组件 —— 到「设置 → 首页与导航」里添加。"
+  },
+  "app.magnetic.opt-24h": {
+    "message": "24 小时制"
+  },
+  "app.magnetic.opt-cover": {
+    "message": "显示封面"
+  },
+  "app.magnetic.opt-download-rows": {
+    "message": "显示条数"
+  },
+  "app.magnetic.opt-download-speed": {
+    "message": "显示速度"
+  },
+  "app.magnetic.opt-favorites": {
+    "message": "只显示收藏"
+  },
+  "app.magnetic.opt-instances": {
+    "message": "快捷跳转里的实例"
+  },
+  "app.magnetic.opt-last-played": {
+    "message": "上次游玩"
+  },
+  "app.magnetic.opt-latency": {
+    "message": "显示延迟"
+  },
+  "app.magnetic.opt-launch": {
+    "message": "启动按钮"
+  },
+  "app.magnetic.opt-players-url": {
+    "message": "在线人数接口（可选）"
+  },
+  "app.magnetic.opt-rows": {
+    "message": "显示条数"
+  },
+  "app.magnetic.opt-seconds": {
+    "message": "显示秒"
+  },
+  "app.magnetic.opt-server-timeout": {
+    "message": "超时时间"
+  },
+  "app.magnetic.opt-show-disk": {
+    "message": "磁盘占用"
+  },
+  "app.magnetic.opt-stats-interval": {
+    "message": "刷新频率"
+  },
+  "app.magnetic.opt-week-numbers": {
+    "message": "显示周数"
+  },
+  "app.magnetic.opt-week-start": {
+    "message": "每周起始"
+  },
+  "app.magnetic.opt-weekday": {
+    "message": "显示星期"
+  },
+  "app.magnetic.page.launch": {
+    "message": "启动"
+  },
+  "app.magnetic.page.lyrics": {
+    "message": "歌词"
+  },
+  "app.magnetic.page.system": {
+    "message": "系统"
+  },
+  "app.magnetic.pin-widget": {
+    "message": "固定位置"
+  },
+  "app.magnetic.players": {
+    "message": "人在线"
+  },
+  "app.magnetic.remove-widget": {
+    "message": "移除"
+  },
+  "app.magnetic.reset-position": {
+    "message": "恢复默认位置"
+  },
+  "app.magnetic.route.agent": {
+    "message": "Agent"
+  },
+  "app.magnetic.route.browse": {
+    "message": "资源"
+  },
+  "app.magnetic.route.home": {
+    "message": "主页"
+  },
+  "app.magnetic.route.instances": {
+    "message": "实例"
+  },
+  "app.magnetic.route.lab": {
+    "message": "实验台"
+  },
+  "app.magnetic.route.modpacks": {
+    "message": "整合包"
+  },
+  "app.magnetic.route.settings": {
+    "message": "设置"
+  },
+  "app.magnetic.search": {
+    "message": "搜索或跳转…"
+  },
+  "app.magnetic.server-name": {
+    "message": "服务器名称"
+  },
+  "app.magnetic.server-offline": {
+    "message": "离线"
+  },
+  "app.magnetic.server-online": {
+    "message": "在线"
+  },
+  "app.magnetic.server-unknown": {
+    "message": "检测中…"
+  },
+  "app.magnetic.server-url": {
+    "message": "健康检查地址"
+  },
+  "app.magnetic.settings": {
+    "message": "组件设置"
+  },
+  "app.magnetic.shortcuts": {
+    "message": "快捷跳转"
+  },
+  "app.magnetic.unpin-widget": {
+    "message": "取消固定"
+  },
+  "app.magnetic.week-mon": {
+    "message": "周一"
+  },
+  "app.magnetic.week-sun": {
+    "message": "周日"
+  },
+  "app.magnetic.widget-dialog-title": {
+    "message": "组件设置"
+  },
+  "app.magnetic.widget-settings": {
+    "message": "组件设置"
+  },
+  "app.magnetic.widget.calendar": {
+    "message": "日历"
+  },
+  "app.magnetic.widget.clock": {
+    "message": "时钟"
+  },
+  "app.magnetic.widget.date": {
+    "message": "日期"
+  },
+  "app.magnetic.widget.downloads": {
+    "message": "下载进度"
+  },
+  "app.magnetic.widget.lyrics": {
+    "message": "正在播放"
+  },
+  "app.magnetic.widget.server": {
+    "message": "服务器状态"
+  },
+  "app.magnetic.widget.shortcuts": {
+    "message": "快捷跳转"
+  },
+  "app.magnetic.widget.system": {
+    "message": "系统资源"
+  },
+  "app.magnetic.widget.versions": {
+    "message": "实例版本"
+  },
+  "app.magnetic.width-label": {
+    "message": "宽度"
+  },
+  "app.magnetic.width-unit": {
+    "message": "{cols} 列"
+  },
+  "app.music.empty": {
+    "message": "还没有加载到曲目。"
+  },
+  "app.music.loading": {
+    "message": "正在连接音乐源…"
+  },
+  "app.music.lyric-tab": {
+    "message": "歌词"
+  },
+  "app.music.mode-loop": {
+    "message": "列表循环"
+  },
+  "app.music.mode-random": {
+    "message": "随机播放"
+  },
+  "app.music.mode-single": {
+    "message": "单曲循环"
+  },
+  "app.music.mute": {
+    "message": "静音"
+  },
+  "app.music.next": {
+    "message": "下一首"
+  },
+  "app.music.no-lyrics": {
+    "message": "纯音乐，没有歌词。"
+  },
+  "app.music.now-playing": {
+    "message": "正在播放"
+  },
+  "app.music.pause": {
+    "message": "暂停"
+  },
+  "app.music.play": {
+    "message": "播放"
+  },
+  "app.music.playlist-meta": {
+    "message": "播放列表"
+  },
+  "app.music.previous": {
+    "message": "上一首"
+  },
+  "app.music.queue-tab": {
+    "message": "播放队列"
+  },
+  "app.music.reload": {
+    "message": "重新加载"
+  },
+  "app.music.track-index": {
+    "message": "曲目"
+  },
+  "app.music.unmute": {
+    "message": "取消静音"
+  },
+  "app.music.volume": {
+    "message": "音量"
+  },
+  "app.navigation.group.media": {
+    "message": "媒体"
+  },
+  "app.navigation.music": {
+    "message": "音乐"
   },
   "app.onboarding.save-failed-body": {
     "message": "HaYenai 无法保存你的设置。你可以继续使用，但下次启动时会再次显示向导。"
@@ -11,11 +383,29 @@
   "app.onboarding.save-failed-title": {
     "message": "设置未保存"
   },
+  "app.rooms.account-hint": {
+    "message": "使用启动器登录的账号"
+  },
+  "app.rooms.no-account": {
+    "message": "未登录账号"
+  },
   "app.screenshots.selection.select-group": {
     "message": "选择“{group}”中的所有截图"
   },
   "app.screenshots.selection.hint": {
     "message": "使用复选框或 Ctrl/Command + 单击选择，Shift + 单击选择连续区间，或从空白处拖动框选。"
+  },
+  "app.settings.about.diagnostics": {
+    "message": "诊断信息"
+  },
+  "app.settings.about.diagnostics-channel": {
+    "message": "更新通道"
+  },
+  "app.settings.about.diagnostics-database": {
+    "message": "数据库"
+  },
+  "app.settings.about.diagnostics-unavailable": {
+    "message": "这个版本里诊断信息不可用。"
   },
   "app.settings.about.modified-from-upstream": {
     "message": "基于 {upstreamName} 二次修改版"
@@ -10775,8 +11165,14 @@
   "app.skins.title": {
     "message": "皮肤选择器"
   },
+  "app.splash-settings.back": {
+    "message": "返回"
+  },
   "app.splash.checking-for-updates": {
     "message": "正在检查更新……"
+  },
+  "app.splash.preparing": {
+    "message": "正在准备启动器…"
   },
   "app.splash.updating-app-directory": {
     "message": "正在更新应用目录……"

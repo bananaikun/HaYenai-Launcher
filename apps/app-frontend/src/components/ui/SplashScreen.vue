@@ -406,7 +406,9 @@ onMounted(() => {
     // ⚠ 场景包要从磁盘解包 + 建 GL 上下文，比图片慢得多（实测数秒）。
     //   给 4 秒会把还没挂完的场景直接掐断，用户永远看不到真渲染。所以场景单独放宽。
     const isScene = splashConfig.value.media?.kind === 'scene'
-    window.setTimeout(() => emitGpuReady(), isScene ? 15000 : 4000)
+    // 主人要求「等场景出首帧再换场」：场景包要解包 + 建 GL 上下文，几秒很正常。
+    // 兜底只防死锁（包损坏/驱动问题），不参与正常路径。
+    window.setTimeout(() => emitGpuReady(), isScene ? 30000 : 4000)
     // A static background never reports ready — it is not animated. Everything
     // else reports from the component that actually paints.
     if (renderer.value === 'static') emitGpuReady()
@@ -437,10 +439,13 @@ loading_listener((event) => {
 		-->
         <template v-if="customMedia">
             <!-- 场景型：真渲染。容器必须有实际尺寸，库靠 ResizeObserver 装配。 -->
+            <!-- 场景型：真渲染。它同样要消费「模糊」参数 —— 原来 mediaStyle 只绑在
+                 img/video 上，场景背景拖模糊滑块完全没反应。 -->
             <div
                 v-if="customMedia.kind === 'scene'"
                 ref="sceneEl"
                 class="splash__media splash__media--scene"
+                :style="mediaStyle"
             />
             <video
                 v-else-if="customMedia.kind === 'video'"
@@ -551,6 +556,7 @@ loading_listener((event) => {
             <svg
                 v-else-if="layout.progressStyle === 'wave'"
                 class="splash__wave"
+                :style="{ clipPath: `inset(0 ${100 - Math.min(100, progress)}% 0 0)` }"
                 viewBox="0 0 160 24"
                 preserveAspectRatio="none"
                 aria-hidden="true"
@@ -567,10 +573,19 @@ loading_listener((event) => {
                     d="M0 12 Q 20 2, 40 12 T 80 12 T 120 12 T 160 12"
                 />
             </svg>
+            <!--
+                12 个点按进度点亮：原来只有 3 个点一起闪，完全看不出「跑到哪了」。
+                点阵也必须能表达进度，否则它只是一种装饰，不是进度条。
+            -->
             <div v-else-if="layout.progressStyle === 'dots'" class="splash__dots">
-                <span :style="{ background: accentSolid }" />
-                <span :style="{ background: accentSolid }" />
-                <span :style="{ background: accentSolid }" />
+                <span
+                    v-for="dot in 12"
+                    :key="dot"
+                    :style="{
+                        background: accentSolid,
+                        opacity: dot * (100 / 12) <= Math.min(100, progress) + 0.001 ? 1 : 0.18,
+                    }"
+                />
             </div>
             <svg v-else class="splash__ring" viewBox="0 0 44 44" aria-hidden="true">
                 <circle cx="22" cy="22" r="18" />
@@ -731,8 +746,9 @@ loading_listener((event) => {
     fill: none;
     stroke-width: 2.5;
     stroke-linecap: round;
-    stroke-dasharray: 90 260;
-    animation: splash-wave 1.6s linear infinite;
+    /* 虚线段 + 流动：波形在动，同时外层按进度裁切，才有「浪在推进」的感觉 */
+    stroke-dasharray: 10 6;
+    animation: splash-wave 1.1s linear infinite;
 }
 
 @keyframes splash-wave {
@@ -751,11 +767,11 @@ loading_listener((event) => {
 }
 
 .splash__dots span {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: #9fd8ff;
-    animation: splash-dot 1.1s ease-in-out infinite;
+    transition: opacity 160ms ease-out;
 }
 
 .splash__dots span:nth-child(2) {

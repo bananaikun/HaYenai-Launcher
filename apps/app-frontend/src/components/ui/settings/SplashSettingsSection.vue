@@ -18,6 +18,9 @@ import {
     useVIntl,
 } from '@modrinth/ui'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+
+import SplashWallpaperPicker from './SplashWallpaperPicker.vue'
+import { wallpaperBaseUrl, wallpaperPosterUrl, wallpaperState } from '@/helpers/wallpaper'
 import { open } from '@tauri-apps/plugin-dialog'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -94,6 +97,7 @@ const messages = defineMessages({
         id: 'app.splash-settings.no-wallpapers',
         defaultMessage: 'No wallpapers found in the library yet.',
     },
+    back: { id: 'app.splash-settings.back', defaultMessage: 'Back' },
     pickWallpaperHint: {
         id: 'app.splash-settings.pick-wallpaper-hint',
         defaultMessage:
@@ -213,6 +217,9 @@ const mediaLabel = computed(() => {
 onBeforeUnmount(() => stopPreviewProgress())
 
 onMounted(async () => {
+    // 壁纸清单在挂载时就拉一次：这个组件在「外观」和「首页与导航」两个 scope 下
+    // 会各渲染一份，靠 openAdjust 里那次调用会填到另一个实例上（网格一直是 0 格）。
+    void loadWallpapers()
     try {
         config.value = await invoke<SplashConfig>('splash_get_config')
     } catch (error) {
@@ -268,8 +275,9 @@ const previewProgress = ref(0)
 
 function openAdjust(): void {
     adjustModal.value?.show()
-    void refreshPreview()
     void loadWallpapers()
+    void refreshPreview()
+
     startPreviewProgress()
 }
 
@@ -280,6 +288,9 @@ function setScrim(event: Event): void {
 function setBlur(event: Event): void {
     setLayoutLocal({ blur: Number((event.target as HTMLInputElement).value) })
 }
+
+/** 只有「视频类启动素材」才用 <video>，场景壁纸的封面（gif/png）必须用 <img>。 */
+const isVideoPreview = computed(() => config.value.media?.kind === 'video')
 
 const stageMediaStyle = computed(() => ({
     filter: layout.value.blur > 0 ? `blur(${layout.value.blur}px)` : undefined,
@@ -294,6 +305,14 @@ const ringOffset = computed(() => ({
 async function refreshPreview(): Promise<void> {
     if (!config.value.media) {
         previewUrl.value = null
+        return
+    }
+    // 场景型没有静态素材文件（`splash_media_path` 返回 null），
+    // 预览和「跟随主题色」都改用这张壁纸自己的封面图 —— 否则取色函数直接 return，
+    // 按了「跟随壁纸主题色」毫无反应（这正是主人遇到的）。
+    if (config.value.media.kind === 'scene') {
+        const meta = wallpapers.value.find((item) => item.id === config.value.media!.file)
+        previewUrl.value = meta ? wallpaperPosterUrl(meta) : null
         return
     }
     try {
@@ -377,13 +396,46 @@ interface WallpaperOption {
     title: string
     /** `scene` 的可以真渲染，其余（视频/网页）只能用海报帧。 */
     type: string
+    /** 包内封面相对路径，用来出缩略图。没有就是 null。 */
+    preview: string | null
 }
 
-const wallpapers = ref<WallpaperOption[]>([])
+/**
+ * 壁纸清单直接读全局单例。这个组件在「外观」和「首页与导航」下各有一份实例，
+ * 之前用实例内的 ref 会出现「填到了另一个实例」的问题（网格始终 0 格）。
+ */
+const wallpapers = computed<WallpaperOption[]>(() =>
+    wallpaperState.items.map((item) => ({
+        id: item.id,
+        title: item.title || item.id,
+        type: item.type ?? 'other',
+        preview: item.preview ?? null,
+    })),
+)
 const wallpapersLoading = ref(false)
 
 const wallpaperOptions = computed(() =>
     wallpapers.value.map((item) => ({ value: item.id, label: item.title })),
+)
+
+/**
+ * 当前作为启动背景的壁纸 id。
+ * 只有 `kind === 'scene'` 才有 id（图片/视频存的是 splash 目录下的文件名），
+ * 所以这种情况不高亮任何卡片。
+ */
+
+const currentWallpaperThumb = computed(() =>
+    currentWallpaper.value ? wallpaperPosterUrl(currentWallpaper.value) : null,
+)
+
+const currentWallpaper = computed(() =>
+    currentWallpaperId.value
+        ? wallpapers.value.find((item) => item.id === currentWallpaperId.value)
+        : undefined,
+)
+
+const currentWallpaperId = ref<string | null>(
+    config.value.media?.kind === 'scene' ? config.value.media.file : null,
 )
 
 const wallpaperSelection = computed({
@@ -394,17 +446,20 @@ const wallpaperSelection = computed({
 })
 
 async function loadWallpapers(): Promise<void> {
-    if (wallpapers.value.length || wallpapersLoading.value) return
+    // 只挡「正在加载中」的重复调用；不要因为「已经有数据」就跳过 ——
+    // 之前一次失败会让列表永久空着，重开弹窗也救不回来。
+    if (wallpapersLoading.value) return
     wallpapersLoading.value = true
     try {
-        const list = await invoke<Array<{ id: string; title?: string; type?: string }>>(
-            'plugin:wallpaper|wallpaper_list',
-        )
-        wallpapers.value = list.map((item) => ({
-            id: item.id,
-            title: item.title || item.id,
-            type: item.type ?? 'other',
-        }))
+        const list = await invoke<
+            Array<{ id: string; title?: string; type?: string; preview?: string }>
+        >('plugin:wallpaper|wallpaper_list')
+        // ⚠ `wallpapers` 是 computed（从 wallpaperState.items 派生），
+        // 以前这里写成 `wallpapers.value = ...` —— **给 computed 赋值永远无效**，
+        // 网格因此一直 0 格。要填的是它的数据源。
+        if (list.length) {
+            wallpaperState.items = list as never
+        }
     } catch (error) {
         report(error)
     } finally {
@@ -413,6 +468,42 @@ async function loadWallpapers(): Promise<void> {
 }
 
 /** 用壁纸库里的那张（WE 场景/视频都行）的**海报图**当启动画面背景。 */
+/**
+ * 选完场景壁纸立刻把这个包「预热」一遍。
+ *
+ * 只是把 `project.json` 拉一次塞进 WebView 的 HTTP 缓存 —— 自定义协议的资源会
+ * 走缓存，下次冷启动时场景首帧能早几百毫秒到几秒。真正的解包仍由 webwallgl 做，
+ * 那不在这里能优化的范围。
+ */
+async function warmScenePackage(id: string): Promise<void> {
+    try {
+        await fetch(`${wallpaperBaseUrl(id)}project.json`, { cache: 'force-cache' })
+    } catch {
+        // 预热失败不影响任何功能，下次启动慢一点而已。
+    }
+}
+
+async function pickWallpaper(id: string): Promise<void> {
+    await applyWallpaper(id)
+}
+
+/**
+ * 壁纸选择器设好背景之后回调。
+ *
+ * ⚠ 必须**重新读一次配置**：选择器是自己 invoke 的（它不接收父组件状态），
+ * 父组件的 `config` 还是旧的，直接 refreshPreview 会拿旧的 media 判断，
+ * 于是预览永远是黑的。
+ */
+async function onPickerPicked(): Promise<void> {
+    try {
+        config.value = await invoke<SplashConfig>('splash_get_config')
+    } catch {
+        // 读不到就沿用旧配置，预览会显示空态，但不影响已经设好的背景。
+    }
+    await refreshPreview()
+    await applyThemeColors()
+}
+
 async function applyWallpaper(id: string): Promise<void> {
     busy.value = true
     try {
@@ -424,6 +515,9 @@ async function applyWallpaper(id: string): Promise<void> {
                 ? 'splash_set_media_from_scene'
                 : 'splash_set_media_from_wallpaper'
         config.value = await invoke<SplashConfig>(command, { id })
+        currentWallpaperId.value = target?.type === 'scene' ? id : null
+        closePicker()
+        if (target?.type === 'scene') void warmScenePackage(id)
         await refreshPreview()
         await applyThemeColors()
     } catch (error) {
@@ -706,17 +800,8 @@ async function clearMedia(): Promise<void> {
                         <span class="splash-adjust__label">{{
                             formatMessage(messages.pickWallpaper)
                         }}</span>
-                        <Combobox
-                            v-model="wallpaperSelection"
-                            :options="wallpaperOptions"
-                            :disabled="wallpapersLoading"
-                            :placeholder="formatMessage(messages.pickWallpaper)"
-                            :no-options-message="formatMessage(messages.noWallpapers)"
-                            show-no-options-when-empty
-                        />
-                        <span class="splash-adjust__value">{{
-                            formatMessage(messages.pickWallpaperHint)
-                        }}</span>
+                        <!-- 独立组件：自己加载、自己渲染，父组件不参与它的状态 -->
+                        <SplashWallpaperPicker @picked="onPickerPicked" />
                     </div>
 
                     <div class="splash-adjust__field">
@@ -798,8 +883,13 @@ async function clearMedia(): Promise<void> {
                         @pointercancel="onPointerUp"
                         @pointerleave="onPointerUp"
                     >
+                        <!--
+                            ⚠ 判断「用 video 还是 img」要看真正的媒体类型，不是「有没有 url」。
+                            场景壁纸的封面是 `preview.gif`，以前被塞进 `<video src="...gif">`
+                            —— 浏览器播不了 GIF，预览区就是一个黑块（主人报的「预览没渲染」）。
+                        -->
                         <img
-                            v-if="previewUrl && config.media?.kind === 'image'"
+                            v-if="previewUrl && !isVideoPreview"
                             :src="previewUrl"
                             alt=""
                             class="splash-stage__media"
@@ -840,17 +930,55 @@ async function clearMedia(): Promise<void> {
                             }"
                             @pointerdown="onPointerDown('progress', $event)"
                         >
-                            <div v-if="layout.progressStyle === 'bar'" class="splash-stage__track">
+                            <!--
+                                ⚠ 预览必须把 7 种样式都画出来。
+                                以前只做了 bar / dots / ring，选条纹或波浪时预览区直接空白，
+                                看起来就是「样式没实现」。
+                            -->
+                            <div
+                                v-if="
+                                    layout.progressStyle === 'bar' ||
+                                    layout.progressStyle === 'stripes' ||
+                                    layout.progressStyle === 'pulse'
+                                "
+                                class="splash-stage__track"
+                            >
                                 <div
                                     class="splash-stage__bar"
+                                    :class="{
+                                        'splash-stage__bar--stripes':
+                                            layout.progressStyle === 'stripes',
+                                        'splash-stage__bar--pulse':
+                                            layout.progressStyle === 'pulse',
+                                    }"
                                     :style="{ width: `${previewProgress}%` }"
                                 />
                             </div>
+                            <svg
+                                v-else-if="layout.progressStyle === 'wave'"
+                                class="splash-stage__wave"
+                                :style="{
+                                    clipPath: `inset(0 ${100 - previewProgress}% 0 0)`,
+                                }"
+                                viewBox="0 0 160 24"
+                                preserveAspectRatio="none"
+                            >
+                                <path
+                                    class="splash-stage__wave-path"
+                                    d="M0 12 Q 20 2, 40 12 T 80 12 T 120 12 T 160 12"
+                                />
+                            </svg>
                             <div
                                 v-else-if="layout.progressStyle === 'dots'"
                                 class="splash-stage__dots"
                             >
-                                <span /><span /><span />
+                                <span
+                                    v-for="dot in 12"
+                                    :key="dot"
+                                    :style="{
+                                        opacity: dot * (100 / 12) <= previewProgress ? 1 : 0.18,
+                                    }"
+                                />
                             </div>
                             <svg
                                 v-else-if="layout.progressStyle === 'ring'"
@@ -906,6 +1034,166 @@ async function clearMedia(): Promise<void> {
     font-size: 12px;
     font-weight: 600;
     color: var(--color-text-primary);
+}
+
+.splash-wp-current {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.splash-wp-current img {
+    width: 46px;
+    height: 28px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: var(--glass-2);
+}
+
+.splash-wp-current span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.splash-wp-picker {
+    display: block;
+}
+
+.splash-wp-picker > summary {
+    list-style: none;
+}
+
+.splash-wp-picker > summary::-webkit-details-marker {
+    display: none;
+}
+
+.splash-wp-picker[open] .splash-wp-chevron {
+    transform: rotate(180deg);
+}
+
+.splash-wp-grid {
+    margin-top: 0.35rem;
+    max-height: 320px;
+}
+
+.splash-wp-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.3rem 0.45rem;
+    border-radius: 10px;
+    border: 1px solid var(--stroke-1);
+    background: var(--glass-1);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition:
+        background var(--t-fast) var(--ease),
+        border-color var(--t-fast) var(--ease);
+}
+
+.splash-wp-toggle:hover {
+    background: var(--glass-2);
+    border-color: color-mix(in srgb, var(--color-brand) 45%, transparent);
+}
+
+.splash-wp-toggle img {
+    width: 46px;
+    height: 28px;
+    object-fit: cover;
+    border-radius: 6px;
+    flex-shrink: 0;
+    background: var(--glass-2);
+}
+
+.splash-wp-toggle-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.splash-wp-chevron {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    color: var(--color-text-tertiary);
+    transition: transform var(--t-fast) var(--ease);
+}
+
+.splash-wp-chevron.open {
+    transform: rotate(180deg);
+}
+
+.splash-wp-chevron svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.splash-wp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 0.35rem;
+    max-height: 232px;
+    overflow-y: auto;
+    padding: 0.15rem;
+}
+
+.splash-wp-cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--stroke-1);
+    background: var(--glass-1);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    overflow: hidden;
+    transition:
+        border-color var(--t-fast) var(--ease),
+        background var(--t-fast) var(--ease);
+}
+
+.splash-wp-cell:hover {
+    border-color: color-mix(in srgb, var(--color-brand) 55%, transparent);
+    background: var(--glass-2);
+}
+
+.splash-wp-cell.selected {
+    border-color: var(--color-brand);
+    background: color-mix(in srgb, var(--color-brand) 12%, transparent);
+    color: var(--text-0);
+}
+
+.splash-wp-cell img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    display: block;
+    background: var(--glass-2);
+}
+
+.splash-wp-cell span {
+    font-size: 0.62rem;
+    line-height: 1.25;
+    padding: 0 0.25rem 0.25rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .splash-adjust__value {
@@ -1075,8 +1363,8 @@ async function clearMedia(): Promise<void> {
 }
 
 .splash-stage__dots span {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: #9fd8ff;
     animation: splash-preview-dot 1.1s ease-in-out infinite;
@@ -1127,5 +1415,29 @@ async function clearMedia(): Promise<void> {
     gap: 10px;
     font-size: 12px;
     color: var(--text-1);
+}
+
+.splash-stage__wave {
+    width: 12rem;
+    height: 20px;
+    overflow: visible;
+}
+
+.splash-stage__wave-path {
+    fill: none;
+    stroke: #9fd8ff;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 10 6;
+    animation: splash-stage-wave 1.1s linear infinite;
+}
+
+@keyframes splash-stage-wave {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -16;
+    }
 }
 </style>

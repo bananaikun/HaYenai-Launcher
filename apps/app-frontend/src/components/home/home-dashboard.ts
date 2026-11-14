@@ -4,9 +4,21 @@ export const HOME_WIDGET_STANDARD_SIZES = ['1x1', '2x1', '1x2', '2x2'] as const
 /* 2026-10-25 09:00 主人要求「全部首页小组件都支持最小 1×1 最大 5×3」：
    把 1..5 列 × 1..3 行全 15 种都列为合法值（原来的上限是 3×2）。 */
 export const HOME_WIDGET_SIZES = [
-    '1x1', '2x1', '3x1', '4x1', '5x1',
-    '1x2', '2x2', '3x2', '4x2', '5x2',
-    '1x3', '2x3', '3x3', '4x3', '5x3',
+    '1x1',
+    '2x1',
+    '3x1',
+    '4x1',
+    '5x1',
+    '1x2',
+    '2x2',
+    '3x2',
+    '4x2',
+    '5x2',
+    '1x3',
+    '2x3',
+    '3x3',
+    '4x3',
+    '5x3',
 ] as const
 export const HOME_WIDGET_GRID_GAP = 16
 export const HOME_WIDGET_GRID_ROW_HEIGHT = 160
@@ -39,6 +51,7 @@ export type HomeWidgetKind =
     | 'recent'
     | 'calendar'
     | 'system'
+    | 'lyrics'
     | 'servers'
     | 'pinned-instances'
     | 'pinned-worlds'
@@ -112,6 +125,7 @@ export const HOME_WIDGET_SIZE_OPTIONS: Record<HomeWidgetKind, readonly HomeWidge
     recent: HOME_WIDGET_SIZES,
     calendar: HOME_WIDGET_SIZES,
     system: HOME_WIDGET_SIZES,
+    lyrics: HOME_WIDGET_SIZES,
     servers: HOME_WIDGET_SIZES,
     'pinned-instances': HOME_WIDGET_SIZES,
     'pinned-worlds': HOME_WIDGET_SIZES,
@@ -126,6 +140,7 @@ export const HOME_WIDGET_DEFAULT_SIZE: Record<HomeWidgetKind, HomeWidgetSize> = 
     recent: '2x2',
     calendar: '1x2',
     system: '2x1',
+    lyrics: '2x1',
     servers: '2x2',
     'pinned-instances': '2x2',
     'pinned-worlds': '1x2',

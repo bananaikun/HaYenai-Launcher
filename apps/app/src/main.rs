@@ -942,6 +942,8 @@ fn main() {
             api::system_stats::system_stats,
             // 磁悬条/主题色：壁纸主色采样（前端 canvas 被自定义协议挡住）
             api::server_status::server_status,
+            // 磁悬条 · 服务器卡片的 HTTP 探活（拿真实状态码，不走 opaque response）
+            api::http_probe::http_probe,
             api::wallpaper_accent::wallpaper_accent,
             // AI 方案（人格/规则）：插件通道的权限清单是编译期快照，加命令不生效，走主 handler
             api::ai::ai_preset_list,

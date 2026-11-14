@@ -384,11 +384,23 @@ async fn set_memory(instance_id: &str, megabytes: u64) -> Result<Value> {
     }))
 }
 
+/// 实例的真实根目录。
+///
+/// ⚠ 不能用 `instance::get().instance.path`：那个字段对「直接关联到某个 .minecraft
+/// 的实例」是空的，拼上 `screenshots` 之后就变成相对 exe 目录的路径，
+/// 表现是工具一律返回 `os error 3（系统找不到指定的路径）`。
+/// `get_full_path` 内部走 InstanceRuntimeAdapter，两种实例形态都能解析。
 async fn instance_root(instance_id: &str) -> Result<PathBuf> {
-    let meta = theseus::instance::get(instance_id)
-        .await?
-        .ok_or_else(|| bad_args(format!("实例不存在：{instance_id}")))?;
-    Ok(PathBuf::from(meta.instance.path))
+    let path = theseus::instance::get_full_path(instance_id)
+        .await
+        .map_err(|error| bad_args(format!("解析实例目录失败：{error}")))?;
+    if !path.is_dir() {
+        return Err(bad_args(format!(
+            "实例目录不存在：{}（实例 {instance_id}）",
+            path.display()
+        )));
+    }
+    Ok(path)
 }
 
 /// 把相对路径拼到实例根目录上，并确认**结果仍在根目录内**。

@@ -22,6 +22,7 @@ import {
     safeAnnouncementUrl,
     toAnnouncementEntries,
 } from '@/helpers/remote-announcements'
+import { getVersion } from '@tauri-apps/api/app'
 import { fetchGithubReleases } from '@/helpers/github-releases'
 
 const props = defineProps<{ ready: boolean; previewOnly?: boolean }>()
@@ -62,6 +63,18 @@ const selected = ref<RemoteAnnouncement | null>(null)
 const active = ref(false)
 const centerOpen = ref(false)
 const startupNotice = ref<RemoteAnnouncement | null>(null)
+
+/** 实际运行版本（来自 Tauri），用来盖掉公告标题里写死的旧版本号。 */
+const liveVersion = ref('')
+
+/**
+ * 公告标题来自 GitHub release 的 name（例如 `HaYenai 1.0.40`），
+ * 主人要求它跟着**实际版本**走 —— 只替换开头的 `HaYenai x.y.z`，正文不动。
+ */
+function titleWithLiveVersion(title: string): string {
+    if (!liveVersion.value || !title) return title
+    return title.replace(/^(\s*HaYenai\s+)v?\d+\.\d+\.\d+/i, `$1${liveVersion.value}`)
+}
 const html = computed(() => renderString(selected.value?.content ?? ''))
 const stateKey = 'axolotl-remote-announcements-v2'
 const read = reactive(new Set<string>())
@@ -289,6 +302,10 @@ function preview(type: RemoteAnnouncement['type'], withAction = false) {
 }
 defineExpose({ preview })
 onMounted(() => {
+    // 版本号只取一次：它是静态的，没必要跟着公告刷新。
+    void getVersion()
+        .then((value) => (liveVersion.value = value))
+        .catch(() => undefined)
     if (props.previewOnly) return
     try {
         const saved = JSON.parse(localStorage.getItem(stateKey) ?? 'null')
@@ -336,7 +353,7 @@ onUnmounted(() => {
                 {{ formatMessage(messages.unread) }}
             </div>
             <div class="font-semibold text-[var(--color-text-primary)]">
-                {{ startupNotice.title }}
+                {{ titleWithLiveVersion(startupNotice.title) }}
             </div>
             <div
                 v-if="startupNotice.summary"

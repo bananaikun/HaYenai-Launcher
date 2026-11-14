@@ -97,6 +97,7 @@ import NavButton from '@/components/ui/NavButton.vue'
 import OfflineAccountRestrictionModal from '@/components/ui/OfflineAccountRestrictionModal.vue'
 import OverlayScrollbar from '@/components/ui/OverlayScrollbar.vue'
 import MagneticBar from '@/components/ui/magnetic/MagneticBar.vue'
+import { readMagneticSettings } from '@/helpers/magnetic-settings'
 import { applyWallpaperTheme } from '@/helpers/wallpaper-theme'
 import { startRotation, stopRotation } from '@/helpers/wallpaper-rotation'
 import NavRail from '@/components/ui/NavRail.vue'
@@ -529,6 +530,19 @@ watch(
 )
 
 const stateInitialized = ref(false)
+
+/**
+ * 磁悬条总开关（设置 → 外观 → 磁悬条）。
+ * 关掉时**整条不渲染**：不占位、不轮询、不订阅下载事件。
+ * 这里单独镜像一份而不是让组件自己 v-if，是因为组件一旦挂载就会起定时器。
+ */
+const magneticBarEnabled = ref(readMagneticSettings().barEnabled !== false)
+function syncMagneticBarEnabled(): void {
+    magneticBarEnabled.value = readMagneticSettings().barEnabled !== false
+}
+window.addEventListener('hayenai:magnetic-changed', syncMagneticBarEnabled)
+onUnmounted(() => window.removeEventListener('hayenai:magnetic-changed', syncMagneticBarEnabled))
+
 // 壁纸在首屏可交互之后、空闲时读一次（协作规范 §4.1 第 11 条）。只读一次：
 // 之后列表与配置的刷新由外观页自己触发。
 watch(
@@ -3339,7 +3353,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
             </div>
         </div>
     </div>
-    <MagneticBar v-if="stateInitialized && !restarting" />
+    <MagneticBar v-if="stateInitialized && !restarting && magneticBarEnabled" />
     <I18nDebugPanel />
     <NotificationPanel
         :has-sidebar="sidebarVisible"

@@ -284,6 +284,24 @@
   "app.action-bar.view-logs": {
     "message": "View logs"
   },
+  "app.agent.ask-example": {
+    "message": "Give an example"
+  },
+  "app.agent.ask-fix": {
+    "message": "Just fix it"
+  },
+  "app.agent.ask-more": {
+    "message": "Tell me more"
+  },
+  "app.agent.ask-title": {
+    "message": "Quick replies"
+  },
+  "app.agent.copy": {
+    "message": "Copy"
+  },
+  "app.agent.regenerate": {
+    "message": "Regenerate"
+  },
   "app.ai-settings.add-model": {
     "message": "Add model"
   },
@@ -536,6 +554,30 @@
   "app.appearance-settings.advanced-rendering.title": {
     "message": "Advanced rendering"
   },
+  "app.appearance-settings.advanced.description": {
+    "message": "Hairline controls for the glass itself. Defaults reproduce the stock look — change them only if you know what you want."
+  },
+  "app.appearance-settings.advanced.glass": {
+    "message": "Glass whiteness"
+  },
+  "app.appearance-settings.advanced.glass-description": {
+    "message": "How much white the glass gradient carries. 0% is pure blur, higher is milkier."
+  },
+  "app.appearance-settings.advanced.motion": {
+    "message": "Motion speed"
+  },
+  "app.appearance-settings.advanced.motion-description": {
+    "message": "Base duration for hover/fade transitions across the launcher."
+  },
+  "app.appearance-settings.advanced.stroke": {
+    "message": "Hairline border"
+  },
+  "app.appearance-settings.advanced.stroke-description": {
+    "message": "Opacity of the 1px border on every glass surface."
+  },
+  "app.appearance-settings.advanced.title": {
+    "message": "Fine tuning"
+  },
   "app.appearance-settings.auto-install-dependencies.description": {
     "message": "Download required dependencies when installing content. You can adjust the selection in the confirmation dialog before each install."
   },
@@ -695,6 +737,12 @@
   "app.appearance-settings.glass.reset": {
     "message": "Reset to default"
   },
+  "app.appearance-settings.glass.saturate": {
+    "message": "Wallpaper saturation"
+  },
+  "app.appearance-settings.glass.saturate-description": {
+    "message": "Saturation of the wallpaper seen through the glass. 100% is the original image; the default 105% is only slightly richer."
+  },
   "app.appearance-settings.glass.wallpaper-accent": {
     "message": "Accent follows wallpaper"
   },
@@ -706,6 +754,9 @@
   },
   "app.appearance-settings.glass.wallpaper-scheme-description": {
     "message": "Switches between the light and dark palette based on how bright the wallpaper is."
+  },
+  "app.appearance-settings.jump-nav": {
+    "message": "Appearance sections"
   },
   "app.appearance-settings.music.title": {
     "message": "Music"
@@ -2672,6 +2723,12 @@
   "app.home.layout.toggle": {
     "message": "Minimal Home"
   },
+  "app.home.lyrics.empty": {
+    "message": "Nothing playing"
+  },
+  "app.home.lyrics.hint": {
+    "message": "Start the music player"
+  },
   "app.home.minimal.change-instance": {
     "message": "Change Home instance"
   },
@@ -2720,8 +2777,17 @@
   "app.home.recent.title": {
     "message": "Start from your recent projects"
   },
+  "app.home.servers.add": {
+    "message": "Add server"
+  },
+  "app.home.servers.blocked": {
+    "message": "ping only"
+  },
   "app.home.servers.change-local-server": {
     "message": "Change linked local server"
+  },
+  "app.home.servers.checking": {
+    "message": "Checking…"
   },
   "app.home.servers.empty": {
     "message": "Favorite a server and it will be pinned here."
@@ -2762,8 +2828,14 @@
   "app.home.servers.pinned": {
     "message": "Pinned servers"
   },
+  "app.home.servers.placeholder": {
+    "message": "play.example.com:25565"
+  },
   "app.home.servers.players-online": {
     "message": "{online}/{max} online"
+  },
+  "app.home.servers.remove": {
+    "message": "Remove"
   },
   "app.home.servers.stop": {
     "message": "Stop"
@@ -2920,6 +2992,12 @@
   },
   "app.home.widgets.server-description": {
     "message": "Choose one server for a dedicated join shortcut."
+  },
+  "app.home.widgets.servers": {
+    "message": "Server status"
+  },
+  "app.home.widgets.servers-description": {
+    "message": "Latency, player count and MOTD of the servers you add."
   },
   "app.home.widgets.system": {
     "message": "System resources"
@@ -6275,6 +6353,291 @@
   "app.logagent.source-local": {
     "message": "Local LogAgent"
   },
+  "app.magnetic-settings.bar-pages": {
+    "message": "Pages on the bar"
+  },
+  "app.magnetic-settings.bar-pages-desc": {
+    "message": "These are the pages shown on the floating bar itself (scroll or click the dots). Order here = order on the bar."
+  },
+  "app.magnetic-settings.enabled": {
+    "message": "Show the floating bar"
+  },
+  "app.magnetic-settings.enabled-desc": {
+    "message": "Turn the whole bar off when it gets in the way. Nothing renders and nothing polls."
+  },
+  "app.magnetic-settings.move-down": {
+    "message": "Move down"
+  },
+  "app.magnetic-settings.move-up": {
+    "message": "Move up"
+  },
+  "app.magnetic-settings.opacity": {
+    "message": "Background opacity"
+  },
+  "app.magnetic-settings.opacity-desc": {
+    "message": "How solid the bar background looks. 0 keeps only blur and the hairline border."
+  },
+  "app.magnetic-settings.reset-layout": {
+    "message": "Widget layout"
+  },
+  "app.magnetic-settings.reset-layout-action": {
+    "message": "Reset to default"
+  },
+  "app.magnetic-settings.reset-layout-desc": {
+    "message": "Widgets are placed freely in the panel — drag them anywhere. This puts them all back to the default rows."
+  },
+  "app.magnetic-settings.scale": {
+    "message": "Size"
+  },
+  "app.magnetic-settings.scale-desc": {
+    "message": "Changes the height and padding of the bar."
+  },
+  "app.magnetic-settings.server": {
+    "message": "Server status"
+  },
+  "app.magnetic-settings.server-desc": {
+    "message": "Shown by the server widget. Use host:port for a Minecraft server (real ping and player count), or an http(s) URL to check that it answers 2xx."
+  },
+  "app.magnetic-settings.server-name": {
+    "message": "Display name"
+  },
+  "app.magnetic-settings.server-url": {
+    "message": "Address"
+  },
+  "app.magnetic-settings.title": {
+    "message": "Floating bar"
+  },
+  "app.magnetic-settings.widgets": {
+    "message": "Widgets in the panel"
+  },
+  "app.magnetic-settings.widgets-desc": {
+    "message": "Tick to show, use the arrows to reorder. Order here is the order in the panel."
+  },
+  "app.magnetic-settings.width": {
+    "message": "Panel width"
+  },
+  "app.magnetic-settings.width-desc": {
+    "message": "How wide the expanded panel is. Narrower = the compact look."
+  },
+  "app.magnetic.add-widget": {
+    "message": "Add widget"
+  },
+  "app.magnetic.all-added": {
+    "message": "Every widget is already shown."
+  },
+  "app.magnetic.common-title": {
+    "message": "Layout"
+  },
+  "app.magnetic.dbl-launch": {
+    "message": "Double-click to launch"
+  },
+  "app.magnetic.dialog-label": {
+    "message": "Floating bar menu"
+  },
+  "app.magnetic.disk": {
+    "message": "Disk"
+  },
+  "app.magnetic.done": {
+    "message": "Done"
+  },
+  "app.magnetic.free": {
+    "message": "free"
+  },
+  "app.magnetic.kind.instance": {
+    "message": "Launch"
+  },
+  "app.magnetic.kind.route": {
+    "message": "Go to"
+  },
+  "app.magnetic.kind.widget": {
+    "message": "Widget"
+  },
+  "app.magnetic.no-download": {
+    "message": "No active download"
+  },
+  "app.magnetic.no-favorites": {
+    "message": "No favourited instances"
+  },
+  "app.magnetic.no-lyric": {
+    "message": "Nothing playing"
+  },
+  "app.magnetic.no-options": {
+    "message": "This widget has no options of its own."
+  },
+  "app.magnetic.no-results": {
+    "message": "Nothing matched."
+  },
+  "app.magnetic.no-widgets": {
+    "message": "No widgets enabled — add some in Settings → Home & navigation."
+  },
+  "app.magnetic.opt-24h": {
+    "message": "24-hour clock"
+  },
+  "app.magnetic.opt-cover": {
+    "message": "Show cover"
+  },
+  "app.magnetic.opt-download-rows": {
+    "message": "Rows"
+  },
+  "app.magnetic.opt-download-speed": {
+    "message": "Show speed"
+  },
+  "app.magnetic.opt-favorites": {
+    "message": "Favourites only"
+  },
+  "app.magnetic.opt-instances": {
+    "message": "Instances in shortcuts"
+  },
+  "app.magnetic.opt-last-played": {
+    "message": "Last played"
+  },
+  "app.magnetic.opt-latency": {
+    "message": "Show latency"
+  },
+  "app.magnetic.opt-launch": {
+    "message": "Launch button"
+  },
+  "app.magnetic.opt-players-url": {
+    "message": "Players URL (optional)"
+  },
+  "app.magnetic.opt-rows": {
+    "message": "Rows"
+  },
+  "app.magnetic.opt-seconds": {
+    "message": "Show seconds"
+  },
+  "app.magnetic.opt-server-timeout": {
+    "message": "Timeout"
+  },
+  "app.magnetic.opt-show-disk": {
+    "message": "Disk usage"
+  },
+  "app.magnetic.opt-stats-interval": {
+    "message": "Refresh every"
+  },
+  "app.magnetic.opt-week-numbers": {
+    "message": "Week numbers"
+  },
+  "app.magnetic.opt-week-start": {
+    "message": "Week starts on"
+  },
+  "app.magnetic.opt-weekday": {
+    "message": "Show weekday"
+  },
+  "app.magnetic.page.launch": {
+    "message": "Launch"
+  },
+  "app.magnetic.page.lyrics": {
+    "message": "Lyrics"
+  },
+  "app.magnetic.page.system": {
+    "message": "System"
+  },
+  "app.magnetic.pin-widget": {
+    "message": "Pin (lock position)"
+  },
+  "app.magnetic.players": {
+    "message": "online"
+  },
+  "app.magnetic.remove-widget": {
+    "message": "Remove"
+  },
+  "app.magnetic.reset-position": {
+    "message": "Reset position"
+  },
+  "app.magnetic.route.agent": {
+    "message": "Agent"
+  },
+  "app.magnetic.route.browse": {
+    "message": "Browse"
+  },
+  "app.magnetic.route.home": {
+    "message": "Home"
+  },
+  "app.magnetic.route.instances": {
+    "message": "Instances"
+  },
+  "app.magnetic.route.lab": {
+    "message": "Lab"
+  },
+  "app.magnetic.route.modpacks": {
+    "message": "Modpacks"
+  },
+  "app.magnetic.route.settings": {
+    "message": "Settings"
+  },
+  "app.magnetic.search": {
+    "message": "Search or jump to…"
+  },
+  "app.magnetic.server-name": {
+    "message": "Server name"
+  },
+  "app.magnetic.server-offline": {
+    "message": "Offline"
+  },
+  "app.magnetic.server-online": {
+    "message": "Online"
+  },
+  "app.magnetic.server-unknown": {
+    "message": "Checking…"
+  },
+  "app.magnetic.server-url": {
+    "message": "Health check URL"
+  },
+  "app.magnetic.settings": {
+    "message": "Widget settings"
+  },
+  "app.magnetic.shortcuts": {
+    "message": "Jump to"
+  },
+  "app.magnetic.unpin-widget": {
+    "message": "Unpin"
+  },
+  "app.magnetic.week-mon": {
+    "message": "Monday"
+  },
+  "app.magnetic.week-sun": {
+    "message": "Sunday"
+  },
+  "app.magnetic.widget-dialog-title": {
+    "message": "Widget settings"
+  },
+  "app.magnetic.widget-settings": {
+    "message": "Widget settings"
+  },
+  "app.magnetic.widget.calendar": {
+    "message": "Calendar"
+  },
+  "app.magnetic.widget.clock": {
+    "message": "Clock"
+  },
+  "app.magnetic.widget.date": {
+    "message": "Date"
+  },
+  "app.magnetic.widget.downloads": {
+    "message": "Downloads"
+  },
+  "app.magnetic.widget.lyrics": {
+    "message": "Now playing"
+  },
+  "app.magnetic.widget.server": {
+    "message": "Server"
+  },
+  "app.magnetic.widget.shortcuts": {
+    "message": "Shortcuts"
+  },
+  "app.magnetic.widget.system": {
+    "message": "System"
+  },
+  "app.magnetic.widget.versions": {
+    "message": "Instances"
+  },
+  "app.magnetic.width-label": {
+    "message": "Width"
+  },
+  "app.magnetic.width-unit": {
+    "message": "{cols} columns"
+  },
   "app.memory-display.available": {
     "message": "{memory} available"
   },
@@ -6950,6 +7313,63 @@
   "app.multiplayer.verifying": {
     "message": "Verifying..."
   },
+  "app.music.empty": {
+    "message": "No tracks loaded yet."
+  },
+  "app.music.loading": {
+    "message": "Connecting to the music source…"
+  },
+  "app.music.lyric-tab": {
+    "message": "Lyrics"
+  },
+  "app.music.mode-loop": {
+    "message": "Repeat all"
+  },
+  "app.music.mode-random": {
+    "message": "Shuffle"
+  },
+  "app.music.mode-single": {
+    "message": "Repeat one"
+  },
+  "app.music.mute": {
+    "message": "Mute"
+  },
+  "app.music.next": {
+    "message": "Next"
+  },
+  "app.music.no-lyrics": {
+    "message": "Instrumental — no lyrics."
+  },
+  "app.music.now-playing": {
+    "message": "Now playing"
+  },
+  "app.music.pause": {
+    "message": "Pause"
+  },
+  "app.music.play": {
+    "message": "Play"
+  },
+  "app.music.playlist-meta": {
+    "message": "Playlist"
+  },
+  "app.music.previous": {
+    "message": "Previous"
+  },
+  "app.music.queue-tab": {
+    "message": "Queue"
+  },
+  "app.music.reload": {
+    "message": "Reload"
+  },
+  "app.music.track-index": {
+    "message": "Track"
+  },
+  "app.music.unmute": {
+    "message": "Unmute"
+  },
+  "app.music.volume": {
+    "message": "Volume"
+  },
   "app.navigation.create-instance": {
     "message": "Create new instance"
   },
@@ -6971,6 +7391,9 @@
   "app.navigation.group.games": {
     "message": "Games"
   },
+  "app.navigation.group.media": {
+    "message": "Media"
+  },
   "app.navigation.group.online": {
     "message": "Online"
   },
@@ -6991,6 +7414,9 @@
   },
   "app.navigation.multiplayer": {
     "message": "Multiplayer"
+  },
+  "app.navigation.music": {
+    "message": "Music"
   },
   "app.navigation.no-instances": {
     "message": "No instances yet"
@@ -7895,6 +8321,12 @@
   "app.restarting": {
     "message": "Restarting..."
   },
+  "app.rooms.account-hint": {
+    "message": "Uses the account signed in to the launcher"
+  },
+  "app.rooms.no-account": {
+    "message": "No account signed in"
+  },
   "app.screenshots.copied": {
     "message": "Copied"
   },
@@ -8707,6 +9139,18 @@
   },
   "app.settings.about.development-team": {
     "message": "Development team"
+  },
+  "app.settings.about.diagnostics": {
+    "message": "Diagnostics"
+  },
+  "app.settings.about.diagnostics-channel": {
+    "message": "Update channel"
+  },
+  "app.settings.about.diagnostics-database": {
+    "message": "Database"
+  },
+  "app.settings.about.diagnostics-unavailable": {
+    "message": "Diagnostics are unavailable in this build."
   },
   "app.settings.about.license-attribution": {
     "message": "License & attribution"
@@ -11297,6 +11741,12 @@
   "app.settings.updates.announcements.history": {
     "message": "Version history"
   },
+  "app.settings.updates.announcements.loading": {
+    "message": "Loading release notes…"
+  },
+  "app.settings.updates.announcements.open-release": {
+    "message": "Open release page"
+  },
   "app.settings.updates.announcements.title": {
     "message": "Update announcements"
   },
@@ -11957,8 +12407,14 @@
   "app.skins.title": {
     "message": "Skin selector"
   },
+  "app.splash-settings.back": {
+    "message": "Back"
+  },
   "app.splash.checking-for-updates": {
     "message": "Checking for updates..."
+  },
+  "app.splash.preparing": {
+    "message": "Preparing your launcher…"
   },
   "app.splash.updating-app-directory": {
     "message": "Updating app directory..."

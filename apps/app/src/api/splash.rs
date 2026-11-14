@@ -325,14 +325,24 @@ pub fn splash_set_media_from_wallpaper<R: Runtime>(
         .into_iter()
         .find(|item| item.id == id)
         .ok_or_else(|| "这张壁纸已经不在了".to_string())?;
-    let preview = meta
-        .preview
-        .ok_or_else(|| "这张壁纸没有海报图，换一张试试".to_string())?;
-
-    let source = store.packages_dir().join(&id).join(&preview);
-    if !source.is_file() {
-        return Err("海报文件不在磁盘上，可能壁纸包损坏了".to_string());
-    }
+    // 视频类直接用**源视频**：启动画面本来就能播视频，比封面帧好得多
+    // （之前所有非场景类型都强制要海报，没海报的整类壁纸就完全用不了）。
+    let source = if matches!(meta.kind, theseus::wallpaper::WallpaperType::Video) {
+        let file = store.packages_dir().join(&id).join(&meta.file);
+        if !file.is_file() {
+            return Err("这张视频壁纸的源文件不在磁盘上".to_string());
+        }
+        file
+    } else {
+        let preview = meta.preview.clone().ok_or_else(|| {
+            "这张壁纸没有封面图，没法当启动背景（视频类会自动用源视频）".to_string()
+        })?;
+        let path = store.packages_dir().join(&id).join(&preview);
+        if !path.is_file() {
+            return Err("封面图文件不在磁盘上，可能壁纸包损坏了".to_string());
+        }
+        path
+    };
     store_media(&app, &source)
 }
 

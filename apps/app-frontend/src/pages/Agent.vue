@@ -112,6 +112,13 @@ const messages = defineMessages({
     phaseReplying: { id: 'app.agent.phase-replying', defaultMessage: 'Replying…' },
     phaseThinking: { id: 'app.agent.phase-thinking', defaultMessage: 'Thinking…' },
     phaseTool: { id: 'app.agent.phase-tool', defaultMessage: 'Calling {name}' },
+    copy: { id: 'app.agent.copy', defaultMessage: 'Copy' },
+    regenerate: { id: 'app.agent.regenerate', defaultMessage: 'Regenerate' },
+    delete: { id: 'app.agent.delete', defaultMessage: 'Delete' },
+    askTitle: { id: 'app.agent.ask-title', defaultMessage: 'Quick replies' },
+    askMore: { id: 'app.agent.ask-more', defaultMessage: 'Tell me more' },
+    askExample: { id: 'app.agent.ask-example', defaultMessage: 'Give an example' },
+    askFix: { id: 'app.agent.ask-fix', defaultMessage: 'Just fix it' },
     phaseDone: {
         id: 'app.agent.phase-done',
         defaultMessage: 'Done in {seconds}s · {tools} tool call(s)',
@@ -293,7 +300,45 @@ const currentSessionTitle = computed(() => {
     return firstUser.trim().slice(0, 40) || formatMessage(messages.newChat)
 })
 
-async function scrollToBottom() {
+/** 复制这一条（只复制正文，不带工具卡片）。 */
+async function copyBubble(bubble: Bubble): Promise<void> {
+    try {
+        await navigator.clipboard.writeText(bubble.text)
+    } catch {
+        // 剪贴板权限被拒：静默失败比弹一个错误框好。
+    }
+}
+
+/** 删掉这一条，并把它的前后文从历史里一起去掉（否则下一轮模型会看到"凭空消失"）。 */
+function deleteBubble(index: number): void {
+    const bubble = bubbles.value[index]
+    if (!bubble) return
+    bubbles.value.splice(index, 1)
+    // 历史里对应的那条也要删：user 与 assistant 是成对 push 的，按内容匹配最近一条。
+    const historyIndex = history.value.findLastIndex(
+        (item) => item.role === bubble.role && item.content === bubble.text,
+    )
+    if (historyIndex >= 0) history.value.splice(historyIndex, 1)
+    snapshotCurrent()
+}
+
+/** 重新生成：删掉这条回复，用上一条 user 消息重跑。 */
+async function regenerate(index: number): Promise<void> {
+    if (busy.value) return
+    let userIndex = index - 1
+    while (userIndex >= 0 && bubbles.value[userIndex]?.role !== 'user') userIndex -= 1
+    const userBubble = bubbles.value[userIndex]
+    if (!userBubble) return
+    deleteBubble(index)
+    const historyIndex = history.value.findLastIndex(
+        (item) => item.role === 'user' && item.content === userBubble.text,
+    )
+    if (historyIndex >= 0) history.value.splice(historyIndex, 1)
+    draft.value = userBubble.text
+    await send()
+}
+
+async function scrollToBottom(): Promise<void> {
     await nextTick()
     const el = threadEl.value
     if (el) el.scrollTop = el.scrollHeight
@@ -720,6 +765,45 @@ onMounted(async () => {
                         </div>
                         <div v-if="bubble.text" class="agent-text card">{{ bubble.text }}</div>
 
+                        <div
+                            v-if="bubble.role === 'assistant' && !bubble.phase && bubble.text"
+                            class="agent-msg-actions"
+                        >
+                            <button
+                                type="button"
+                                v-tooltip="formatMessage(messages.copy)"
+                                @click="copyBubble(bubble)"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                v-tooltip="formatMessage(messages.regenerate)"
+                                :disabled="busy"
+                                @click="regenerate(index)"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 12a9 9 0 1 0 3-6.7" />
+                                    <path d="M3 4v5h5" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                v-tooltip="formatMessage(messages.delete)"
+                                :disabled="busy"
+                                @click="deleteBubble(index)"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M4 7h16" />
+                                    <path d="M9 7V4h6v3" />
+                                    <path d="M6 7l1 13h10l1-13" />
+                                </svg>
+                            </button>
+                        </div>
+
                         <Card v-for="card in bubble.tools" :key="card.id" class="agent-tool">
                             <div class="agent-tool-head">
                                 <StatusLabel :label="card.name" class="agent-tool-name" />
@@ -944,6 +1028,8 @@ onMounted(async () => {
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    /* 只有对话区能滚：页面本身溢出就直接裁掉，别让外层跟着滚 */
+    overflow: hidden;
     gap: 0.9rem;
     padding: 1.15rem 1.35rem 0;
     box-sizing: border-box;
@@ -1050,6 +1136,56 @@ onMounted(async () => {
 .agent-bubble.user .agent-text {
     background: color-mix(in srgb, var(--c-a) 16%, transparent);
     border-color: color-mix(in srgb, var(--c-a) 34%, transparent);
+}
+
+.agent-msg-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding-left: 0.1rem;
+    opacity: 0;
+    transition: opacity var(--t-fast) var(--ease);
+}
+
+.agent-bubble:hover .agent-msg-actions,
+.agent-msg-actions:focus-within {
+    opacity: 1;
+}
+
+.agent-msg-actions button {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    transition:
+        background var(--t-fast) var(--ease),
+        color var(--t-fast) var(--ease);
+}
+
+.agent-msg-actions button:hover:not(:disabled) {
+    background: var(--glass-2);
+    border-color: var(--stroke-1);
+    color: var(--text-0);
+}
+
+.agent-msg-actions button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.agent-msg-actions svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .agent-tool {
@@ -1270,7 +1406,11 @@ onMounted(async () => {
     flex-direction: column;
     gap: 0.6rem;
     padding-bottom: 0.9rem;
+    /* ⚠ flex 子项不加 min-height:0，overflow-y 就是个摆设 —— 内容会把右栏撑高，
+       连带整个 body 溢出，看起来就是「右栏跟着对话区一起滚」。 */
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .agent-perm {

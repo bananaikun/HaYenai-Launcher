@@ -53,6 +53,7 @@ import {
 } from '@/components/home/home-dashboard'
 import { provideHomeDashboardRuntime } from '@/components/home/home-dashboard-runtime'
 import HomeCalendar from '@/components/home/HomeCalendar.vue'
+import HomeLyrics from '@/components/home/HomeLyrics.vue'
 import HomeServerStatus from '@/components/home/HomeServerStatus.vue'
 import HomeSystemStats from '@/components/home/HomeSystemStats.vue'
 import HomeGreeting from '@/components/home/HomeGreeting.vue'
@@ -665,6 +666,10 @@ defineExpose({ openWidgetPicker, setLayout })
                             <HomeCalendar
                                 v-else-if="widget.kind === 'calendar'"
                                 :instances="instances"
+                                :dashboard-size="effectiveSize(widget)"
+                            />
+                            <HomeLyrics
+                                v-else-if="widget.kind === 'lyrics'"
                                 :dashboard-size="effectiveSize(widget)"
                             />
                             <HomeSystemStats

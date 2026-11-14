@@ -31,6 +31,9 @@ pub struct SystemStats {
     /// 每秒磁盘读取/写入字节（所有物理盘求和）
     pub disk_read_bytes_per_sec: u64,
     pub disk_write_bytes_per_sec: u64,
+    /// 磁盘容量（所有卷求和，0 表示没读到）
+    pub disk_total_space: u64,
+    pub disk_available_space: u64,
     /// GPU 占用百分比。取不到就是 `None`（非 NVIDIA 机器、或没装驱动工具）——
     /// 界面上显示 `—`，不要用 0 冒充"空闲"。
     pub gpu: Option<f32>,
@@ -117,7 +120,7 @@ pub fn system_stats() -> Result<SystemStats, String> {
         rates
     };
 
-    let (disk_read_bytes_per_sec, disk_write_bytes_per_sec) = {
+    let (disk_read_bytes_per_sec, disk_write_bytes_per_sec, disk_total_space, disk_available_space) = {
         let mut list = disks()
             .lock()
             .map_err(|_| "disk stats lock poisoned".to_string())?;
@@ -129,6 +132,16 @@ pub fn system_stats() -> Result<SystemStats, String> {
             .iter()
             .map(|disk| disk.usage().total_written_bytes)
             .sum();
+        // 容量：跳过空卷（光驱 / 未挂载盘符），否则分母会掺进 0 容量的噪音卷
+        let (total_space, available_space) = list
+            .iter()
+            .filter(|disk| disk.total_space() > 0)
+            .fold((0u64, 0u64), |(total, avail), disk| {
+                (
+                    total.saturating_add(disk.total_space()),
+                    avail.saturating_add(disk.available_space()),
+                )
+            });
 
         let mut last = last_disk_sample()
             .lock()
@@ -149,7 +162,7 @@ pub fn system_stats() -> Result<SystemStats, String> {
             None => (0, 0),
         };
         *last = Some(DiskSample { at: now, read, written });
-        rates
+        (rates.0, rates.1, total_space, available_space)
     };
 
     let (gpu, gpu_name) = gpu_usage();
@@ -162,6 +175,8 @@ pub fn system_stats() -> Result<SystemStats, String> {
         tx_bytes_per_sec,
         disk_read_bytes_per_sec,
         disk_write_bytes_per_sec,
+        disk_total_space,
+        disk_available_space,
         gpu,
         gpu_name,
     })

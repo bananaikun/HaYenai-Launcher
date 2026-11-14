@@ -20,9 +20,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import StrokeText from '@/components/ui/fx/StrokeText.vue'
+import MagneticPanel from '@/components/ui/magnetic/MagneticPanel.vue'
 import InstanceIcon from '@/components/ui/InstanceIcon.vue'
 import { install_job_listener } from '@/helpers/events'
 import { list as listInstances, run as runInstance } from '@/helpers/instance'
+import { readMagneticSettings, type MagneticSettings } from '@/helpers/magnetic-settings'
 import { BAND_COUNT, readBands } from '@/helpers/music/music-analyser'
 import {
     currentSong,
@@ -58,10 +60,17 @@ const messages = defineMessages({
 
 type Mode = 'lyrics' | 'launch' | 'system'
 /** 顺序即主人指定的顺序：歌词 → 启动/版本 → 系统 */
-const MODES: Mode[] = ['lyrics', 'launch', 'system']
+/** 条子上实际轮播的页面：顺序与开关都由「设置 → 首页与导航 → 磁悬条」决定。 */
+const modes = computed<Mode[]>(() => {
+    const list = settings.value.barPages
+        .filter((item) => item.enabled)
+        .map((item) => item.id as Mode)
+    // 兜底：全关时至少留一页（配置层已经保证，这里再保一层）。
+    return list.length ? list : ['launch']
+})
 
 const mode = ref<Mode>('lyrics')
-const modeIndex = computed(() => MODES.indexOf(mode.value))
+const modeIndex = computed(() => modes.value.indexOf(mode.value))
 
 interface InstanceRow {
     id: string
@@ -303,6 +312,85 @@ const activeDownload = computed(() => downloads.value[0] ?? null)
    位置不持久化 —— "临时避让"语义，下次打开仍在默认位（否则用户忘了它去哪了）。 */
 const offset = ref({ x: 0, y: 0 })
 const dragging = ref(false)
+
+/* ---------------- 展开面板 ---------------- */
+
+const panelOpen = ref(false)
+const barEl = ref<HTMLElement | null>(null)
+
+/**
+ * 面板要 Teleport 到 body 才能正常模糊 —— 条子自己带 `transform`（拖动用），
+ * 而**祖先有 transform 时，子元素的 backdrop-filter 取样源会变成那个祖先**，
+ * 结果就是面板看着是"透明"的、没有模糊。
+ *
+ * 所以面板改成 fixed 定位，这里把条子的屏幕坐标算好传给它。
+ * 依赖 offset（拖动）与 panelOpen（展开）—— 拖动时跟着走。
+ */
+const panelAnchor = computed(() => {
+    void offset.value
+    void panelOpen.value
+    const el = barEl.value
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    return {
+        left: Math.round(rect.left + rect.width / 2),
+        bottom: Math.round(window.innerHeight - rect.top + 12),
+    }
+})
+const settings = ref<MagneticSettings>(readMagneticSettings())
+
+// 用户在设置里关掉当前页（比如把「歌词」关了）时，条子要立刻切到第一个可用页，
+// 否则 mode 指向一个不再渲染的分支，看起来就是"条子空了"。
+watch(
+    modes,
+    (list) => {
+        if (!list.includes(mode.value)) mode.value = list[0]
+    },
+    { immediate: true },
+)
+/** 这次按下有没有真的移动过 —— 用来区分「点击展开」与「拖动条子」。 */
+let dragMoved = false
+
+function refreshMagneticSettings(): void {
+    settings.value = readMagneticSettings()
+}
+
+function togglePanel(): void {
+    panelOpen.value = !panelOpen.value
+}
+
+function closePanel(): void {
+    panelOpen.value = false
+}
+
+function openMagneticSettings(): void {
+    panelOpen.value = false
+    // ⚠ 设置页只有 `/settings` 一个路由，分类是靠 **hash** 选的
+    // （Settings.vue 里读 `route.hash`）。以前写成 `/settings/appearance/home-navigation`，
+    // 匹配不到任何路由 ⇒ 打开是一片空白（主人报的「设置界面不完整」就是这个）。
+    void router.push({ path: '/settings', hash: '#home-navigation' })
+}
+
+/** 点面板外面就收起（条子自己的 pointerdown 已 stop，不会互相打架）。 */
+/**
+ * 点「面板之外」才收起。
+ *
+ * ⚠ 判断依据统一成 `data-magnetic-layer` 标记，而不是写死 `.mb-panel`。
+ * 面板里的右键菜单、组件设置弹窗都是 Teleport 到 body 的**兄弟节点**，
+ * 写死 `.mb-panel` 时它们一律被当成「面板外面」—— 一按弹窗里的控件，
+ * 条子就收起，弹窗跟着失去焦点消失（主人报的就是这个）。
+ * 以后再加弹层，只要给元素打上这个属性就自动免疫。
+ */
+function onDocumentPointerDown(event: PointerEvent): void {
+    if (!panelOpen.value) return
+    const target = event.target as HTMLElement | null
+    if (target?.closest('[data-magnetic-layer]') || target?.closest('.magnetic-bar')) return
+    panelOpen.value = false
+}
+
+function onDocumentKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && panelOpen.value) panelOpen.value = false
+}
 let dragStart = { x: 0, y: 0, ox: 0, oy: 0 }
 let returnTimer: number | null = null
 
@@ -325,13 +413,24 @@ function onDragStart(event: PointerEvent) {
     // 从按钮上按下时不拖动，否则点播放会连带把条子拖走
     if ((event.target as HTMLElement).closest('button')) return
     dragging.value = true
+    dragMoved = false
     clearReturnTimer()
     dragStart = { x: event.clientX, y: event.clientY, ox: offset.value.x, oy: offset.value.y }
-    ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+    // 合成事件（自动化/某些输入法）没有真实 pointerId，这里抛错会让 dragging 卡在 true，
+    // 之后每次点击都走「回位」而不是「展开面板」。捕获住即可。
+    try {
+        ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+    } catch {
+        // 没有指针捕获也能拖动，只是松开鼠标时可能收不到 pointerup。
+    }
 }
 
 function onDragMove(event: PointerEvent) {
     if (!dragging.value) return
+    // 4px 死区：手指/鼠标总会抖一点，没有死区会把每次点击都判成拖动。
+    if (Math.abs(event.clientX - dragStart.x) > 4 || Math.abs(event.clientY - dragStart.y) > 4) {
+        dragMoved = true
+    }
     offset.value = {
         x: dragStart.ox + (event.clientX - dragStart.x),
         y: dragStart.oy + (event.clientY - dragStart.y),
@@ -341,13 +440,19 @@ function onDragMove(event: PointerEvent) {
 function onDragEnd() {
     if (!dragging.value) return
     dragging.value = false
+    if (!dragMoved) {
+        // 没移动就是一次点击：展开/收起面板，并且不要把条子弹回原位。
+        togglePanel()
+        return
+    }
     scheduleReturn()
 }
 
 function onWheel(event: WheelEvent) {
     if (Math.abs(event.deltaY) < 2) return
     const step = event.deltaY > 0 ? 1 : -1
-    mode.value = MODES[(modeIndex.value + step + MODES.length) % MODES.length]
+    const list = modes.value
+    mode.value = list[(modeIndex.value + step + list.length) % list.length]
 }
 
 async function loadInstances() {
@@ -439,7 +544,16 @@ onMounted(async () => {
     }
 })
 
+onMounted(() => {
+    document.addEventListener('pointerdown', onDocumentPointerDown)
+    document.addEventListener('keydown', onDocumentKeydown)
+    window.addEventListener('hayenai:magnetic-changed', refreshMagneticSettings)
+})
+
 onBeforeUnmount(() => {
+    document.removeEventListener('pointerdown', onDocumentPointerDown)
+    document.removeEventListener('keydown', onDocumentKeydown)
+    window.removeEventListener('hayenai:magnetic-changed', refreshMagneticSettings)
     window.removeEventListener('pointerup', onDragEnd)
     window.removeEventListener('pointercancel', onDragEnd)
     window.removeEventListener('resize', scheduleMarqueeMeasure)
@@ -453,11 +567,14 @@ onBeforeUnmount(() => {
 
 <template>
     <div
+        ref="barEl"
         class="magnetic-bar"
         :class="(`is-${mode}`, { 'is-dragging': dragging })"
         :style="{
             transform: `translate(calc(-50% + ${offset.x}px), ${offset.y}px)`,
             transition: dragging ? 'none' : undefined,
+            '--mb-alpha': settings.opacity / 100,
+            '--mb-scale': settings.scale / 100,
         }"
         @pointerdown="onDragStart"
         @pointermove="onDragMove"
@@ -466,6 +583,14 @@ onBeforeUnmount(() => {
     >
         <!-- 振幅带：后台 LyricBar 的 .lyric-bg，贴着底边随响度伸缩 -->
         <span ref="bandRef" class="mb-band" aria-hidden="true" />
+
+        <!-- 开始菜单式展开面板：挂在条子上方，随条子一起拖动 -->
+        <MagneticPanel
+            :open="panelOpen"
+            :anchor="panelAnchor"
+            @close="closePanel"
+            @open-settings="openMagneticSettings"
+        />
         <div class="mb-pages" @wheel.prevent="onWheel">
             <Transition name="mb-swap" mode="out-in">
                 <section v-if="mode === 'lyrics'" key="lyrics" class="mb-face mb-lyric">
@@ -583,7 +708,7 @@ onBeforeUnmount(() => {
 
         <div class="mb-dots" role="tablist">
             <button
-                v-for="item in MODES"
+                v-for="item in modes"
                 :key="item"
                 v-tooltip="formatMessage(messages[item])"
                 type="button"
@@ -668,14 +793,22 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 14px;
     width: min(640px, calc(100vw - 320px));
-    min-height: 62px;
-    padding: 9px 14px 9px 16px;
+    /*
+     * 「大小」同时作用于高度、内距与**基准字号**。
+     * 不用 zoom/transform: scale —— 那会把拖动坐标与面板锚点算歪。
+     * 内部字号一律写 em，于是跟着这里一起缩放。
+     */
+    font-size: calc(10px * var(--mb-scale, 1));
+    min-height: calc(62px * var(--mb-scale, 1));
+    padding: calc(9px * var(--mb-scale, 1)) calc(14px * var(--mb-scale, 1))
+        calc(9px * var(--mb-scale, 1)) calc(16px * var(--mb-scale, 1));
 
     border-radius: 20px;
     border: 1px solid var(--stroke-1);
+    /* 不透明度由「设置 → 首页与导航 → 磁悬条」控制（--mb-alpha） */
     background:
         linear-gradient(180deg, var(--glass-3) 0%, var(--glass-2) 100%),
-        color-mix(in srgb, var(--surface-1) var(--ui-card-alpha, 55%), transparent);
+        color-mix(in srgb, var(--surface-1) calc(var(--mb-alpha, 0.55) * 100%), transparent);
     -webkit-backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(180%);
     backdrop-filter: blur(var(--ui-glass-blur, 28px)) saturate(180%);
     /* 只留贴边的细影：30px 的大投影在浅色壁纸下会让底部像被压暗一块 */
@@ -703,7 +836,7 @@ onBeforeUnmount(() => {
 }
 
 .mb-kicker {
-    font-size: 9.5px;
+    font-size: 0.95em;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--text-3);
@@ -735,7 +868,7 @@ onBeforeUnmount(() => {
 }
 
 .mb-title {
-    font-size: 14px;
+    font-size: 1.4em;
     font-weight: 700;
     line-height: 1.25;
     letter-spacing: -0.01em;
@@ -803,7 +936,7 @@ onBeforeUnmount(() => {
 }
 
 .mb-sub {
-    font-size: 11px;
+    font-size: 1.1em;
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -913,10 +1046,11 @@ onBeforeUnmount(() => {
 .mb-cta {
     height: 30px;
     padding: 0 14px;
-    border: 0;
+    /* 2026-11-14 主人：不要实心底。改成与全站一致的描边玻璃。 */
+    border: 1px solid color-mix(in srgb, var(--color-brand) 45%, transparent);
     border-radius: 10px;
-    background: var(--grad-a);
-    color: #fff;
+    background: color-mix(in srgb, var(--color-brand) 10%, transparent);
+    color: var(--color-brand);
     font: inherit;
     font-size: 12px;
     font-weight: 600;
@@ -982,7 +1116,7 @@ onBeforeUnmount(() => {
 }
 
 .mb-graph-label {
-    font-size: 9.5px;
+    font-size: 0.95em;
     color: var(--text-3);
     white-space: nowrap;
     overflow: hidden;

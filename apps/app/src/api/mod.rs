@@ -31,6 +31,7 @@ pub mod terracotta;
 pub mod translation;
 pub mod utils;
 pub mod wallpaper;
+pub mod http_probe;
 pub mod server_status;
 pub mod splash;
 pub mod agent;
