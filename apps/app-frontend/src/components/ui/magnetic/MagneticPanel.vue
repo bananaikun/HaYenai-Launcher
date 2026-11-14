@@ -17,7 +17,7 @@ import {
     SettingsIcon,
     WorldIcon,
 } from '@modrinth/assets'
-import { defineMessages, useVIntl } from '@modrinth/ui'
+import { defineMessages, Toggle, useVIntl } from '@modrinth/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -709,12 +709,14 @@ function optValue(key: keyof MagneticWidgetOptions): unknown {
     return settingsFor.value ? optsOf(settingsFor.value)[key] : false
 }
 
-function toggleOption(key: keyof MagneticWidgetOptions): void {
+function toggleOption(key: keyof MagneticWidgetOptions, value?: boolean): void {
     const id = settingsFor.value
     if (!id) return
     const item = widgetPref(id)
     if (!item) return
-    item.opts = { ...(item.opts ?? {}), [key]: !optsOf(id)[key] }
+    // Toggle 直接给目标值；不传就按「取反」处理（旧调用点仍可用）。
+    const next = value === undefined ? !optsOf(id)[key] : value
+    item.opts = { ...(item.opts ?? {}), [key]: next }
     saveSettings()
 }
 
@@ -787,8 +789,9 @@ const shortcutRoutes = [
     {
         label: messages.routeInstances,
         icon: CompassIcon,
-        to: '/instances',
-        keywords: ['instance', 'shili', 'banben'],
+        // 实例库的真实路由是 `/library`（写 `/instances` 会匹配不到路由，点了没反应）
+        to: '/library',
+        keywords: ['instance', 'shili', 'banben', 'library'],
     },
     {
         label: messages.routeBrowse,
@@ -1292,15 +1295,70 @@ const clockText = computed(() => {
         ...(opts.clockSeconds ? { second: '2-digit' as const } : {}),
     })
 })
-const dateText = computed(() => {
-    const opts = optsOf('date')
-    return now.value.toLocaleDateString(
-        [],
-        opts.dateWeekday
-            ? { month: 'long', day: 'numeric', weekday: 'long' }
-            : { month: 'long', day: 'numeric' },
-    )
+/* ---------------- 日期卡 = 月历（星期 + 农历） ----------------
+ * 用户 2026-11-14：日期组件不该只显示一行 "11月14日星期六"，要像日历那样
+ * 有整月的格子、表头星期、每格的农历。
+ * 农历直接用 **浏览器内置的中国历法**（`Intl ... -u-ca-chinese`），不引任何依赖：
+ * Chromium 输出的日号是阿拉伯数字（"6日"），这里再映射成 初六/廿六 这种写法。
+ */
+const LUNAR_DAY_NAMES = [
+    '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
+    '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
+    '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十',
+]
+
+const lunarDayFormatter = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { day: 'numeric' })
+const lunarMonthFormatter = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { month: 'long' })
+
+/** 农历文本：初一显示月份（十月 / 闰六月），其余显示日名（初六 / 廿三）。 */
+function lunarText(date: Date): string {
+    try {
+        const parts = lunarDayFormatter.formatToParts(date)
+        const day = Number(parts.find((part) => part.type === 'day')?.value ?? 0)
+        if (!day) return ''
+        if (day === 1) {
+            const monthParts = lunarMonthFormatter.formatToParts(date)
+            return monthParts.find((part) => part.type === 'month')?.value ?? ''
+        }
+        return LUNAR_DAY_NAMES[day - 1] ?? ''
+    } catch {
+        return ''
+    }
+}
+
+/** 周一起头的表头（中文用 一…日）。 */
+const DATE_WEEK_HEAD = ['一', '二', '三', '四', '五', '六', '日']
+
+/** 当月月历：固定 6 行 × 7 列，避免切换月份时卡片高度跳动。 */
+const dateMonthGrid = computed(() => {
+    const today = now.value
+    const year = today.getFullYear()
+    const month = today.getMonth()
+    const first = new Date(year, month, 1)
+    // getDay(): 周日=0 → 转成周一起头的 0-6
+    const lead = (first.getDay() + 6) % 7
+    const start = new Date(year, month, 1 - lead)
+    const cells: { day: number; date: Date; today: boolean; outside: boolean; lunar: string }[] = []
+    for (let index = 0; index < 42; index += 1) {
+        const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)
+        cells.push({
+            day: date.getDate(),
+            date,
+            today:
+                date.getFullYear() === year &&
+                date.getMonth() === month &&
+                date.getDate() === today.getDate(),
+            outside: date.getMonth() !== month,
+            lunar: lunarText(date),
+        })
+    }
+    return cells
 })
+
+const dateMonthTitle = computed(() =>
+    now.value.toLocaleDateString([], { year: 'numeric', month: 'long' }),
+)
+
 const diskPercent = computed(() => {
     const total = stats.value.diskTotal ?? 0
     if (!total) return 0
@@ -1690,8 +1748,31 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                             v-bind="cardProps('date')"
                         >
                             <div class="mbp-card-body">
-                                <span class="mbp-label">{{ widgetLabel('date') }}</span>
-                                <strong class="mbp-date">{{ dateText }}</strong>
+                                <div class="mbp-datecal-head">
+                                    <span class="mbp-label">{{ widgetLabel('date') }}</span>
+                                    <span class="mbp-datecal-month">{{ dateMonthTitle }}</span>
+                                </div>
+                                <div class="mbp-datecal">
+                                    <span
+                                        v-for="name in DATE_WEEK_HEAD"
+                                        :key="`dw-${name}`"
+                                        class="mbp-datecal-week"
+                                    >
+                                        {{ name }}
+                                    </span>
+                                    <div
+                                        v-for="cell in dateMonthGrid"
+                                        :key="cell.date.getTime()"
+                                        class="mbp-datecal-cell"
+                                        :class="{
+                                            'is-today': cell.today,
+                                            'is-outside': cell.outside,
+                                        }"
+                                    >
+                                        <b>{{ cell.day }}</b>
+                                        <em>{{ cell.lunar }}</em>
+                                    </div>
+                                </div>
                             </div>
                         </section>
 
@@ -2002,10 +2083,9 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                                     class="mbp-opt"
                                 >
                                     <span>{{ instance.name }}</span>
-                                    <input
-                                        type="checkbox"
-                                        :checked="hasShortcutInstance(instance.id)"
-                                        @change="toggleShortcutInstance(instance.id)"
+                                    <Toggle
+                                        :model-value="hasShortcutInstance(instance.id)"
+                                        @update:model-value="toggleShortcutInstance(instance.id)"
                                     />
                                 </label>
                                 <p v-if="!instances.length" class="mbp-hint">—</p>
@@ -2013,11 +2093,12 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
 
                             <label v-else class="mbp-opt">
                                 <span>{{ formatMessage(row.label) }}</span>
-                                <input
+                                <Toggle
                                     v-if="row.kind === 'toggle'"
-                                    type="checkbox"
-                                    :checked="Boolean(optValue(row.key))"
-                                    @change="toggleOption(row.key)"
+                                    :model-value="Boolean(optValue(row.key))"
+                                    @update:model-value="
+                                        (value: boolean) => toggleOption(row.key, value)
+                                    "
                                 />
                                 <span v-else-if="row.kind === 'seg'" class="mbp-seg">
                                     <button
@@ -3102,17 +3183,106 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     }
 }
 
-/* 宽卡（≥380px）：仪表盘两列并排，图标格自动多摆 */
+/* 宽卡（≥380px）：图标格多摆几颗，但仪表盘**保持单列铺满** ——
+   拆两列会把每条进度条挤短，看起来就是「控件没占满卡片」。 */
 @container card (min-width: 380px) {
-    .mbp-gauges {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(10em, 1fr));
-        align-content: center;
-    }
-
     .mbp-icon-grid {
         grid-template-columns: repeat(auto-fit, minmax(2.6em, 1fr));
     }
+}
+
+/* 控件铺满卡片：内容区按剩余空间拉伸，不再挤在左上角 */
+.mbp-gauges {
+    justify-content: space-evenly;
+}
+
+.mbp-gauge {
+    align-content: center;
+}
+
+.mbp-icon-grid {
+    flex: 1 1 auto;
+    grid-auto-rows: minmax(2.4em, 1fr);
+    align-content: stretch;
+}
+
+.mbp-rows {
+    align-content: start;
+}
+
+/* 时钟：跟着卡片宽度放大（宽卡不该还留一大片空白） */
+.mbp-clock {
+    font-size: clamp(1.95em, 0.28em + 8cqw, 3.4em);
+    line-height: 1.05;
+}
+
+/* 日期卡 = 月历 */
+.mbp-datecal-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5em;
+}
+
+.mbp-datecal-month {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.mbp-datecal {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: auto;
+    grid-auto-rows: minmax(1.6em, 1fr);
+    gap: 0.08em;
+    margin-top: 0.15em;
+}
+
+.mbp-datecal-week {
+    text-align: center;
+    font-size: 0.74em;
+    opacity: 0.55;
+}
+
+.mbp-datecal-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.05em;
+    min-width: 0;
+    border-radius: 0.3em;
+    line-height: 1.05;
+}
+
+.mbp-datecal-cell b {
+    font-size: 0.92em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.mbp-datecal-cell em {
+    font-size: 0.66em;
+    font-style: normal;
+    opacity: 0.6;
+    white-space: nowrap;
+    transform: scale(0.94);
+}
+
+.mbp-datecal-cell.is-outside {
+    opacity: 0.35;
+}
+
+.mbp-datecal-cell.is-today {
+    background: color-mix(in srgb, var(--color-brand) 22%, transparent);
+}
+
+.mbp-datecal-cell.is-today b {
+    color: var(--text-0);
 }
 
 /* 日历卡固定 6 行 × 7 列，比别的卡更吃高度：矮卡把行内边距再收一点，

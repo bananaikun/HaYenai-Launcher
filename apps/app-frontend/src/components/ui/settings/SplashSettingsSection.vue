@@ -22,7 +22,7 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import SplashWallpaperPicker from './SplashWallpaperPicker.vue'
 import { wallpaperBaseUrl, wallpaperPosterUrl, wallpaperState } from '@/helpers/wallpaper'
 import { open } from '@tauri-apps/plugin-dialog'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const { formatMessage } = useVIntl()
 const { addNotification } = injectNotificationManager()
@@ -273,12 +273,75 @@ const adjustModal = ref<InstanceType<typeof NewModal> | null>(null)
 const previewUrl = ref<string | null>(null)
 const previewProgress = ref(0)
 
+/* ---------------- 预览区：真跑场景渲染 ----------------
+ * 2026-11-14 主人的要求：预览必须**是真实预览**，不能拿壁纸封面图糊弄。
+ * 启动画面本身早就是真渲染（SplashScreen.mountScene 走 webwallgl），
+ * 这里用同一个引擎在预览容器里再挂一份：
+ *   - 场景壁纸 → webwallgl 实时渲染（粒子/动画/时钟都会动）
+ *   - 视频壁纸 → <video autoplay loop muted>
+ *   - 图片     → <img>
+ * 弹窗关掉就 destroy，别让第二个渲染器常驻吃 GPU。
+ */
+const previewSceneEl = ref<HTMLElement | null>(null)
+let previewSceneInstance: { destroy?: () => void } | null = null
+
+const isScenePreview = computed(
+    () => config.value.media?.kind === 'scene' && Boolean(config.value.media?.file),
+)
+
+async function mountPreviewScene(id: string): Promise<void> {
+    destroyPreviewScene()
+    await nextTick()
+    const element = previewSceneEl.value
+    if (!element) return
+    try {
+        const { mount, httpSource } = await import('webwallgl')
+        const instance = await mount(element, {
+            source: httpSource(wallpaperBaseUrl(id)),
+            fps: 30,
+            // 和启动画面同一套超时口径：大场景首帧慢，别 8 秒就放弃
+            mountTimeoutMs: 60_000,
+        })
+        previewSceneInstance = instance as unknown as { destroy?: () => void }
+    } catch (error) {
+        console.warn('[splash-preview] 场景渲染失败，回退封面图', error)
+        previewSceneInstance = null
+    }
+}
+
+function destroyPreviewScene(): void {
+    try {
+        previewSceneInstance?.destroy?.()
+    } catch {
+        // 切换壁纸时实例可能已经没了，忽略
+    }
+    previewSceneInstance = null
+}
+
+// 换壁纸 / 换类型时重挂
+watch(
+    () => [config.value.media?.kind, config.value.media?.file] as const,
+    ([kind, file]) => {
+        if (kind === 'scene' && file) void mountPreviewScene(file)
+        else destroyPreviewScene()
+    },
+)
+
 function openAdjust(): void {
     adjustModal.value?.show()
     void loadWallpapers()
     void refreshPreview()
+    // 场景型要等弹窗把容器渲染出来再挂
+    const media = config.value.media
+    if (media?.kind === 'scene' && media.file) void mountPreviewScene(media.file)
 
     startPreviewProgress()
+}
+
+/** 弹窗关闭：停进度条 + 拆掉预览用的渲染器。 */
+function onAdjustHidden(): void {
+    stopPreviewProgress()
+    destroyPreviewScene()
 }
 
 function setScrim(event: Event): void {
@@ -771,7 +834,7 @@ async function clearMedia(): Promise<void> {
             :header="formatMessage(messages.adjustTitle)"
             :closable="true"
             max-width="54rem"
-            :on-hide="stopPreviewProgress"
+            :on-hide="onAdjustHidden"
         >
             <div class="splash-adjust">
                 <aside class="splash-adjust__panel">
@@ -888,8 +951,15 @@ async function clearMedia(): Promise<void> {
                             场景壁纸的封面是 `preview.gif`，以前被塞进 `<video src="...gif">`
                             —— 浏览器播不了 GIF，预览区就是一个黑块（主人报的「预览没渲染」）。
                         -->
+                        <!-- 场景壁纸：真渲染（和启动画面同一个引擎） -->
+                        <div
+                            v-if="isScenePreview"
+                            ref="previewSceneEl"
+                            class="splash-stage__media splash-stage__scene"
+                            :style="stageMediaStyle"
+                        />
                         <img
-                            v-if="previewUrl && !isVideoPreview"
+                            v-else-if="previewUrl && !isVideoPreview"
                             :src="previewUrl"
                             alt=""
                             class="splash-stage__media"
@@ -1233,6 +1303,12 @@ async function clearMedia(): Promise<void> {
     border: 1px solid var(--stroke-1);
     background: #14141a;
     touch-action: none;
+}
+
+.splash-stage__scene {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
 }
 
 .splash-stage__media {

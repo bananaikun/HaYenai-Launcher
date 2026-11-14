@@ -43,6 +43,9 @@ const messages = defineMessages({
     lyrics: { id: 'app.magnetic.lyrics', defaultMessage: 'Lyrics' },
     launch: { id: 'app.magnetic.launch', defaultMessage: 'Launch' },
     system: { id: 'app.magnetic.system', defaultMessage: 'System' },
+    instances: { id: 'app.magnetic.page.instances', defaultMessage: 'Instances' },
+    downloads: { id: 'app.magnetic.page.downloads', defaultMessage: 'Downloads' },
+    noDownloads: { id: 'app.magnetic.no-downloads', defaultMessage: 'No active downloads' },
     play: { id: 'app.magnetic.play', defaultMessage: 'Play' },
     pause: { id: 'app.magnetic.pause', defaultMessage: 'Pause' },
     previous: { id: 'app.magnetic.previous', defaultMessage: 'Previous' },
@@ -58,7 +61,7 @@ const messages = defineMessages({
     launching: { id: 'app.magnetic.launching', defaultMessage: 'Launching…' },
 })
 
-type Mode = 'lyrics' | 'launch' | 'system'
+type Mode = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads'
 /** 顺序即主人指定的顺序：歌词 → 启动/版本 → 系统 */
 /** 条子上实际轮播的页面：顺序与开关都由「设置 → 首页与导航 → 磁悬条」决定。 */
 const modes = computed<Mode[]>(() => {
@@ -301,6 +304,7 @@ function formatBytes(value: number): string {
 interface InstallProgress {
     id: string
     percent: number
+    name?: string
 }
 const downloads = ref<InstallProgress[]>([])
 let unlistenJobs: (() => void) | null = null
@@ -470,6 +474,19 @@ async function loadInstances() {
     }
 }
 
+/** 任意实例直接启动（条子上的「实例」页用）。 */
+async function launchSome(id: string): Promise<void> {
+    if (launching.value) return
+    launching.value = true
+    try {
+        await runInstance(id)
+    } catch (error) {
+        handleError(error)
+    } finally {
+        launching.value = false
+    }
+}
+
 async function launchGame() {
     const row = instance.value
     if (!row || launching.value) return
@@ -534,9 +551,13 @@ onMounted(async () => {
             const total = job.progress?.total ?? 0
             if (!total) return
             const percent = Math.max(0, Math.min(100, Math.round((current / total) * 100)))
+            const label =
+                (job as { name?: string; project_name?: string }).name ??
+                (job as { project_name?: string }).project_name ??
+                undefined
             downloads.value = [
                 ...downloads.value.filter((item) => item.id !== job.job_id),
-                { id: job.job_id, percent },
+                { id: job.job_id, percent, name: label },
             ]
         })
     } catch {
@@ -672,6 +693,48 @@ onBeforeUnmount(() => {
                         >
                             {{ formatMessage(messages.versionSettings) }}
                         </button>
+                    </div>
+                </section>
+
+                <section v-else-if="mode === 'instances'" key="instances" class="mb-face mb-instances">
+                    <span class="mb-kicker">{{ formatMessage(messages.instances) }}</span>
+                    <div class="mb-instance-row">
+                        <button
+                            v-for="row in instanceList.slice(0, 4)"
+                            :key="row.id"
+                            type="button"
+                            class="mb-chip mb-instance-chip"
+                            :disabled="launching"
+                            v-tooltip="`${row.name} · ${row.game_version ?? ''}`"
+                            @click="launchSome(row.id)"
+                        >
+                            <InstanceIcon
+                                class="mb-ver-icon"
+                                :icon-path="row.icon_path"
+                                :instance-id="row.id"
+                                :loader="row.loader"
+                            />
+                            <span class="mb-instance-name">{{ row.name }}</span>
+                        </button>
+                        <span v-if="!instanceList.length" class="mb-sub">
+                            {{ formatMessage(messages.noInstance) }}
+                        </span>
+                    </div>
+                </section>
+
+                <section v-else-if="mode === 'downloads'" key="downloads" class="mb-face mb-downloads">
+                    <span class="mb-kicker">{{ formatMessage(messages.downloads) }}</span>
+                    <div class="mb-dl-row">
+                        <div v-for="job in downloads.slice(0, 2)" :key="job.id" class="mb-dl">
+                            <span class="mb-dl-name">{{ job.name ?? '—' }}</span>
+                            <span class="mb-dl-meter">
+                                <i :style="{ width: `${job.percent}%` }" />
+                            </span>
+                            <b>{{ job.percent }}%</b>
+                        </div>
+                        <span v-if="!downloads.length" class="mb-sub">
+                            {{ formatMessage(messages.noDownloads) }}
+                        </span>
                     </div>
                 </section>
 
@@ -1144,6 +1207,76 @@ onBeforeUnmount(() => {
     &.is-net {
         stroke: var(--c-ok);
     }
+}
+
+/* 「实例」页：一排实例 chip，点了直接启动 */
+.mb-instance-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+}
+
+.mb-instance-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    max-width: 150px;
+}
+
+.mb-instance-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 「下载」页：最多两条任务，进度条按可用宽度拉满 */
+.mb-dl-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.mb-dl {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.92em;
+}
+
+.mb-dl-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+.mb-dl-meter {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--glass-2);
+    overflow: hidden;
+}
+
+.mb-dl-meter i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--color-brand);
+    transition: width 260ms var(--ease-out);
+}
+
+.mb-dl b {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.88em;
+    opacity: 0.8;
 }
 
 .mb-dots {

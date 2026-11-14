@@ -33,7 +33,7 @@ export const MAGNETIC_WIDGET_IDS = [
 export type MagneticWidgetId = (typeof MAGNETIC_WIDGET_IDS)[number]
 
 /** 磁悬条**条子上**可以轮播的页面（不是展开菜单里的卡片）。 */
-export type MagneticBarPage = 'lyrics' | 'launch' | 'system'
+export type MagneticBarPage = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads'
 
 export interface MagneticBarPagePref {
     id: MagneticBarPage
@@ -271,7 +271,27 @@ export function moveWidget(
     return next
 }
 
-const BAR_PAGE_IDS: MagneticBarPage[] = ['lyrics', 'launch', 'system']
+const BAR_PAGE_IDS: MagneticBarPage[] = [
+    'lyrics',
+    'launch',
+    'system',
+    'instances',
+    'downloads',
+]
+
+/**
+ * 老配置里没有这个页面时的默认开关。
+ *
+ * 原来一律 `enabled: true`：新增页面等于「偷偷给所有用户打开一页」。
+ * 现在原有三页保持开（它们本来就在配置里），新加的两页默认关，由用户自己勾。
+ */
+const BAR_PAGE_DEFAULT_ENABLED: Record<MagneticBarPage, boolean> = {
+    lyrics: true,
+    launch: true,
+    system: true,
+    instances: false,
+    downloads: false,
+}
 
 function mergeBarPages(saved?: MagneticBarPagePref[]): MagneticBarPagePref[] {
     const seen = new Set<MagneticBarPage>()
@@ -282,7 +302,7 @@ function mergeBarPages(saved?: MagneticBarPagePref[]): MagneticBarPagePref[] {
         result.push({ id: item.id, enabled: Boolean(item.enabled) })
     }
     for (const id of BAR_PAGE_IDS) {
-        if (!seen.has(id)) result.push({ id, enabled: true })
+        if (!seen.has(id)) result.push({ id, enabled: BAR_PAGE_DEFAULT_ENABLED[id] })
     }
     // 全关掉时至少保留一页，否则条子上什么都不会显示。
     if (!result.some((item) => item.enabled)) result[0].enabled = true

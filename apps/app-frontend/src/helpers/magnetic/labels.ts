@@ -27,6 +27,8 @@ export const magneticBarPageMessages = defineMessages({
     lyrics: { id: 'app.magnetic.page.lyrics', defaultMessage: 'Lyrics' },
     launch: { id: 'app.magnetic.page.launch', defaultMessage: 'Launch' },
     system: { id: 'app.magnetic.page.system', defaultMessage: 'System' },
+    instances: { id: 'app.magnetic.page.instances', defaultMessage: 'Instances' },
+    downloads: { id: 'app.magnetic.page.downloads', defaultMessage: 'Downloads' },
 }) satisfies Record<MagneticBarPage, { id: string; defaultMessage: string }>
 
 /**
@@ -50,4 +52,6 @@ export const MAGNETIC_PAGE_KEYWORDS: Record<MagneticBarPage, string[]> = {
     lyrics: ['lyrics', 'music', 'geci'],
     launch: ['launch', 'play', 'qidong'],
     system: ['system', 'cpu', 'xitong'],
+    instances: ['instance', 'instances', 'shili'],
+    downloads: ['download', 'downloads', 'xiazai'],
 }

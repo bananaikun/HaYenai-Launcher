@@ -6455,6 +6455,9 @@
   "app.magnetic.no-download": {
     "message": "No active download"
   },
+  "app.magnetic.no-downloads": {
+    "message": "No active downloads"
+  },
   "app.magnetic.no-favorites": {
     "message": "No favourited instances"
   },
@@ -6523,6 +6526,12 @@
   },
   "app.magnetic.opt-weekday": {
     "message": "Show weekday"
+  },
+  "app.magnetic.page.downloads": {
+    "message": "Downloads"
+  },
+  "app.magnetic.page.instances": {
+    "message": "Instances"
   },
   "app.magnetic.page.launch": {
     "message": "Launch"

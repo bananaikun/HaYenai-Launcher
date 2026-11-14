@@ -1101,15 +1101,18 @@ function askDelete(item: WallpaperMeta): void {
     confirmDeleteModal.value?.show()
 }
 
-/** 用户取消 / 关掉了确认框：把待删项丢掉，免得下一次误删。 */
-function onDeleteDialogHidden(): void {
-    pendingDelete.value = null
-}
-
+/**
+ * 确认删除。
+ *
+ * ⚠ 不要在 `on-hide` 里清 `pendingDelete`：`ConfirmModal.proceed()` 是
+ * **先 `hide()` 再 `emit('proceed')`**，on-hide 会先把待删项清成 null，
+ * 于是这里读到 null 直接 return —— 表现就是「点删除没反应、墙纸没少」。
+ * 改成只在这里清，取消时留着也无害（下次 askDelete 会覆盖）。
+ */
 async function confirmDelete(): Promise<void> {
     const target = pendingDelete.value
-    pendingDelete.value = null
     if (!target) return
+    pendingDelete.value = null
     try {
         await removeWallpaperAndRefresh(target.id)
         addNotification({
@@ -1620,7 +1623,6 @@ onBeforeUnmount(() => {
             :description="formatMessage(messages.deleteDescription)"
             :proceed-label="formatMessage(messages.delete)"
             :proceed-icon="TrashIcon"
-            :on-hide="onDeleteDialogHidden"
             @proceed="confirmDelete"
         />
 

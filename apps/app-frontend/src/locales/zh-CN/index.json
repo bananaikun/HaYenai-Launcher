@@ -131,6 +131,9 @@
   "app.magnetic.no-download": {
     "message": "当前没有下载任务"
   },
+  "app.magnetic.no-downloads": {
+    "message": "没有进行中的下载"
+  },
   "app.magnetic.no-favorites": {
     "message": "没有收藏的实例"
   },
@@ -199,6 +202,12 @@
   },
   "app.magnetic.opt-weekday": {
     "message": "显示星期"
+  },
+  "app.magnetic.page.downloads": {
+    "message": "下载"
+  },
+  "app.magnetic.page.instances": {
+    "message": "实例"
   },
   "app.magnetic.page.launch": {
     "message": "启动"
