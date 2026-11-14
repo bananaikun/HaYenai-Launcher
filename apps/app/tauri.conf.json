@@ -83,6 +83,15 @@
 				]
 			},
 			"mobile": []
+		},
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlDMTcyRjk4Njc4QTNBOTcKUldTWE9vcG5tQzhYbk9vc3dUMVk0WWE2NFNlVzFFYkxSRTdPZUtldWU3QUV6dEdoVVZXQ09MV1QK",
+			"endpoints": [
+				"https://github.com/bananaikun/HaYenai-Launcher/releases/latest/download/latest.json"
+			],
+			"windows": {
+				"installMode": "quiet"
+			}
 		}
 	},
 	"app": {

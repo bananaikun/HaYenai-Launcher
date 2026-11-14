@@ -1,7 +1,9 @@
 use crate::api::Result;
+use futures::future::join_all;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -353,16 +355,22 @@ const GITHUB_UPDATE_ENDPOINT: &str =
    两个用途：
    1. 清单（latest.json）也走镜像，check 才快；
    2. 真正的下载地址在 check 之后**现测现选**最够快的那个（见
-      `fastest_download_url`），全挂了就退回 GitHub 原始地址。
+      `rank_download_urls` 并发探速），全挂了就按固定顺序逐个试。
    ⚠ 签名与 sha256 都是对文件内容做的，镜像只是转发字节，校验不受影响。 */
 const GITHUB_MIRRORS: &[&str] = &["https://gh-proxy.com/", "https://ghfast.top/"];
 
-/// 探测镜像时最多取这么多字节（够算出速度，又不至于白下太多）。
-const MIRROR_PROBE_BYTES: u64 = 1_048_576;
-/// 单个候选的探测预算。
-const MIRROR_PROBE_BUDGET: Duration = Duration::from_secs(6);
-/// 低于这个速度就认为「跟直连差不多」，继续找下一个。
-const MIRROR_MIN_BYTES_PER_SEC: f64 = 250_000.0;
+/// 探测镜像时最多取这么多字节。
+///
+/// 原来只取 1 MB：CF 节点冷启动的那几百毫秒会把均值拉得很低，
+/// 同一个镜像两次探测能差一倍 —— 这就是「有时快有时慢」的来源之一。
+const MIRROR_PROBE_BYTES: u64 = 2_621_440;
+/// 单个候选的探测预算。三个候选**并发**探，所以总耗时≈这个值，不叠加。
+const MIRROR_PROBE_BUDGET: Duration = Duration::from_secs(5);
+/// 上次用过的镜像只要不比本次最快的慢这么多（比例），就继续用它 ——
+/// 稳定性优先于那一点点速度差，避免每次 check 都换源。
+const MIRROR_STICKY_RATIO: f64 = 0.8;
+/// 选源结果的落盘文件名（放在 `<设置目录>/updates/` 下）。
+const MIRROR_CACHE_FILE: &str = "mirror.json";
 
 /// 把 GitHub 地址套上镜像前缀。只处理 `https://github.com/...`。
 fn mirrored(url: &Url, mirror: &str) -> Option<Url> {
@@ -373,12 +381,23 @@ fn mirrored(url: &Url, mirror: &str) -> Option<Url> {
 }
 
 /// 清单端点：镜像优先，最后才是 GitHub 直连（插件按顺序尝试，失败才降级）。
-async fn manifest_endpoints() -> Result<Vec<Url>> {
+///
+/// 上次生效过的镜像排最前：check 是每次启动都要走的一步，别让一个慢镜像
+/// 白白吃掉几秒超时。
+async fn manifest_endpoints(cache_root: Option<&Path>) -> Result<Vec<Url>> {
     let base = update_endpoint().await?;
     let mut list: Vec<Url> = GITHUB_MIRRORS
         .iter()
         .filter_map(|mirror| mirrored(&base, mirror))
         .collect();
+    if let Some(prev) = cache_root.and_then(read_mirror_choice) {
+        if let Some(index) = GITHUB_MIRRORS.iter().position(|m| *m == prev.mirror) {
+            if index < list.len() {
+                let url = list.remove(index);
+                list.insert(0, url);
+            }
+        }
+    }
     list.push(base);
     Ok(list)
 }
@@ -425,51 +444,135 @@ async fn probe_speed(client: &reqwest::Client, url: &Url) -> Option<f64> {
     Some(received as f64 / seconds)
 }
 
-/// 给下载地址挑一个够快的镜像：逐个探测，达到阈值就立刻用；
-/// 都不行就退回原始 GitHub 地址（保持「至少能下」）。
-async fn fastest_download_url(original: &Url) -> Url {
-    let candidates: Vec<Url> = GITHUB_MIRRORS
-        .iter()
-        .filter_map(|mirror| mirrored(original, mirror))
-        .collect();
-    if candidates.is_empty() {
-        return original.clone();
+/// 上次生效的镜像（`mirror` 为空串表示直连 GitHub）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MirrorChoice {
+    mirror: String,
+    speed: f64,
+    at: u64,
+}
+
+fn read_mirror_choice(root: &Path) -> Option<MirrorChoice> {
+    let raw = std::fs::read(root.join(MIRROR_CACHE_FILE)).ok()?;
+    serde_json::from_slice(&raw).ok()
+}
+
+fn write_mirror_choice(root: &Path, mirror: &str, speed: f64) {
+    let choice = MirrorChoice {
+        mirror: mirror.to_string(),
+        speed,
+        at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+    };
+    let Ok(encoded) = serde_json::to_vec(&choice) else {
+        return;
+    };
+    let _ = std::fs::create_dir_all(root);
+    let _ = std::fs::write(root.join(MIRROR_CACHE_FILE), encoded);
+}
+
+/// 从镜像前缀 URL 反推原始 GitHub 地址；本来就是 GitHub 就原样返回。
+fn strip_mirror(url: &Url) -> Option<Url> {
+    if url.host_str() == Some("github.com") {
+        return Some(url.clone());
+    }
+    let raw = url.as_str();
+    GITHUB_MIRRORS.iter().find_map(|mirror| {
+        raw.strip_prefix(mirror)
+            .and_then(|rest| Url::parse(rest).ok())
+    })
+}
+
+/// 下载候选链：当前地址排第一，其后是其他镜像，最后是 GitHub 直连。
+///
+/// 下载中途失败/掉速时按这条链逐个重试 —— 以前只有一次机会，断了就得让用户
+/// 重新点一次更新。
+fn fallback_chain(current: &Url) -> Vec<Url> {
+    let mut out = vec![current.clone()];
+    let Some(original) = strip_mirror(current) else {
+        return out;
+    };
+    for mirror in GITHUB_MIRRORS {
+        if let Some(url) = mirrored(&original, mirror) {
+            if !out.contains(&url) {
+                out.push(url);
+            }
+        }
+    }
+    if !out.contains(&original) {
+        out.push(original);
+    }
+    out
+}
+
+/// 并发探测所有候选，按速度排序返回（第一个就是本次要用的）。
+///
+/// 串行版（1.0.43 及以前）最坏要等 2×6s 才敢开下，而且 1 MB 采样抖动大，
+/// 每次选出来的源都可能不一样。现在三个并发探、采样加大，并且**上次用过的
+/// 镜像只要不比最快的慢 20% 就继续用它**，让结果稳定下来。
+async fn rank_download_urls(original: &Url, cache_root: Option<&Path>) -> Vec<Url> {
+    let mut candidates: Vec<(Url, String)> = Vec::new();
+    for mirror in GITHUB_MIRRORS {
+        if let Some(url) = mirrored(original, mirror) {
+            candidates.push((url, (*mirror).to_string()));
+        }
+    }
+    candidates.push((original.clone(), String::new()));
+    if candidates.len() < 2 {
+        return vec![original.clone()];
     }
 
-    let client = match ClientBuilder::new()
-        .user_agent(launcher_user_agent())
-        .build()
-    {
+    let client = match ClientBuilder::new().user_agent(launcher_user_agent()).build() {
         Ok(client) => client,
-        Err(_) => return original.clone(),
+        Err(_) => return candidates.into_iter().map(|(url, _)| url).collect(),
     };
 
-    let mut best: Option<(f64, Url)> = None;
-    for candidate in candidates {
-        match probe_speed(&client, &candidate).await {
-            Some(speed) if speed >= MIRROR_MIN_BYTES_PER_SEC => {
-                tracing::info!(
-                    mirror = %candidate, speed_kib = (speed / 1024.0) as u64,
-                    "update download mirror selected"
-                );
-                return candidate;
-            }
-            Some(speed) => {
-                tracing::debug!(mirror = %candidate, speed_kib = (speed / 1024.0) as u64, "mirror too slow");
-                if best.as_ref().map(|(s, _)| speed > *s).unwrap_or(true) {
-                    best = Some((speed, candidate));
+    let probes = candidates
+        .iter()
+        .map(|(url, _)| probe_speed(&client, url));
+    let speeds = join_all(probes).await;
+
+    let mut scored: Vec<(f64, Url, String)> = candidates
+        .into_iter()
+        .zip(speeds)
+        .filter_map(|((url, key), speed)| speed.map(|value| (value, url, key)))
+        .collect();
+
+    if scored.is_empty() {
+        // 三个探测全失败：按固定顺序交给下载阶段挨个试。
+        let mut fallback = vec![original.clone()];
+        for mirror in GITHUB_MIRRORS {
+            if let Some(url) = mirrored(original, mirror) {
+                if !fallback.contains(&url) {
+                    fallback.push(url);
                 }
             }
-            None => {
-                tracing::debug!(mirror = %candidate, "mirror probe failed");
+        }
+        return fallback;
+    }
+
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+
+    // 粘性：上次的源只要没明显变慢就继续用。
+    if let Some(prev) = cache_root.and_then(read_mirror_choice) {
+        if let Some(index) = scored.iter().position(|(_, _, key)| *key == prev.mirror) {
+            if scored[index].0 >= scored[0].0 * MIRROR_STICKY_RATIO {
+                let chosen = scored.remove(index);
+                scored.insert(0, chosen);
             }
         }
     }
 
-    match best {
-        Some((_, url)) => url,
-        None => original.clone(),
+    if let Some(root) = cache_root {
+        write_mirror_choice(root, &scored[0].2, scored[0].0);
     }
+    for (speed, url, _) in &scored {
+        tracing::info!(mirror = %url, speed_kib = (speed / 1024.0) as u64, "update mirror ranked");
+    }
+
+    scored.into_iter().map(|(_, url, _)| url).collect()
 }
 
 /// Build the platform-updater with the given endpoints and run a check.
@@ -484,7 +587,7 @@ async fn check_with_endpoints<R: Runtime>(
 
     let mut updater = webview
         .updater_builder()
-        .endpoints(manifest_endpoints().await?)?
+        .endpoints(manifest_endpoints(update_cache_root(webview).as_deref()).await?)?
         .header("Accept", "application/json")?
         .header("X-HaYenai-Channel", channel)?
         .header("X-HaYenai-Platform", platform)?
@@ -550,9 +653,10 @@ async fn check_with_updater<R: Runtime>(
     if is_apt_linux() {
         update.download_url = fetch_apt_deb_asset(&update.version).await?.url;
     } else if cached_artifact.is_none() {
-        // 直连 GitHub 只有几十 KB/s；换成一个实测够快的镜像（都不行就保持原样）。
-        // 缓存命中时不探速：这次根本不会下载，探速那 6 秒纯属白等。
-        update.download_url = fastest_download_url(&update.download_url).await;
+        // 直连 GitHub 只有几十 KB/s；并发探速挑一个（结果里第一个最优）。
+        // 缓存命中时不探速：这次根本不会下载，探速纯属白等。
+        let ranked = rank_download_urls(&update.download_url, cache_root.as_deref()).await;
+        update.download_url = ranked[0].clone();
     }
 
     let published_at = update
@@ -774,25 +878,62 @@ pub async fn enqueue_update_for_installation<R: Runtime>(
 
         buffer
     } else {
-        update
-            .download(
-                |chunk_size, total_size| {
-                    let Some(total_size) = total_size else {
-                        return;
-                    };
-                    if let Err(e) = emit_loading(
-                        &progress,
-                        chunk_size as f64 / total_size as f64,
-                        None,
-                    ) {
-                        tracing::error!(
-                            "Failed to update download progress bar: {e}"
-                        );
-                    }
-                },
-                || {},
-            )
-            .await?
+        // 镜像会挂、会限速：按候选链逐个重试，别让用户重新点一次更新。
+        // 候选顺序 = 当前（已选最优）→ 其他镜像 → GitHub 直连。
+        let mut local = (*update).clone();
+        let candidates = fallback_chain(&update.download_url);
+        let mut downloaded: Option<Vec<u8>> = None;
+        let mut last_error: Option<String> = None;
+
+        for (index, url) in candidates.iter().enumerate() {
+            local.download_url = url.clone();
+            if index > 0 {
+                tracing::warn!(
+                    mirror = %url,
+                    "update download failed, retrying from another source"
+                );
+                let _ = emit_loading(&progress, 0.0, None);
+            }
+            let attempt = local
+                .download(
+                    |chunk_size, total_size| {
+                        let Some(total_size) = total_size else {
+                            return;
+                        };
+                        if let Err(e) = emit_loading(
+                            &progress,
+                            chunk_size as f64 / total_size as f64,
+                            None,
+                        ) {
+                            tracing::error!(
+                                "Failed to update download progress bar: {e}"
+                            );
+                        }
+                    },
+                    || {},
+                )
+                .await;
+            match attempt {
+                Ok(bytes) => {
+                    downloaded = Some(bytes);
+                    break;
+                }
+                Err(error) => {
+                    tracing::warn!(mirror = %url, %error, "download attempt failed");
+                    last_error = Some(error.to_string());
+                }
+            }
+        }
+
+        match downloaded {
+            Some(bytes) => bytes,
+            None => {
+                return Err(Error::Network(last_error.unwrap_or_else(|| {
+                    "all update sources failed".to_string()
+                }))
+                .into());
+            }
+        }
     };
     let download_duration = download_start.elapsed();
     tracing::info!("Downloaded update in {download_duration:?}");
