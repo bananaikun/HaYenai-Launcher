@@ -8,6 +8,7 @@ pub mod import;
 pub mod install;
 pub mod instance;
 pub mod jre;
+pub mod memory_auto;
 pub mod logs;
 pub mod mcarchive;
 pub mod metadata;

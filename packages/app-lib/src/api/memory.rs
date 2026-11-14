@@ -23,6 +23,68 @@ pub async fn optimize() -> crate::Result<MemoryOptimizationResult> {
         })?
 }
 
+/// 后台自动优化用：**不提权**。
+///
+/// `optimize()` 在直连失败时会 `ShellExecuteExW(runas)` 弹 UAC —— 定时任务每弹一次
+/// 都是在骚扰用户，还可能把游戏窗口挤到后台。自动优化只做当前权限下能做的部分
+/// （清本进程与系统工作集 / 待机列表），做不动就静默跳过，等下次。
+pub async fn optimize_silent() -> crate::Result<MemoryOptimizationResult> {
+    tokio::task::spawn_blocking(optimize_silent_blocking)
+        .await
+        .map_err(|error| {
+            crate::ErrorKind::OtherError(format!(
+                "Memory optimization task failed: {error}"
+            ))
+            .as_error()
+        })?
+}
+
+#[cfg(not(target_os = "windows"))]
+fn optimize_silent_blocking() -> crate::Result<MemoryOptimizationResult> {
+    Ok(MemoryOptimizationResult {
+        before_available_bytes: 0,
+        after_available_bytes: 0,
+        reclaimed_bytes: 0,
+        supported: false,
+    })
+}
+
+/// 把**本进程**的工作集交还系统。不需要管理员权限。
+///
+/// 系统级清理（清待机列表 / 文件缓存）走的是 `NtSetSystemInformation`，那必须有
+/// SeProfileSingleProcessPrivilege —— 实测非管理员会直接报 "Administrator privileges
+/// are required"。自动优化不能弹 UAC，所以这里至少把启动器自己占的几百 MB 放掉，
+/// 轻量模式（游戏在跑）时这部分才是真正对游戏有用的。
+#[cfg(target_os = "windows")]
+fn trim_current_process_working_set() {
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, SetProcessWorkingSetSize,
+    };
+    // -1/-1 表示让系统把工作集收到最小；失败也无所谓，不影响后面的系统级尝试。
+    let _ = unsafe {
+        SetProcessWorkingSetSize(GetCurrentProcess(), usize::MAX, usize::MAX)
+    };
+}
+
+#[cfg(target_os = "windows")]
+fn optimize_silent_blocking() -> crate::Result<MemoryOptimizationResult> {
+    let before_available_bytes = super::jre::system_available_memory_bytes();
+    // 1) 先做不需要权限的部分（一定生效）
+    trim_current_process_working_set();
+    // 2) 再试系统级；拿不到权限就跳过，**不当作失败**（自动流程不能因此报错）
+    if let Err(error) = optimize_windows_memory() {
+        tracing::debug!(%error, "system-wide memory trim skipped (needs admin)");
+    }
+    let after_available_bytes = super::jre::system_available_memory_bytes();
+    Ok(MemoryOptimizationResult {
+        before_available_bytes,
+        after_available_bytes,
+        reclaimed_bytes: after_available_bytes
+            .saturating_sub(before_available_bytes),
+        supported: true,
+    })
+}
+
 #[cfg(not(target_os = "windows"))]
 fn optimize_blocking() -> crate::Result<MemoryOptimizationResult> {
     Ok(MemoryOptimizationResult {

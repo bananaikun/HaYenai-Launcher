@@ -221,6 +221,9 @@ async fn initialize_state(app: tauri::AppHandle) -> api::Result<()> {
         tracing::warn!(%error, "Failed to maintain the instance backup repository");
     }
 
+    // 内存自动优化（定时 / 按占用）。放在 Rust 侧，轻量模式下也继续跑。
+    api::memory_auto::spawn(app.clone());
+
     // The logger starts before the database is available, so the stored level
     // is applied here once settings can be read. Beta keeps enough detail for
     // diagnostics by requiring DEBUG or TRACE.
@@ -944,6 +947,9 @@ fn main() {
             api::server_status::server_status,
             // 磁悬条 · 服务器卡片的 HTTP 探活（拿真实状态码，不走 opaque response）
             api::http_probe::http_probe,
+            // 内存自动优化（配置存在独立 JSON，不进 settings 那张列式表）
+            api::memory_auto::memory_auto_get,
+            api::memory_auto::memory_auto_set,
             api::wallpaper_accent::wallpaper_accent,
             // AI 方案（人格/规则）：插件通道的权限清单是编译期快照，加命令不生效，走主 handler
             api::ai::ai_preset_list,

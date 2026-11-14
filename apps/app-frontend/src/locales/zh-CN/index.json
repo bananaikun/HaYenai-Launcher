@@ -9635,6 +9635,12 @@
   "app.settings.java.auto-high-performance-mode-description": {
     "message": "启动 Minecraft 时自动使用高性能显卡。支持 Windows 和 Linux。"
   },
+  "app.settings.java.auto-optimize": {
+    "message": "自动优化内存"
+  },
+  "app.settings.java.auto-optimize-description": {
+    "message": "后台运行，游戏启动后启动器进入轻量模式也照常生效。不会索要管理员权限。"
+  },
   "app.settings.java.cancel": {
     "message": "取消"
   },
@@ -9691,6 +9697,21 @@
   },
   "app.settings.java.manual-add": {
     "message": "手动添加"
+  },
+  "app.settings.java.optimize-cooldown": {
+    "message": "两次自动优化至少间隔 5 分钟。"
+  },
+  "app.settings.java.optimize-interval": {
+    "message": "每"
+  },
+  "app.settings.java.optimize-interval-unit": {
+    "message": "分钟执行一次（0 = 关闭）"
+  },
+  "app.settings.java.optimize-threshold": {
+    "message": "内存占用达到"
+  },
+  "app.settings.java.optimize-threshold-off": {
+    "message": "关闭"
   },
   "app.settings.java.scan-anyway": {
     "message": "仍然扫描"

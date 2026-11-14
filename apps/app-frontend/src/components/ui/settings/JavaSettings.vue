@@ -9,9 +9,10 @@ import {
     Toggle,
     useVIntl,
 } from '@modrinth/ui'
+import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import JavaArgumentsInput from '@/components/ui/JavaArgumentsInput.vue'
 import JavaSelector from '@/components/ui/JavaSelector.vue'
@@ -117,6 +118,23 @@ const messages = defineMessages({
         id: 'app.settings.defaults.java-arguments',
         defaultMessage: 'Java arguments',
     },
+    autoOptimize: { id: 'app.settings.java.auto-optimize', defaultMessage: 'Automatic memory optimization' },
+    autoOptimizeDescription: {
+        id: 'app.settings.java.auto-optimize-description',
+        defaultMessage:
+            'Runs in the background, including when the launcher is in lightweight mode while the game is running. It never asks for administrator permission.',
+    },
+    optimizeInterval: { id: 'app.settings.java.optimize-interval', defaultMessage: 'Every' },
+    optimizeIntervalUnit: { id: 'app.settings.java.optimize-interval-unit', defaultMessage: 'minutes (0 = off)' },
+    optimizeThreshold: {
+        id: 'app.settings.java.optimize-threshold',
+        defaultMessage: 'When memory usage reaches',
+    },
+    optimizeThresholdOff: { id: 'app.settings.java.optimize-threshold-off', defaultMessage: 'Off' },
+    optimizeCooldownHint: {
+        id: 'app.settings.java.optimize-cooldown',
+        defaultMessage: 'Automatic runs are at least 5 minutes apart.',
+    },
     javaArgumentsPlaceholder: {
         id: 'app.settings.defaults.java-arguments-placeholder',
         defaultMessage: 'Enter Java arguments...',
@@ -147,7 +165,53 @@ const memory = ref(
         : { maximum: 2048, automatic: true, optimize_before_launch: false },
 )
 
+/*
+ * 自动优化的配置单独存在 `<设置目录>/memory-auto.json`（后端 `memory_auto_*` 命令）。
+ * 不塞进 settings：那张表是一列一个字段 + sqlx 编译期校验，为三个开关动它不划算。
+ */
+const autoMemory = ref({ enabled: false, intervalMinutes: 30, thresholdPercent: 0 })
+let autoMemoryReady = false
+
+async function loadAutoMemory() {
+    try {
+        const config = await invoke('memory_auto_get')
+        if (config) autoMemory.value = { ...autoMemory.value, ...config }
+    } catch (error) {
+        // 读不到就用默认值，不影响别的设置
+        console.warn('[java-settings] memory_auto_get failed', error)
+    } finally {
+        autoMemoryReady = true
+    }
+}
+
+async function saveAutoMemory() {
+    if (!autoMemoryReady) return
+    try {
+        await invoke('memory_auto_set', { config: autoMemory.value })
+    } catch (error) {
+        handleError(error)
+    }
+}
+
+void loadAutoMemory()
+
+watch(autoMemory, () => void saveAutoMemory(), { deep: true })
+
 let shouldApplyDefaultAuto = (settings.value?.extra_launch_args?.length ?? 0) === 0
+
+/** 按占用自动优化的阈值档位；0 = 关闭这一条触发条件。 */
+const memoryThresholdOptions = computed(() => [
+    { value: 0, label: formatMessage(messages.optimizeThresholdOff) },
+    { value: 70, label: '70%' },
+    { value: 80, label: '80%' },
+    { value: 90, label: '90%' },
+])
+
+/** 定时分钟数收口到 0–1440，免得手输成负数或天文数字。 */
+function clampOptimizeInterval() {
+    const value = Number(autoMemory.value.intervalMinutes) || 0
+    autoMemory.value.intervalMinutes = Math.min(1440, Math.max(0, Math.round(value)))
+}
 
 const memorySlider = useMemorySlider()
 const maxMemory = memorySlider?.maxMemory ?? 4096
@@ -437,6 +501,66 @@ async function onJavaDownloaded(job) {
                     <p class="m-0 text-xs leading-tight text-[var(--color-text-tertiary)]">
                         {{ formatMessage(messages.optimizeMemoryBeforeLaunchDescription) }}
                     </p>
+                </div>
+
+                <!-- 自动优化：定时 + 按占用。后台跑在 Rust 侧，轻量模式下也在跑。 -->
+                <div v-if="supportsMemoryOptimization" class="mt-3 flex flex-col gap-3">
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="flex min-w-0 flex-col gap-1">
+                            <span class="text-sm font-semibold text-[var(--color-text-primary)]">
+                                {{ formatMessage(messages.autoOptimize) }}
+                            </span>
+                            <span class="text-xs leading-tight text-[var(--color-text-tertiary)]">
+                                {{ formatMessage(messages.autoOptimizeDescription) }}
+                            </span>
+                        </div>
+                        <Toggle id="auto-memory-optimize" v-model="autoMemory.enabled" />
+                    </div>
+
+                    <div v-if="autoMemory.enabled" class="flex flex-col gap-3 pl-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm text-[var(--color-text-primary)]">
+                                {{ formatMessage(messages.optimizeInterval) }}
+                            </span>
+                            <input
+                                v-model.number="autoMemory.intervalMinutes"
+                                type="number"
+                                min="0"
+                                max="1440"
+                                step="5"
+                                class="w-20 rounded-lg border border-solid border-button-border bg-surface-4 px-2 py-1 text-sm text-[var(--color-text-primary)]"
+                                :aria-label="formatMessage(messages.optimizeInterval)"
+                                @change="clampOptimizeInterval()"
+                            />
+                            <span class="text-xs text-[var(--color-text-tertiary)]">
+                                {{ formatMessage(messages.optimizeIntervalUnit) }}
+                            </span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm text-[var(--color-text-primary)]">
+                                {{ formatMessage(messages.optimizeThreshold) }}
+                            </span>
+                            <button
+                                v-for="option in memoryThresholdOptions"
+                                :key="option.value"
+                                type="button"
+                                class="rounded-lg border border-solid px-2.5 py-1 text-xs transition-colors"
+                                :class="
+                                    autoMemory.thresholdPercent === option.value
+                                        ? 'border-transparent bg-brand text-[var(--color-accent-contrast,#fff)]'
+                                        : 'border-button-border bg-surface-4 text-[var(--color-text-secondary)]'
+                                "
+                                @click="autoMemory.thresholdPercent = option.value"
+                            >
+                                {{ option.label }}
+                            </button>
+                        </div>
+
+                        <p class="m-0 text-xs leading-tight text-[var(--color-text-tertiary)]">
+                            {{ formatMessage(messages.optimizeCooldownHint) }}
+                        </p>
+                    </div>
                 </div>
 
                 <Slider

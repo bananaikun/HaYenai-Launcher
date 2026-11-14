@@ -10571,6 +10571,12 @@
   "app.settings.java.auto-high-performance-mode-description": {
     "message": "Uses the high-performance GPU for Minecraft when it launches. Supported on Windows and Linux."
   },
+  "app.settings.java.auto-optimize": {
+    "message": "Automatic memory optimization"
+  },
+  "app.settings.java.auto-optimize-description": {
+    "message": "Runs in the background, including when the launcher is in lightweight mode while the game is running. It never asks for administrator permission."
+  },
   "app.settings.java.cancel": {
     "message": "Cancel"
   },
@@ -10627,6 +10633,21 @@
   },
   "app.settings.java.manual-add": {
     "message": "Manual Add"
+  },
+  "app.settings.java.optimize-cooldown": {
+    "message": "Automatic runs are at least 5 minutes apart."
+  },
+  "app.settings.java.optimize-interval": {
+    "message": "Every"
+  },
+  "app.settings.java.optimize-interval-unit": {
+    "message": "minutes (0 = off)"
+  },
+  "app.settings.java.optimize-threshold": {
+    "message": "When memory usage reaches"
+  },
+  "app.settings.java.optimize-threshold-off": {
+    "message": "Off"
   },
   "app.settings.java.scan-anyway": {
     "message": "Scan Anyway"
