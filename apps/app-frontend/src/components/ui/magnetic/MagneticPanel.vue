@@ -2425,7 +2425,13 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
      * 高度只在卡片很矮时才真正压字号（110px 的矮卡也不会掉到 9px），
      * 夹在 9–15px 之间：348×148 的常规卡≈12.4px，和改造前的观感一致。
      */
-    font-size: clamp(9px, min(4.3cqw, max(3.2cqw, 8.4cqh)), 15px);
+    /*
+     * 基准字号 ≈ 卡片可用空间的 1/6。
+     * 2026-11-14 主人：内容"被设定就这么小"，没有跟着卡片放大 ——
+     * 上一版上限 15px 太保守，大卡里内容缩在中间。现在上限 20px，
+     * 且以高度为主（高度决定能放几行），窄卡仍夹在 9px 下限。
+     */
+    font-size: clamp(9px, min(5.2cqw, 10.5cqh), 20px);
     line-height: 1.25;
     /*
      * 内容位置由组件设置里的「水平 / 垂直」驱动（--mbp-align / --mbp-justify，
@@ -2500,6 +2506,9 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     align-items: center;
     gap: 0.45em;
     font-size: 0.95em;
+    /* 每行均分卡片高度：卡片拖高时行跟着变高，而不是全挤在顶部 */
+    flex: 1 1 0;
+    min-height: 1.9em;
 }
 
 .mbp-row-name {
@@ -2540,8 +2549,9 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
 }
 
 .mbp-icon-cell :deep(svg) {
-    width: 1.25em;
-    height: 1.25em;
+    /* 跟着格子走：格子越大图标越大，别在大卡里缩成一个点 */
+    width: min(2.2em, 58%);
+    height: min(2.2em, 58%);
     /* @modrinth/assets 的图标是**线框**：填色会把形状糊成一团（看起来"图标不对"）。 */
     fill: none;
     stroke: currentColor;
@@ -2611,7 +2621,7 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
 }
 
 .mbp-meter {
-    height: 0.42em;
+    height: clamp(4px, 0.55em, 12px);
     min-height: 3px;
     border-radius: 0.22em;
     background: var(--glass-2);
@@ -3075,6 +3085,8 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     display: flex;
     flex-direction: column;
     gap: 0.18em;
+    flex: 1 1 0;
+    justify-content: center;
 }
 
 .mbp-job-top {
@@ -3296,10 +3308,27 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     align-content: start;
 }
 
-/* 时钟：跟着卡片宽度放大（宽卡不该还留一大片空白） */
+/*
+ * 时钟：铺满卡片。
+ * 字号取「宽度够放 N 个字符」与「高度留一行」两者的较小值，
+ * 686×152 的宽卡约 82px（以前 28px，字只占中间一小块）。
+ */
 .mbp-clock {
-    font-size: clamp(1.7em, 0.26em + 3.6cqw, 2.7em);
-    line-height: 1.1;
+    font-size: clamp(1.9em, min(19cqw, 72cqh), 140px);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+}
+
+/*
+ * 大卡（宽 ≥ 420px）上的「单内容」组件（时钟 / 日期 / 服务器）把左上角标题让出来：
+ * 标题占掉 1 行高度，卡本来就不高，内容就永远吃不满。这几个组件的内容本身自明。
+ */
+@container card (min-width: 420px) {
+    .mbp-card[data-widget='clock'] .mbp-label,
+    .mbp-card[data-widget='date'] .mbp-label,
+    .mbp-card[data-widget='server'] .mbp-label {
+        display: none;
+    }
 }
 
 /* 日期卡 = 月历 */
