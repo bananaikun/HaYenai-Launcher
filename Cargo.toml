@@ -237,6 +237,15 @@ opt-level = 3
 opt-level = "s"  # Optimize for binary size
 strip = true  # Remove debug symbols
 lto = false
+# 2026-11-15：`opt-level="s"` 下 theseus 这个 crate 单单元编译时 LLVM 峰值会顶到 9G 以上，
+# 在 16G 机器上连续两次 `rustc-LLVM ERROR: out of memory`。切成 32 个 codegen unit 后
+# 每个单元小很多，峰值明显下降（代价是产物略大、跨单元内联少一点）。
+codegen-units = 32
+
+# 2026-11-15：只有这个 bin 编不过去（tauri 全插件 + 巨型 main.rs，`opt-level="s"` 下
+# LLVM 峰值顶穿 16G 机器）。单独给它降到 1：只有它重编，依赖树的缓存全部复用。
+[profile.release.package.theseus_gui]
+opt-level = 1
 
 [profile.ci]
 inherits = "release"

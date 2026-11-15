@@ -207,23 +207,6 @@ fn main() {
     // You could try parsing source code here and detecting #[tauri::command]
     // But I think it's not worth it
     // https://github.com/tauri-apps/tauri/issues/10075
-    /*
-     * 启动器以管理员身份运行（主人 2026-11-15）。
-     *
-     * ⚠ 不要用 `WindowsAttributes::app_manifest(include_str!("app.manifest"))`：
-     * 那种方式会把自定义清单嵌成资源，与 linker 自己生成的清单（tauri/tao 会加
-     * Common-Controls 依赖）撞在一起，启动时直接报
-     * 「应用程序的并行配置不正确」，exe 根本起不来（1.0.45 就是这么废掉的，
-     * 连最小清单也一样炸）。
-     *
-     * 改用链接器开关直接写 UAC 段：它和自动生成的那份清单是同一来源，不会冲突。
-     * DPI 感知由 tao 在运行期调用 SetProcessDpiAwarenessContext 完成，不依赖清单。
-     */
-    #[cfg(windows)]
-    println!(
-        "cargo:rustc-link-arg=/MANIFESTUAC:level='requireAdministrator' uiAccess='false'"
-    );
-
     tauri_build::try_build(
         tauri_build::Attributes::new()
             .codegen(tauri_build::CodegenContext::new())
