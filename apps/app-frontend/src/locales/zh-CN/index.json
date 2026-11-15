@@ -8613,7 +8613,7 @@
     "message": "由主题与壁纸亮度决定黑字或白字。"
   },
   "app.settings.font-color.description": {
-    "message": "作用于标题与强调文字，正文保持主题默认。"
+    "message": "作用于全站文字与图标；错误、警告这类状态色保持原样。"
   },
   "app.settings.font-color.gradient": {
     "message": "渐变字体"

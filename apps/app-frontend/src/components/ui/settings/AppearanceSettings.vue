@@ -208,7 +208,7 @@ const messages = defineMessages({
     fontColorDescription: {
         id: 'app.settings.font-color.description',
         defaultMessage:
-            'Applies to headings and emphasized text; body text keeps the theme default.',
+            'Applies to all text and icons in the interface. Status colors (errors, warnings) stay as they are.',
     },
     fontColorDefault: { id: 'app.settings.font-color.default', defaultMessage: 'Follow theme' },
     fontColorDefaultDescription: {
@@ -1337,109 +1337,6 @@ watch(
             </div>
         </SettingsSection>
 
-        <!-- 字体颜色：主人 2026-11-15「只有黑白太单调」 -->
-        <SettingsSection v-if="props.scope === 'interface'" icon="palette">
-            <template #header>
-                <h2
-                    id="settings-target-font-color"
-                    tabindex="-1"
-                    class="m-0 text-lg font-semibold text-[var(--color-text-primary)]"
-                >
-                    {{ formatMessage(messages.fontColorTitle) }}
-                </h2>
-                <p class="m-0 mt-1 text-sm leading-relaxed text-[var(--color-text-tertiary)]">
-                    {{ formatMessage(messages.fontColorDescription) }}
-                </p>
-            </template>
-
-            <div class="mt-2 grid gap-4">
-                <SettingsRow>
-                    <template #label>
-                        {{ formatMessage(messages.fontColorDefault) }}
-                    </template>
-                    <template #description>
-                        {{ formatMessage(messages.fontColorDefaultDescription) }}
-                    </template>
-                    <template #control>
-                        <Toggle
-                            id="font-color-default"
-                            :model-value="fontTone.mode === 'default'"
-                            @update:model-value="
-                                (value) => updateFontTone({ mode: value ? 'default' : 'preset' })
-                            "
-                        />
-                    </template>
-                </SettingsRow>
-
-                <div v-if="fontTone.mode === 'preset'" class="flex flex-col gap-2">
-                    <span class="text-sm font-semibold text-[var(--color-text-primary)]">
-                        {{ formatMessage(messages.fontColorPreset) }}
-                    </span>
-                    <div class="flex flex-wrap gap-2">
-                        <button
-                            v-for="preset in FONT_COLOR_PRESETS"
-                            :key="preset.value"
-                            type="button"
-                            class="size-8 rounded-full border-2 border-solid transition-transform"
-                            :class="
-                                fontTone.color === preset.value
-                                    ? 'border-[var(--color-brand)] scale-110'
-                                    : 'border-white/25 hover:scale-105'
-                            "
-                            :style="{ background: preset.value }"
-                            :title="preset.label"
-                            :aria-label="preset.label"
-                            :aria-pressed="fontTone.color === preset.value"
-                            @click="updateFontTone({ color: preset.value })"
-                        />
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-2 border-0 border-t border-solid border-button-border pt-4">
-                    <SettingsRow>
-                        <template #label>
-                            {{ formatMessage(messages.fontColorGradient) }}
-                        </template>
-                        <template #description>
-                            {{ formatMessage(messages.fontColorGradientDescription) }}
-                        </template>
-                        <template #control>
-                            <Toggle
-                                id="font-color-gradient"
-                                :model-value="fontTone.mode === 'gradient'"
-                                @update:model-value="
-                                    (value) =>
-                                        updateFontTone({ mode: value ? 'gradient' : 'preset' })
-                                "
-                            />
-                        </template>
-                    </SettingsRow>
-
-                    <div v-if="fontTone.mode === 'gradient'" class="flex flex-col gap-2">
-                        <div class="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
-                            <span>{{ formatMessage(messages.fontColorVivid) }}</span>
-                            <span
-                                class="inline-block size-4 rounded border border-solid border-white/25"
-                                :style="{ background: fontTone.vivid || 'var(--color-brand)' }"
-                            />
-                            <code class="tabular-nums">{{ fontTone.vivid || '—' }}</code>
-                        </div>
-                        <!-- 预览：与真实规则同一套渐变方向（上下） -->
-                        <div
-                            class="rounded-xl border border-solid border-button-border bg-surface-4 px-4 py-3 text-center text-2xl font-extrabold"
-                            :style="{
-                                backgroundImage: `linear-gradient(to bottom, ${fontTone.vivid || 'var(--color-brand)'}, var(--color-brand))`,
-                                WebkitBackgroundClip: 'text',
-                                backgroundClip: 'text',
-                                color: 'transparent',
-                            }"
-                        >
-                            HaYenai 字体渐变预览
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </SettingsSection>
 
         <!-- 高自定义：外观参数的"细调"层（主人 23:01 的要求）。
              默认值就是现在这套观感，所以随便拖动都能回到原样。 -->
@@ -1832,6 +1729,105 @@ watch(
                 <Button type="quiet" @click="loadSystemFonts">
                     {{ formatMessage(messages.fontRetry) }}
                 </Button>
+            </div>
+            <div
+                class="mt-5 flex flex-col gap-4 border-0 border-t border-solid border-button-border pt-5"
+            >
+                <div class="flex flex-col gap-1">
+                    <h3 class="m-0 text-base font-semibold text-[var(--color-text-primary)]">
+                        {{ formatMessage(messages.fontColorTitle) }}
+                    </h3>
+                    <p class="m-0 text-sm leading-relaxed text-[var(--color-text-tertiary)]">
+                        {{ formatMessage(messages.fontColorDescription) }}
+                    </p>
+                </div>
+                <div class="mt-2 grid gap-4">
+                    <SettingsRow>
+                        <template #label>
+                            {{ formatMessage(messages.fontColorDefault) }}
+                        </template>
+                        <template #description>
+                            {{ formatMessage(messages.fontColorDefaultDescription) }}
+                        </template>
+                        <template #control>
+                            <Toggle
+                                id="font-color-default"
+                                :model-value="fontTone.mode === 'default'"
+                                @update:model-value="
+                                    (value) => updateFontTone({ mode: value ? 'default' : 'preset' })
+                                "
+                            />
+                        </template>
+                    </SettingsRow>
+
+                    <div v-if="fontTone.mode === 'preset'" class="flex flex-col gap-2">
+                        <span class="text-sm font-semibold text-[var(--color-text-primary)]">
+                            {{ formatMessage(messages.fontColorPreset) }}
+                        </span>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-for="preset in FONT_COLOR_PRESETS"
+                                :key="preset.value"
+                                type="button"
+                                class="size-8 rounded-full border-2 border-solid transition-transform"
+                                :class="
+                                    fontTone.color === preset.value
+                                        ? 'border-[var(--color-brand)] scale-110'
+                                        : 'border-white/25 hover:scale-105'
+                                "
+                                :style="{ background: preset.value }"
+                                :title="preset.label"
+                                :aria-label="preset.label"
+                                :aria-pressed="fontTone.color === preset.value"
+                                @click="updateFontTone({ color: preset.value })"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2 border-0 border-t border-solid border-button-border pt-4">
+                        <SettingsRow>
+                            <template #label>
+                                {{ formatMessage(messages.fontColorGradient) }}
+                            </template>
+                            <template #description>
+                                {{ formatMessage(messages.fontColorGradientDescription) }}
+                            </template>
+                            <template #control>
+                                <Toggle
+                                    id="font-color-gradient"
+                                    :model-value="fontTone.mode === 'gradient'"
+                                    @update:model-value="
+                                        (value) =>
+                                            updateFontTone({ mode: value ? 'gradient' : 'preset' })
+                                    "
+                                />
+                            </template>
+                        </SettingsRow>
+
+                        <div v-if="fontTone.mode === 'gradient'" class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
+                                <span>{{ formatMessage(messages.fontColorVivid) }}</span>
+                                <span
+                                    class="inline-block size-4 rounded border border-solid border-white/25"
+                                    :style="{ background: fontTone.vivid || 'var(--color-brand)' }"
+                                />
+                                <code class="tabular-nums">{{ fontTone.vivid || '—' }}</code>
+                            </div>
+                            <!-- 预览：与真实规则同一套渐变方向（上下） -->
+                            <div
+                                class="rounded-xl border border-solid border-button-border bg-surface-4 px-4 py-3 text-center text-2xl font-extrabold"
+                                :style="{
+                                    backgroundImage: `linear-gradient(to bottom, ${fontTone.vivid || 'var(--color-brand)'}, var(--color-brand))`,
+                                    WebkitBackgroundClip: 'text',
+                                    backgroundClip: 'text',
+                                    color: 'transparent',
+                                }"
+                            >
+                                HaYenai 字体渐变预览
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </SettingsSection>
 

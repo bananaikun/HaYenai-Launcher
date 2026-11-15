@@ -9549,7 +9549,7 @@
     "message": "Black or white, chosen by the theme and wallpaper brightness."
   },
   "app.settings.font-color.description": {
-    "message": "Applies to headings and emphasized text; body text keeps the theme default."
+    "message": "Applies to all text and icons in the interface. Status colors (errors, warnings) stay as they are."
   },
   "app.settings.font-color.gradient": {
     "message": "Gradient text"

@@ -5,26 +5,40 @@
  *   - `data-font-tone="preset" | "gradient"`（default 时不写）
  *   - `--font-strong`（单色）或 `--font-strong-a` / `--font-strong-b`（渐变两端）
  *
- * 作用范围只到「标题 + 强调文字」：正文段落保持主题本来的颜色。
- * 渐变正文（尤其小字号）会发虚、且逐行重画渐变开销大，所以这里刻意不碰 p / li / 表单。
- *
- * ⚠ 目标元素统一用 `!important`：这些类在各自的组件 scoped 样式里都写过 color，
- * 不加优先级压不住，会出现「设置里改了，标题纹丝不动」。
+ * 2026-11-15 主人要求「全局字体以及图标都换颜色」，所以不再是「只改标题」：
+ *   - preset 直接改三档文字变量的值，全站文字自然跟着变；图标走 currentColor，一并变色。
+ *     用 color-mix 保住 primary/secondary/tertiary 的层次，不至于全站糊成一块。
+ *   - gradient 给文字元素铺 `background-clip: text`。
+ *     ⚠ SVG 不吃 background-clip：渐变模式下文字是 transparent，若不给 SVG 实色，
+ *       图标会整片消失 —— 所以下面单独给 svg 上色。
  */
 
 html[data-font-tone] {
     --font-strong: var(--color-text-primary);
     --font-strong-a: var(--color-text-primary);
     --font-strong-b: var(--color-brand);
+    /* 「实色」：渐变模式下文字是 transparent，按钮/输入框/图标这些不能透明的元素用这个 */
+    --font-solid: var(--font-strong);
 }
 
-/* ---------- 预设单色 ---------- */
-html[data-font-tone='preset'] :is(h1, h2, h3, h4, .nav-label, .mb-title, .mbp-clock, .mbp-datecal-cell b, .home-glass-card > h3) {
-    color: var(--font-strong) !important;
+html[data-font-tone='gradient'] {
+    --font-solid: var(--font-strong-b);
+}
+
+/* ---------- 预设单色：改文字变量，全站（含图标）一起变 ---------- */
+html[data-font-tone='preset'] {
+    --color-text-primary: var(--font-strong);
+    --color-text-default: var(--font-strong);
+    --color-text-secondary: color-mix(in srgb, var(--font-strong) 78%, transparent);
+    --color-text-tertiary: color-mix(in srgb, var(--font-strong) 58%, transparent);
+    --color-text-inactive: color-mix(in srgb, var(--font-strong) 45%, transparent);
+    --color-contrast: var(--font-strong);
 }
 
 /* ---------- 上下渐变 ---------- */
-html[data-font-tone='gradient'] :is(h1, h2, h3, h4, .nav-label, .mb-title, .mbp-clock, .mbp-datecal-cell b, .home-glass-card > h3) {
+/* 只铺文字元素：刻意不含 button 与带底色的容器，避免「色块被渐变吃掉」。 */
+html[data-font-tone='gradient']
+    :is(h1, h2, h3, h4, h5, h6, p, span, a, strong, em, small, code, label, li, td, th, figcaption, blockquote, dt, dd) {
     background-image: linear-gradient(
         to bottom,
         var(--font-strong-a) 0%,
@@ -33,20 +47,44 @@ html[data-font-tone='gradient'] :is(h1, h2, h3, h4, .nav-label, .mb-title, .mbp-
     -webkit-background-clip: text !important;
     background-clip: text !important;
     color: transparent !important;
-    /* 渐变文字不能带描边/阴影，否则会盖在渐变上变成一圈黑边 */
     -webkit-text-stroke: 0 !important;
     text-shadow: none !important;
 }
 
-/*
- * 磁悬条上的时间：它自带 `letter-spacing`，渐变按行盒裁切时左右会被字母间距带偏，
- * 这里保持原样即可；但它外面有 filter/blur 容器，`background-clip: text` 仍生效。
- */
-
-/* 设置页里那些「颜色说明」小字不跟着变色，避免整页花掉 */
-html[data-font-tone='gradient'] .text-\[var\(--color-text-tertiary\)\] {
+/* 铺完再逐个修回来：这些位置本身有底色/是输入控件 */
+html[data-font-tone='gradient']
+    :is(
+        button,
+        [role='button'],
+        [class*='bg-surface'],
+        [class*='bg-brand'],
+        [class*='badge'],
+        [class*='chip'],
+        [class*='pill'],
+        [class*='tag'],
+        input,
+        textarea,
+        select
+    ),
+html[data-font-tone='gradient']
+    :is(button, [role='button'], [class*='bg-surface'], [class*='bg-brand'], [class*='badge'], [class*='chip'], [class*='pill'], [class*='tag']) * {
     background-image: none !important;
     -webkit-background-clip: border-box !important;
     background-clip: border-box !important;
-    color: var(--color-text-tertiary) !important;
+    color: var(--font-solid) !important;
+    text-shadow: inherit !important;
+}
+
+/* 状态色（成功/警告/危险）任何模式下都不跟主题走 */
+html[data-font-tone]
+    :is([class*='text-red-'], [class*='text-green-'], [class*='text-yellow-'], [class*='text-orange-'], [class*='text-blue-']) {
+    background-image: none !important;
+    -webkit-background-clip: border-box !important;
+    background-clip: border-box !important;
+    color: inherit !important;
+}
+
+/* 图标：渐变模式下给实色，否则会因为 currentColor=transparent 整体消失 */
+html[data-font-tone] svg {
+    color: var(--font-solid) !important;
 }
