@@ -7080,7 +7080,7 @@ dependencies = [
 
 [[package]]
 name = "theseus_gui"
-version = "1.0.47"
+version = "1.0.48"
 dependencies = [
  "ashpd",
  "async_zip",

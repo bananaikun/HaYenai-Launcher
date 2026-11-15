@@ -51,7 +51,14 @@ html[data-font-tone='gradient']
     text-shadow: none !important;
 }
 
-/* 铺完再逐个修回来：这些位置本身有底色/是输入控件 */
+/*
+ * 铺完再修回来：只修「自身带底色」的元素。
+ *
+ * ⚠ 不要连带它们的子元素一起修（2026-11-15 踩过）：卡片容器都带 `bg-surface`，
+ * 连带子元素一起修的话，卡片里的标题永远吃不到渐变 —— 实测 h2 拿到的是实色，
+ * 主人要的「全局渐变」等于没生效。
+ * 只修元素自身的另一个好处：按钮里的 <span> 会正常渐变（背景是按钮画的，不受影响）。
+ */
 html[data-font-tone='gradient']
     :is(
         button,
@@ -65,9 +72,7 @@ html[data-font-tone='gradient']
         input,
         textarea,
         select
-    ),
-html[data-font-tone='gradient']
-    :is(button, [role='button'], [class*='bg-surface'], [class*='bg-brand'], [class*='badge'], [class*='chip'], [class*='pill'], [class*='tag']) * {
+    ) {
     background-image: none !important;
     -webkit-background-clip: border-box !important;
     background-clip: border-box !important;
