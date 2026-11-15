@@ -633,6 +633,30 @@ fn main() {
     #[cfg(target_os = "macos")]
     raise_file_descriptor_limit();
 
+    /*
+     * 启动器以管理员身份运行（主人 2026-11-15）。
+     *
+     * 不走 exe 清单：实测清单（哪怕只含 trustInfo）会和 linker 自动生成的那份撞车，
+     * 启动直接报「应用程序的并行配置不正确」——1.0.45 就是这么废掉的。
+     * 改成运行期自检：不是管理员就 runas 自己一次然后退出。
+     * `HAYENAI_ELEVATED_RELAUNCH` 用于防循环（runas 失败时不会一直弹 UAC）。
+     */
+    #[cfg(target_os = "windows")]
+    if !theseus::is_process_elevated()
+        && std::env::var_os("HAYENAI_ELEVATED_RELAUNCH").is_none()
+    {
+        // edition 2024：改进程环境是 unsafe（多线程下不安全；这里还没起线程）
+        unsafe { std::env::set_var("HAYENAI_ELEVATED_RELAUNCH", "1") };
+        match theseus::relaunch_elevated() {
+            Ok(()) => std::process::exit(0),
+            Err(error) => {
+                // 用户拒绝或者系统不允许：继续以普通权限跑，功能会少一点但不至于打不开
+                tracing::warn!(%error, "could not relaunch as administrator");
+                unsafe { std::env::remove_var("HAYENAI_ELEVATED_RELAUNCH") };
+            }
+        }
+    }
+
     #[cfg(target_os = "windows")]
     if std::env::args_os().any(|argument| argument == "--memory-optimize") {
         std::process::exit(theseus::memory::optimize_current_process_context());

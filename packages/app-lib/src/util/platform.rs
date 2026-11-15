@@ -146,3 +146,55 @@ pub fn classpath_separator(java_arch: &str) -> &'static str {
         Os::Windows | Os::WindowsArm64 => ";",
     }
 }
+
+/// 以管理员身份重新启动自己（Windows）。
+///
+/// 为什么要这个而不是清单里写 `requireAdministrator`：
+/// 实测两种清单写法都会让 exe 启动时报「应用程序的并行配置不正确」——
+/// 自定义清单资源与 linker 自动生成的清单撞车，连只含 trustInfo 的最小清单也炸。
+/// 链接器开关 `/MANIFESTUAC` 又被 rust-lld 忽略（字节流里查不到 requestedExecutionLevel）。
+/// 所以改成运行期自检：不是管理员就 runas 自己一次，然后退出。
+///
+/// 防循环：调用方在重启前设置 `HAYENAI_ELEVATED_RELAUNCH=1`，子进程继承环境变量，
+/// 看到它就不再重启（万一 runas 失败也不会无限弹 UAC）。
+#[cfg(target_os = "windows")]
+pub fn relaunch_elevated() -> Result<(), String> {
+    use std::mem::size_of;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::UI::Shell::{
+        SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
+    };
+    use windows::core::PCWSTR;
+
+    let mut executable = std::env::current_exe()
+        .map_err(|error| format!("could not locate executable: {error}"))?
+        .into_os_string()
+        .encode_wide()
+        .collect::<Vec<_>>();
+    executable.push(0);
+
+    // 原样带上启动参数（例如 --memory-optimize 这类 helper 参数）
+    let arguments = std::env::args_os()
+        .skip(1)
+        .map(|argument| format!("\"{}\"", argument.to_string_lossy()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut arguments_w: Vec<u16> = arguments.encode_utf16().collect();
+    arguments_w.push(0);
+
+    let verb = "runas\0".encode_utf16().collect::<Vec<_>>();
+
+    let mut execute_info = SHELLEXECUTEINFOW {
+        cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS,
+        lpVerb: PCWSTR::from_raw(verb.as_ptr()),
+        lpFile: PCWSTR::from_raw(executable.as_ptr()),
+        lpParameters: PCWSTR::from_raw(arguments_w.as_ptr()),
+        nShow: 1, // SW_SHOWNORMAL
+        ..Default::default()
+    };
+
+    unsafe { ShellExecuteExW(&raw mut execute_info) }
+        .map_err(|error| format!("could not relaunch as administrator: {error}"))?;
+    Ok(())
+}
