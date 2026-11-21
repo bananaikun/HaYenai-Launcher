@@ -13,19 +13,19 @@ use tauri::{Manager, ResourceId, Runtime, Webview};
 use tauri_plugin_http::reqwest;
 use tauri_plugin_http::reqwest::ClientBuilder;
 use tauri_plugin_updater::{Error, Update, UpdaterExt};
-use theseus::update_service::{UpdateService, UPDATE_SERVICE_FALLBACK_BASE};
 use theseus::{
     LoadingBarType, emit_loading, init_loading, launcher_user_agent,
 };
 use tokio::time::Instant;
 use url::Url;
 
-/// Path of the release catalog, relative to the resolved base URL.
+/// GitHub 上最新一次 release 的 API 地址。
 ///
-/// 只有 apt 托管的 Linux 更新还在用 HaYenai 更新服务器的 `/api/versions`
-/// （.deb 没有 minisign 签名，得靠目录里的 sha256/size 校验）。Windows/macOS/
-/// AppImage 的检查与下载都走 GitHub Releases。
-const UPDATE_CATALOG_PATH: &str = "api/versions";
+/// apt 托管的 Linux 更新要的是 `.deb`，它没有 minisign 签名（插件那条签名校验
+/// 的路走不了），所以直接问 GitHub 要资产清单，再用资产自带的 sha256 + size
+/// 校验下载到的字节。仓库与 Windows/macOS 的 `latest.json` 是同一个。
+const GITHUB_RELEASE_API: &str =
+    "https://api.github.com/repos/bananaikun/HaYenai-Launcher/releases/latest";
 
 // The updater plugin builds `Update` with no request timeout, so a stalled
 // connection would hang the download forever. Bound the whole download.
@@ -183,36 +183,30 @@ fn prune_update_cache(root: &Path, keep: Option<&str>) {
 }
 
 
-// ── Update Server API types ─────────────────────────────────────
+// ── GitHub Releases 上的 deb 资产 ────────────────────────────────
 
 #[derive(Deserialize)]
-struct VersionsResponse {
-    versions: Vec<VersionEntry>,
+struct GithubRelease {
+    #[serde(default)]
+    tag_name: String,
+    #[serde(default)]
+    assets: Vec<GithubAsset>,
 }
 
 #[derive(Deserialize)]
-struct VersionEntry {
-    version: String,
-    artifacts: Vec<ArtifactEntry>,
-}
-
-#[derive(Deserialize)]
-struct ArtifactEntry {
-    kind: String,
-    #[serde(default)]
-    variant: Option<String>,
-    platform: String,
-    architecture: String,
-    relative_path: String,
-    #[serde(default)]
-    sha256: Option<String>,
+struct GithubAsset {
+    name: String,
+    browser_download_url: String,
     #[serde(default)]
     size: u64,
+    /// `sha256:<hex>`，GitHub 从 2024 年起对上传的资产计算并返回。
+    #[serde(default)]
+    digest: Option<String>,
 }
 
-/// The .deb asset for an apt-managed Linux update, from the Update Server
-/// catalog (`/api/versions`). The deb has no minisign signature, so its
-/// integrity is verified with the catalog's sha256 and size instead.
+/// The .deb asset for an apt-managed Linux update, taken from the GitHub release.
+/// The deb has no minisign signature, so its integrity is verified with the
+/// release's sha256 and size instead.
 struct AptDebAsset {
     url: Url,
     sha256: String,
@@ -230,85 +224,111 @@ fn apt_deb_arch() -> Result<&'static str> {
     }
 }
 
-/// Joins a path onto the resolved update-service base.
+/// 从 GitHub release 的资产里挑出本架构的 `.deb`。
 ///
-/// The base always ends with `/`, so a plain concatenation is enough; the
-/// fallback constant stands in for the (unlikely) case where resolution has not
-/// produced anything yet.
-async fn update_server_url(path: &str) -> String {
-    let base = UpdateService::shared()
-        .resolve_base_url()
-        .await
-        .unwrap_or_else(|| UPDATE_SERVICE_FALLBACK_BASE.to_string());
-    format!("{base}{path}")
-}
-
+/// `version` 是更新清单里声明的版本；release 的 tag 必须与它一致，否则说明
+/// CDN 还停在旧 release 上，这时宁可报错也不去装一个版本对不上的包。
 async fn fetch_apt_deb_asset(version: &str) -> Result<AptDebAsset> {
-    let base = update_server_url("").await;
-    let catalog_url = update_server_url(UPDATE_CATALOG_PATH).await;
-    let response = ClientBuilder::new()
+    let client = ClientBuilder::new()
         .user_agent(launcher_user_agent())
         .timeout(UPDATE_DOWNLOAD_TIMEOUT)
-        .build()?
-        .get(catalog_url)
+        .build()?;
+    let response = client
+        .get(GITHUB_RELEASE_API)
+        .header(
+            ACCEPT,
+            HeaderValue::from_static("application/vnd.github+json"),
+        )
         .send()
         .await?;
 
     if !response.status().is_success() {
         return Err(Error::Network(format!(
-            "Failed to fetch update catalog: {}",
+            "Failed to fetch the release information for the apt update: {}",
             response.status()
         ))
         .into());
     }
 
-    let catalog: VersionsResponse = response.json().await?;
-    let release = catalog
-        .versions
+    let release: GithubRelease = response.json().await?;
+    let tag = release.tag_name.trim_start_matches('v');
+    if !tag.is_empty() && tag != version {
+        return Err(theseus::Error::from(theseus::ErrorKind::OtherError(
+            format!("The latest release is {tag}, but the update offers {version}"),
+        ))
+        .into());
+    }
+
+    let arch = apt_deb_arch()?;
+    let asset = release
+        .assets
         .iter()
-        .find(|entry| entry.version == version)
+        .find(|entry| entry.name.ends_with(".deb") && entry.name.contains(arch))
         .ok_or_else(|| {
             theseus::Error::from(theseus::ErrorKind::OtherError(format!(
-                "Update catalog has no entry for version {version}"
+                "Release {version} has no {arch} deb asset"
             )))
         })?;
 
-    let arch = std::env::consts::ARCH;
-    let artifact = release
-        .artifacts
-        .iter()
-        .find(|entry| {
-            entry.kind == "installer"
-                && entry.variant.as_deref() == Some("deb")
-                && entry.platform == "linux"
-                && entry.architecture == arch
-        })
-        .ok_or_else(|| {
-            theseus::Error::from(theseus::ErrorKind::OtherError(format!(
-                "Update catalog has no deb artifact for {version} on {arch}"
-            )))
-        })?;
+    let sha256 = match asset
+        .digest
+        .as_deref()
+        .and_then(|digest| digest.strip_prefix("sha256:"))
+    {
+        Some(hex) => hex.to_ascii_lowercase(),
+        // 早上传的 release 没有 digest 字段，退回到 release 里的 SHA256SUMS.txt。
+        None => deb_sha256_from_sums(&client, &release, &asset.name).await?,
+    };
 
-    let sha256 = artifact.sha256.clone().ok_or_else(|| {
-        theseus::Error::from(theseus::ErrorKind::OtherError(format!(
-            "Update catalog has no sha256 for the deb artifact of {version}"
-        )))
+    let url = Url::parse(&asset.browser_download_url).map_err(|error| {
+        theseus::Error::from(theseus::ErrorKind::OtherError(error.to_string()))
     })?;
-
-    let url =
-        Url::parse(&format!("{base}{}", artifact.relative_path)).map_err(
-            |error| {
-                theseus::Error::from(theseus::ErrorKind::OtherError(
-                    error.to_string(),
-                ))
-            },
-        )?;
 
     Ok(AptDebAsset {
         url,
         sha256,
-        size: artifact.size,
+        size: asset.size,
     })
+}
+
+async fn deb_sha256_from_sums(
+    client: &reqwest::Client,
+    release: &GithubRelease,
+    deb_name: &str,
+) -> Result<String> {
+    let sums = release
+        .assets
+        .iter()
+        .find(|entry| entry.name.eq_ignore_ascii_case("SHA256SUMS.txt"))
+        .ok_or_else(|| {
+            theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+                "Release has neither a digest nor SHA256SUMS.txt for {deb_name}"
+            )))
+        })?;
+
+    let text = client
+        .get(&sums.browser_download_url)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+
+    for line in text.lines() {
+        let mut parts = line.split_whitespace();
+        let (Some(hash), Some(name)) = (parts.next(), parts.next()) else {
+            continue;
+        };
+        // `sha256sum` 在二进制模式下会给文件名加 `*` 前缀。
+        if name.trim_start_matches('*') == deb_name && hash.len() == 64 {
+            return Ok(hash.to_ascii_lowercase());
+        }
+    }
+
+    Err(theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+        "SHA256SUMS.txt has no entry for {deb_name}"
+    )))
+    .into())
 }
 
 // ── Updater plugin helpers ───────────────────────────────────────
@@ -1000,14 +1020,25 @@ pub async fn install_apt_package(version: &str, data: &[u8]) -> Result<()> {
     }
 
     let arch = apt_deb_arch()?;
-    let deb_path = std::env::temp_dir()
-        .join(format!("HaYenai.Launcher_{version}_{arch}.deb"));
+    // A predictable name in the shared temp directory could already exist as a
+    // symlink pointing somewhere else, and writing through it happens before
+    // `pkexec` asks the user for their password. A private directory created by
+    // tempfile has an unpredictable name, is 0700, and cleans itself up.
+    let staging = tempfile::Builder::new()
+        .prefix("hayenai-update-")
+        .tempdir()
+        .map_err(|io| {
+            theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+                "Failed to create the update staging directory: {io}"
+            )))
+        })?;
+    let deb_path =
+        staging.path().join(format!("HaYenai.Launcher_{version}_{arch}.deb"));
     std::fs::write(&deb_path, data).map_err(|io| {
         theseus::Error::from(theseus::ErrorKind::OtherError(format!(
             "Failed to write the downloaded deb: {io}"
         )))
     })?;
-    let _deb_cleanup = TempDebFile(deb_path.clone());
 
     let install_path = deb_path.clone();
     let output = tokio::task::spawn_blocking(move || {
@@ -1039,27 +1070,6 @@ pub async fn install_apt_package(version: &str, data: &[u8]) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Removes a temporary Debian package when installation finishes or fails.
-///
-/// The installer awaits a blocking task and has several fallible operations
-/// after creating the file. Keeping cleanup in `Drop` makes every return path
-/// (including task and process-launch errors) remove the package.
-struct TempDebFile(std::path::PathBuf);
-
-impl Drop for TempDebFile {
-    fn drop(&mut self) {
-        if let Err(error) = std::fs::remove_file(&self.0)
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!(
-                path = %self.0.display(),
-                error = %error,
-                "Failed to remove temporary deb file"
-            );
-        }
-    }
 }
 
 #[cfg(test)]

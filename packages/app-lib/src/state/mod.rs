@@ -802,16 +802,10 @@ impl State {
             settings.bypass_curseforge_download_restrictions,
             Ordering::Relaxed,
         );
-        match settings.mojang_auth_source {
-            DownloadSourceMode::MirrorPreferred => {
-                self.mojang_auth_use_mirror.store(true, Ordering::Relaxed);
-            }
-            DownloadSourceMode::OfficialOnly => {
-                self.mojang_auth_use_mirror.store(false, Ordering::Relaxed);
-            }
-            DownloadSourceMode::Auto
-            | DownloadSourceMode::OfficialPreferred => {}
-        }
+        self.mojang_auth_use_mirror.store(
+            settings.mojang_auth_source == DownloadSourceMode::MirrorPreferred,
+            Ordering::Relaxed,
+        );
         self.auto_prefers_mirror
             .store(settings.auto_prefers_mirror(), Ordering::Relaxed);
         let was_auto = self
@@ -1024,14 +1018,14 @@ impl State {
             bypass_curseforge_download_restrictions: AtomicBool::new(
                 settings.bypass_curseforge_download_restrictions,
             ),
-            mojang_auth_use_mirror: AtomicBool::new(
-                match settings.mojang_auth_source {
-                    DownloadSourceMode::MirrorPreferred => true,
-                    DownloadSourceMode::Auto => auto_prefers_mirror,
-                    DownloadSourceMode::OfficialOnly
-                    | DownloadSourceMode::OfficialPreferred => false,
-                },
-            ),
+            // Authentication traffic may only leave Mojang's endpoints when the
+            // user picked the mirror explicitly; the automatic modes never do,
+            // because a silent fallback hands a one-time login token to a third
+            // party.
+            mojang_auth_use_mirror: AtomicBool::new(matches!(
+                settings.mojang_auth_source,
+                DownloadSourceMode::MirrorPreferred
+            )),
             auto_prefers_mirror: AtomicBool::new(auto_prefers_mirror),
             download_concurrency_target: AtomicUsize::new(download_concurrency),
             download_concurrency_limit: AtomicUsize::new(download_concurrency),

@@ -299,11 +299,43 @@ pub fn splash_set_config<R: Runtime>(
 ///
 /// 换素材时旧的会被删掉 —— 留着只会让数据目录里堆一串没人认领的视频。
 #[tauri::command]
-pub fn splash_set_media<R: Runtime>(
+pub async fn splash_set_media<R: Runtime>(
     app: tauri::AppHandle<R>,
     path: String,
 ) -> Result<SplashConfig, String> {
-    store_media(&app, &PathBuf::from(&path))
+    let dir = splash_dir(&app).ok_or_else(|| "找不到启动器数据目录".to_string())?;
+    let source = PathBuf::from(path);
+    // 素材可以到 200 MB，复制不能占着主线程（窗口会整块冻住）。
+    tauri::async_runtime::spawn_blocking(move || store_media_in(&dir, &source))
+        .await
+        .map_err(|error| format!("复制素材任务失败：{error}"))?
+}
+
+/// 壁纸包里的相对路径 → 包内真实文件。
+///
+/// `project.json` 是第三方内容，`file` / `preview` 可以是 `../..` 或绝对路径；
+/// 不校验的话这条链会把任意本地文件复制成启动背景再交给前端。
+fn resolve_package_file(
+    store: &theseus::wallpaper::store::WallpaperStore,
+    id: &str,
+    relative: &str,
+) -> Result<PathBuf, String> {
+    let base = store
+        .packages_dir()
+        .join(id)
+        .canonicalize()
+        .map_err(|error| format!("壁纸包目录不可读：{error}"))?;
+    let path = base
+        .join(relative)
+        .canonicalize()
+        .map_err(|error| format!("壁纸包里的文件不在磁盘上：{error}"))?;
+    if !path.starts_with(&base) {
+        return Err("壁纸包里的文件路径越界".to_string());
+    }
+    if !path.is_file() {
+        return Err("壁纸包里的文件不是普通文件".to_string());
+    }
+    Ok(path)
 }
 
 /// 把一张已安装壁纸的**海报图**设成启动动画背景。
@@ -311,39 +343,38 @@ pub fn splash_set_media<R: Runtime>(
 /// 壁纸包在 `wallpapers/packages/<id>/` 下，海报就是 `project.json` 里 `preview`
 /// 指向的那个文件；前端拿不到本地路径（只有取流 URL），所以这一步必须走 Rust。
 #[tauri::command]
-pub fn splash_set_media_from_wallpaper<R: Runtime>(
+pub async fn splash_set_media_from_wallpaper<R: Runtime>(
     app: tauri::AppHandle<R>,
     id: String,
 ) -> Result<SplashConfig, String> {
     let root = crate::we_protocol::root_for(&app)
         .ok_or_else(|| "找不到壁纸目录".to_string())?;
-    let store = theseus::wallpaper::store::WallpaperStore::new(root);
-    let metas = store
-        .list()
-        .map_err(|error| format!("读壁纸列表失败：{error}"))?;
-    let meta = metas
-        .into_iter()
-        .find(|item| item.id == id)
-        .ok_or_else(|| "这张壁纸已经不在了".to_string())?;
-    // 视频类直接用**源视频**：启动画面本来就能播视频，比封面帧好得多
-    // （之前所有非场景类型都强制要海报，没海报的整类壁纸就完全用不了）。
-    let source = if matches!(meta.kind, theseus::wallpaper::WallpaperType::Video) {
-        let file = store.packages_dir().join(&id).join(&meta.file);
-        if !file.is_file() {
-            return Err("这张视频壁纸的源文件不在磁盘上".to_string());
-        }
-        file
-    } else {
-        let preview = meta.preview.clone().ok_or_else(|| {
-            "这张壁纸没有封面图，没法当启动背景（视频类会自动用源视频）".to_string()
-        })?;
-        let path = store.packages_dir().join(&id).join(&preview);
-        if !path.is_file() {
-            return Err("封面图文件不在磁盘上，可能壁纸包损坏了".to_string());
-        }
-        path
-    };
-    store_media(&app, &source)
+    let dir = splash_dir(&app).ok_or_else(|| "找不到启动器数据目录".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = theseus::wallpaper::store::WallpaperStore::new(root);
+        let metas = store
+            .list()
+            .map_err(|error| format!("读壁纸列表失败：{error}"))?;
+        let meta = metas
+            .into_iter()
+            .find(|item| item.id == id)
+            .ok_or_else(|| "这张壁纸已经不在了".to_string())?;
+        // 视频类直接用**源视频**：启动画面本来就能播视频，比封面帧好得多
+        // （之前所有非场景类型都强制要海报，没海报的整类壁纸就完全用不了）。
+        let source = if matches!(meta.kind, theseus::wallpaper::WallpaperType::Video) {
+            resolve_package_file(&store, &id, &meta.file)
+                .map_err(|_| "这张视频壁纸的源文件不在磁盘上".to_string())?
+        } else {
+            let preview = meta.preview.clone().ok_or_else(|| {
+                "这张壁纸没有封面图，没法当启动背景（视频类会自动用源视频）".to_string()
+            })?;
+            resolve_package_file(&store, &id, &preview)
+                .map_err(|_| "封面图文件不在磁盘上，可能壁纸包损坏了".to_string())?
+        };
+        store_media_in(&dir, &source)
+    })
+    .await
+    .map_err(|error| format!("复制素材任务失败：{error}"))?
 }
 
 /// 把某个 WE 场景壁纸设成启动背景 —— **实时渲染**，不是抓帧。
@@ -384,7 +415,7 @@ pub fn splash_set_media_from_scene<R: Runtime>(
 /// 所以在设置壁纸后，由主窗口把场景刚渲染出的一帧抓下来存成 `media.png`，
 /// 启动画面看到的就是你当时看到的那一帧，比海报缩略图真实得多。
 #[tauri::command]
-pub fn splash_set_media_from_bytes<R: Runtime>(
+pub async fn splash_set_media_from_bytes<R: Runtime>(
     app: tauri::AppHandle<R>,
     data: Vec<u8>,
 ) -> Result<SplashConfig, String> {
@@ -396,18 +427,28 @@ pub fn splash_set_media_from_bytes<R: Runtime>(
     }
 
     let dir = splash_dir(&app).ok_or_else(|| "找不到启动器数据目录".to_string())?;
-    fs::create_dir_all(&dir).map_err(|error| format!("建目录失败：{error}"))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        fs::create_dir_all(&dir).map_err(|error| format!("建目录失败：{error}"))?;
 
-    // 先落临时文件，再复用 store_media 的复制/清理逻辑，避免两套写盘代码。
-    let staging = dir.join("frame-cache.png");
-    fs::write(&staging, &data).map_err(|error| format!("写临时文件失败：{error}"))?;
-    let result = store_media(&app, &staging);
-    let _ = fs::remove_file(&staging);
-    result
+        // 先落临时文件，再复用同一套复制/清理逻辑，避免两套写盘代码。
+        let staging = dir.join("frame-cache.png");
+        if let Err(error) = fs::write(&staging, &data) {
+            let _ = fs::remove_file(&staging);
+            return Err(format!("写临时文件失败：{error}"));
+        }
+        let result = store_media_in(&dir, &staging);
+        let _ = fs::remove_file(&staging);
+        result
+    })
+    .await
+    .map_err(|error| format!("保存画面任务失败：{error}"))?
 }
 
 /// `splash_set_media` 与 `…_from_wallpaper` 的共同落盘逻辑。
-fn store_media<R: Runtime>(app: &tauri::AppHandle<R>, source: &Path) -> Result<SplashConfig, String> {
+///
+/// 先复制到同目录的 `.incoming` 再改名：直接删旧文件再复制的话，复制一失败
+/// 用户的启动画面就没了，而配置文件还指着那个已经不存在的文件。
+fn store_media_in(dir: &Path, source: &Path) -> Result<SplashConfig, String> {
     let kind = kind_of(source)
         .ok_or_else(|| "只支持图片（png/jpg/webp/gif）与视频（mp4/webm/mov）".to_string())?;
 
@@ -419,21 +460,39 @@ fn store_media<R: Runtime>(app: &tauri::AppHandle<R>, source: &Path) -> Result<S
         ));
     }
 
-    let dir = splash_dir(app).ok_or_else(|| "找不到启动器数据目录".to_string())?;
-    fs::create_dir_all(&dir).map_err(|error| format!("建目录失败：{error}"))?;
+    fs::create_dir_all(dir).map_err(|error| format!("建目录失败：{error}"))?;
 
     let extension = source
         .extension()
         .map(|value| value.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_else(|| "bin".to_string());
     let file_name = format!("{MEDIA_STEM}.{extension}");
+    let destination = dir.join(&file_name);
+    let staging = dir.join(format!("{file_name}.incoming"));
 
-    remove_existing_media(&dir);
-    fs::copy(source, dir.join(&file_name)).map_err(|error| format!("复制素材失败：{error}"))?;
+    if let Err(error) = fs::copy(source, &staging) {
+        let _ = fs::remove_file(&staging);
+        return Err(format!("复制素材失败：{error}"));
+    }
+    if let Err(error) = fs::rename(&staging, &destination) {
+        let _ = fs::remove_file(&staging);
+        return Err(format!("保存素材失败：{error}"));
+    }
 
-    let mut config = read_config(&dir);
+    let mut config = read_config(dir);
     config.media = Some(SplashMedia { kind, file: file_name });
-    write_config(&dir, &config).map_err(|error| format!("写入配置失败：{error}"))?;
+    if let Err(error) = write_config(dir, &config) {
+        return Err(format!("写入配置失败：{error}"));
+    }
+
+    // 配置已经指向新文件，这时才清掉同类旧素材。
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with(MEDIA_STEM) && name != config.media.as_ref().unwrap().file {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+
     Ok(config)
 }
 

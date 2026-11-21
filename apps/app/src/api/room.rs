@@ -293,6 +293,12 @@ pub fn create<R: tauri::Runtime>(
 }
 
 pub fn remove<R: tauri::Runtime>(app: tauri::AppHandle<R>, room_id: &str) -> Result<()> {
+    // Room ids are generated as UUIDs. Anything else (empty string, `..`,
+    // separators) must not reach `remove_dir_all`: the directory below is
+    // derived from this value.
+    if uuid::Uuid::parse_str(room_id).is_err() {
+        return Err(input_error("房间 id 无效"));
+    }
     {
         let mut host = HOST.lock().map_err(|_| input_error("房间状态被占用"))?;
         if host.room_id.as_deref() == Some(room_id) {
@@ -308,7 +314,13 @@ pub fn remove<R: tauri::Runtime>(app: tauri::AppHandle<R>, room_id: &str) -> Res
     // 聊天记录和成员跟着房间一起消失 —— 留着只会在下次同 id 时变成幽灵数据。
     // 消息本体在 rooms/<id>/ 下，整个目录删掉（只删这一个房间的目录）。
     if let Ok(dir) = app.path().app_data_dir() {
-        let _ = std::fs::remove_dir_all(dir.join("rooms").join(room_id));
+        let rooms_dir = dir.join("rooms");
+        let room_dir = rooms_dir.join(room_id);
+        if room_dir.starts_with(&rooms_dir)
+            && let Err(error) = std::fs::remove_dir_all(&room_dir)
+        {
+            tracing::warn!(%error, "房间目录删除失败");
+        }
     }
     store.messages.retain(|message| message.room_id != room_id);
     store.members.retain(|member| member.room_id != room_id);

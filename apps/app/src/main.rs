@@ -561,10 +561,48 @@ fn is_elevated() -> bool {
     theseus::is_process_elevated()
 }
 
+/// Grants the webview read access to the directory an instance is symlinked to.
+///
+/// Takes the instance id instead of a path on purpose: this widens the fs
+/// plugin scope, and a raw webview string would let any script ask for
+/// `C:\` and then use the fs write/delete permissions. The target is resolved
+/// here from the instance's own symlink, so only real instance links can be
+/// granted.
 #[tauri::command]
-fn allow_symlink_target(app: tauri::AppHandle, path: String) {
+async fn allow_symlink_target(app: tauri::AppHandle, instance_id: String) -> Result<(), String> {
     use tauri_plugin_fs::FsExt;
-    let _ = app.fs_scope().allow_directory(&path, true);
+
+    if instance_id.is_empty()
+        || instance_id == "."
+        || instance_id == ".."
+        || instance_id.contains('/')
+        || instance_id.contains('\\')
+    {
+        return Err("instance id is not a plain directory name".to_string());
+    }
+
+    let state = State::get().await.map_err(|error| error.to_string())?;
+    let link_path = state.directories.instances_dir().join(&instance_id);
+    let link_target = tokio::fs::read_link(&link_path)
+        .await
+        .map_err(|error| format!("instance {instance_id} is not a symlink: {error}"))?;
+    let target = tokio::fs::canonicalize(&link_target)
+        .await
+        .map_err(|error| format!("symlink target is not reachable: {error}"))?;
+    if !tokio::fs::metadata(&target)
+        .await
+        .map(|meta| meta.is_dir())
+        .unwrap_or(false)
+    {
+        return Err("symlink target is not a directory".to_string());
+    }
+    if target.parent().is_none() {
+        return Err("refusing to grant the filesystem root".to_string());
+    }
+
+    app.fs_scope()
+        .allow_directory(&target, true)
+        .map_err(|error| format!("could not grant the symlink target: {error}"))
 }
 
 #[tauri::command]
@@ -1069,6 +1107,15 @@ fn main() {
                 {
                     tracing::warn!(
                         "Failed to stop multiplayer services before exit: {error}"
+                    );
+                }
+
+                // Managed server JVMs are child processes of the launcher, not of
+                // the window: closing the app has to stop them or they keep the
+                // world files locked and the ports bound.
+                if matches!(&event, tauri::RunEvent::ExitRequested { .. }) {
+                    tauri::async_runtime::block_on(
+                        theseus::servers::stop_all_for_shutdown(),
                     );
                 }
 

@@ -1913,6 +1913,12 @@
   "app.downloads.view-upgrade-result": {
     "message": "View upgrade result"
   },
+  "app.drop.batch.busy-text": {
+    "message": "Finish or cancel the current import before dropping more files."
+  },
+  "app.drop.batch.busy-title": {
+    "message": "An import is already running"
+  },
   "app.drop.batch.completed-text": {
     "message": "Imported {succeeded} of {total} ({failed} failed, {skipped} skipped)."
   },
@@ -6396,7 +6402,7 @@
     "message": "Server status"
   },
   "app.magnetic-settings.server-desc": {
-    "message": "Shown by the server widget. Use host:port for a Minecraft server (real ping and player count), or an http(s) URL to check that it answers 2xx."
+    "message": "Up to 4 servers, one row each in the server widget. Use host:port for a Minecraft server (real ping, MOTD, icon and player count), or an http(s) URL to check that it answers 2xx."
   },
   "app.magnetic-settings.server-name": {
     "message": "Display name"
@@ -6563,6 +6569,9 @@
   "app.magnetic.page.lyrics": {
     "message": "Lyrics"
   },
+  "app.magnetic.page.server": {
+    "message": "Servers"
+  },
   "app.magnetic.page.system": {
     "message": "System"
   },
@@ -6602,6 +6611,12 @@
   "app.magnetic.search": {
     "message": "Search or jump to…"
   },
+  "app.magnetic.server-add": {
+    "message": "Add server"
+  },
+  "app.magnetic.server-empty": {
+    "message": "No server yet — add one in Settings → Home & navigation."
+  },
   "app.magnetic.server-name": {
     "message": "Server name"
   },
@@ -6610,6 +6625,9 @@
   },
   "app.magnetic.server-online": {
     "message": "Online"
+  },
+  "app.magnetic.server-remove": {
+    "message": "Remove"
   },
   "app.magnetic.server-unknown": {
     "message": "Checking…"
@@ -10965,7 +10983,16 @@
     "message": "Mojang authentication service"
   },
   "app.settings.resources.mojang-auth-service-description": {
-    "message": "Mojang login, profile, skin, cape, and session verification requests used by the launcher and the game."
+    "message": "Login, profile, skin, cape, and session verification requests used by the launcher and the game stay on Mojang's servers. Unreachable Mojang endpoints never switch the mirror on by themselves."
+  },
+  "app.settings.resources.mojang-auth-mirror-learn-more": {
+    "message": "About this proxy"
+  },
+  "app.settings.resources.mojang-auth-mirror-toggle": {
+    "message": "Use the Fallen-Proxy mirror"
+  },
+  "app.settings.resources.mojang-auth-mirror-warning": {
+    "message": "Your Xbox and Minecraft access tokens will be sent to auth, session, account, services and profiles.msp.fallenbreath.me. Whoever operates that proxy can read and replay them."
   },
   "app.settings.resources.open-backups-folder": {
     "message": "Open backups folder"

@@ -20,6 +20,8 @@ import {
     getMissingContentScannerSettings,
     setMissingContentScannerSettings,
 } from '@/helpers/downloads-scanner'
+import { FALLEN_AUTH_PROXY_BLOG_URL } from '@/helpers/java-arguments'
+import { reconcileMojangAuthSource } from '@/helpers/mojang-auth'
 import { resourcePreferredSource, resourceSetPreferredSource } from '@/helpers/resources'
 import { get, getProxyConfig, setProxyConfig, testProxyConfig, update } from '@/helpers/settings.ts'
 import { createSettingsPatchSaver } from '@/helpers/settings-patch'
@@ -314,19 +316,20 @@ const messages = defineMessages({
     mojangAuthServiceDescription: {
         id: 'app.settings.resources.mojang-auth-service-description',
         defaultMessage:
-            'Mojang login, profile, skin, cape, and session verification requests used by the launcher and the game.',
+            'Login, profile, skin, cape, and session verification requests used by the launcher and the game stay on Mojang\u2019s servers. Unreachable Mojang endpoints never switch the mirror on by themselves.',
     },
-    mojangAuthOfficialPreferred: {
-        id: 'app.settings.resources.source.mojang-official-preferred',
-        defaultMessage: 'Prefer official source',
+    mojangAuthMirrorToggle: {
+        id: 'app.settings.resources.mojang-auth-mirror-toggle',
+        defaultMessage: 'Use the Fallen-Proxy mirror',
     },
-    mojangAuthMirrorPreferred: {
-        id: 'app.settings.resources.source.mojang-mirror-preferred',
-        defaultMessage: 'Prefer Fallen-Proxy',
+    mojangAuthMirrorWarning: {
+        id: 'app.settings.resources.mojang-auth-mirror-warning',
+        defaultMessage:
+            'Your Xbox and Minecraft access tokens will be sent to auth, session, account, services and profiles.msp.fallenbreath.me. Whoever operates that proxy can read and replay them.',
     },
-    mojangAuthOfficialOnly: {
-        id: 'app.settings.resources.source.mojang-official-only',
-        defaultMessage: 'Official source only',
+    mojangAuthMirrorLearnMore: {
+        id: 'app.settings.resources.mojang-auth-mirror-learn-more',
+        defaultMessage: 'About this proxy',
     },
     maximumDownloads: {
         id: 'app.settings.resources.maximum-downloads',
@@ -595,13 +598,18 @@ const curseforgeSourceOptions = computed(() => [
     officialPreferredSourceOption.value,
     officialOnlySourceOption.value,
 ])
-const mojangAuthSource = downloadSourceModel('mojang_auth_source')
-const mojangAuthSourceOptions = computed(() => [
-    automaticSourceOption.value,
-    { value: 'official_preferred', label: formatMessage(messages.mojangAuthOfficialPreferred) },
-    { value: 'mirror_preferred', label: formatMessage(messages.mojangAuthMirrorPreferred) },
-    { value: 'official_only', label: formatMessage(messages.mojangAuthOfficialOnly) },
-])
+const mojangAuthMirror = computed({
+    get: () => settings.value.mojang_auth_source === 'mirror_preferred',
+    set: async (enabled) => {
+        settings.value.mojang_auth_source = enabled ? 'mirror_preferred' : 'official_only'
+        try {
+            await reconcileMojangAuthSource(settings.value)
+        } catch (error) {
+            handleError(error)
+        }
+    },
+})
+const fallenAuthProxyBlogUrl = FALLEN_AUTH_PROXY_BLOG_URL
 const downloadConcurrencyMode = computed({
     get: () => (settings.value.auto_concurrent_downloads ? 'auto' : 'manual'),
     set: (mode) => {
@@ -1056,12 +1064,30 @@ function validateMinecraftDirectory(_value) {
                         {{ formatMessage(messages.mojangAuthService) }}
                     </span>
                 </template>
-                <template #description>{{
-                    formatMessage(messages.mojangAuthServiceDescription)
-                }}</template>
+                <template #description>
+                    <div class="flex flex-col gap-2">
+                        <span>{{ formatMessage(messages.mojangAuthServiceDescription) }}</span>
+                        <template v-if="mojangAuthMirror">
+                            <span class="text-[var(--color-red)]">
+                                {{ formatMessage(messages.mojangAuthMirrorWarning) }}
+                            </span>
+                            <a
+                                :href="fallenAuthProxyBlogUrl"
+                                class="w-fit underline"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                            >
+                                {{ formatMessage(messages.mojangAuthMirrorLearnMore) }}
+                            </a>
+                        </template>
+                    </div>
+                </template>
                 <template #control>
-                    <div class="w-full">
-                        <Combobox v-model="mojangAuthSource" :options="mojangAuthSourceOptions" />
+                    <div class="flex items-center gap-3">
+                        <span class="text-secondary text-sm">
+                            {{ formatMessage(messages.mojangAuthMirrorToggle) }}
+                        </span>
+                        <Toggle v-model="mojangAuthMirror" />
                     </div>
                 </template>
             </SettingsRow>

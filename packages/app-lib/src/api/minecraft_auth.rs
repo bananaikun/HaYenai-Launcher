@@ -62,9 +62,10 @@ pub async fn set_mojang_auth_use_mirror(
 ) -> crate::Result<()> {
     let state = State::get().await?;
     state.set_mojang_auth_use_mirror(use_mirror);
-    if use_mirror && automatic {
+    if use_mirror {
         tracing::info!(
-            "Mojang services are unreachable; routing Mojang service requests through the Fallen proxy"
+            automatic,
+            "Routing Mojang authentication through the third-party Fallen proxy"
         );
     }
     Ok(())

@@ -72,7 +72,7 @@
     "message": "服务器状态"
   },
   "app.magnetic-settings.server-desc": {
-    "message": "给「服务器状态」组件用。填 host:port 走 MC 协议 ping（真实延迟与在线人数），填 http(s) 地址则探测是否返回 2xx。"
+    "message": "最多 4 台服务器，「服务器状态」组件里一台一行。填 host:port 走 MC 协议 ping（真实延迟、MOTD、图标与在线人数），填 http(s) 地址则探测是否返回 2xx。"
   },
   "app.magnetic-settings.server-name": {
     "message": "显示名称"
@@ -239,6 +239,9 @@
   "app.magnetic.page.lyrics": {
     "message": "歌词"
   },
+  "app.magnetic.page.server": {
+    "message": "服务器"
+  },
   "app.magnetic.page.system": {
     "message": "系统"
   },
@@ -278,6 +281,12 @@
   "app.magnetic.search": {
     "message": "搜索或跳转…"
   },
+  "app.magnetic.server-add": {
+    "message": "添加服务器"
+  },
+  "app.magnetic.server-empty": {
+    "message": "还没有服务器 —— 去「设置 → 首页与导航」添一台。"
+  },
   "app.magnetic.server-name": {
     "message": "服务器名称"
   },
@@ -286,6 +295,9 @@
   },
   "app.magnetic.server-online": {
     "message": "在线"
+  },
+  "app.magnetic.server-remove": {
+    "message": "删除"
   },
   "app.magnetic.server-unknown": {
     "message": "检测中…"
@@ -2239,6 +2251,12 @@
   },
   "app.downloads.view-upgrade-result": {
     "message": "查看升级结果"
+  },
+  "app.drop.batch.busy-text": {
+    "message": "请等待当前导入完成或取消后再拖入文件。"
+  },
+  "app.drop.batch.busy-title": {
+    "message": "已有导入正在进行"
   },
   "app.drop.batch.completed-text": {
     "message": "已导入 {succeeded} / {total}（{failed} 失败，{skipped} 跳过）。"
@@ -10008,7 +10026,16 @@
     "message": "Mojang 认证服务"
   },
   "app.settings.resources.mojang-auth-service-description": {
-    "message": "Mojang 登录、资料、皮肤、披风、会话验证等。"
+    "message": "启动器与游戏用到的登录、资料、皮肤、披风、会话验证请求，默认全部走 Mojang 官方服务器；官方不可达时也不会自动切到镜像。"
+  },
+  "app.settings.resources.mojang-auth-mirror-learn-more": {
+    "message": "关于这个代理"
+  },
+  "app.settings.resources.mojang-auth-mirror-toggle": {
+    "message": "使用 Fallen-Proxy 镜像"
+  },
+  "app.settings.resources.mojang-auth-mirror-warning": {
+    "message": "开启后，你的 Xbox 与 Minecraft 访问令牌会发往 auth / session / account / services / profiles.msp.fallenbreath.me，运营该代理的人可以读取并重放它们。"
   },
   "app.settings.resources.open-backups-folder": {
     "message": "打开备份文件夹"

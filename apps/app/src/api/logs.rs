@@ -216,7 +216,12 @@ pub async fn logs_export_crash_context(
     output_path: PathBuf,
 ) -> Result<()> {
     let analysis = logs::analyze_crash(instance_id).await?;
-    let archive = tokio::fs::File::create(&output_path).await?;
+    // create_new：路径来自 webview，File::create 会先把同名文件截成 0 字节。
+    let archive = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&output_path)
+        .await?;
     let mut writer = ZipFileWriter::with_tokio(archive);
     let report = serde_json::to_vec_pretty(&analysis).map_err(|error| {
         theseus::Error::from(theseus::ErrorKind::OtherError(format!(

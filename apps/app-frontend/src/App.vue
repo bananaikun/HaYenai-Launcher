@@ -132,10 +132,7 @@ import {
 import { install_create_modpack_instance, install_get_modpack_preview } from '@/helpers/install'
 import { type DirectLinkSyncReport, get as getInstance, run } from '@/helpers/instance'
 import { type BackupOperation, cancelBackup, listBackupOperations } from '@/helpers/instance-backup'
-import {
-    reconcileMojangAuthSourceAtStartup,
-    reconcileMojangAuthSourceIfMirrored,
-} from '@/helpers/mojang-auth'
+import { reconcileMojangAuthSourceAtStartup } from '@/helpers/mojang-auth'
 import { cancelLogin, get as getCreds, login, logout } from '@/helpers/mr_auth.ts'
 import { installNativeEditMenuBoundary } from '@/helpers/native-edit-menu'
 import { getNavShortcutEnabled } from '@/helpers/nav-shortcut-state'
@@ -683,11 +680,6 @@ const authServerQuery = useQuery({
             // can return online without requiring a restart or manual refresh.
             authServerRefetchInterval.value = 15 * 1000
             throw error
-        }
-        try {
-            await reconcileMojangAuthSourceIfMirrored()
-        } catch (error) {
-            console.warn('Failed to reconcile the Mojang auth source', error)
         }
         return true
     },

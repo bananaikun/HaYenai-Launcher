@@ -1217,6 +1217,9 @@ impl UpdateService {
     /// (an old proxy that only speaks TLS 1.0, or a listener that wants plain
     /// HTTP on the same port) is a deployment issue, so it is retried once and
     /// reported as `insecure`.
+    ///
+    /// The plaintext reply only proves liveness: [`Self::record_success_on`]
+    /// keeps the `https` base, so downloads never go out in the clear.
     async fn probe_base(
         &self,
         base: &str,
@@ -1406,7 +1409,13 @@ impl UpdateService {
             inner.tracker.record_success(outcome.rtt_ms);
             inner.last_ok_at = Some(now);
             inner.tier = candidate.tier;
-            inner.base_url = Some(outcome.base.clone());
+            // 明文兜底只用来判活：TLS 协议不符说明对面部署有问题，把 http 地址
+            // 记成更新源就等于允许明文下发更新包，所以仍记回 https 那个。
+            inner.base_url = Some(if outcome.insecure {
+                candidate.base.clone()
+            } else {
+                outcome.base.clone()
+            });
             inner.insecure = outcome.insecure;
             inner.tier_failures = 0;
             inner.higher_tier_probe_at = None;

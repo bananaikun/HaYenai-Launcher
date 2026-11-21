@@ -132,7 +132,13 @@ pub async fn export_error_logs(
     output_path: PathBuf,
     error_message: String,
 ) -> Result<()> {
-    let archive = tokio::fs::File::create(&output_path).await?;
+    // create_new：导出路径来自 webview，File::create 会先把已存在的文件截成 0 字节，
+    // 路径写错时等于直接毁掉用户的文件。
+    let archive = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&output_path)
+        .await?;
     let mut writer = ZipFileWriter::with_tokio(archive);
     let report = format!(
         "HaYenai error report\nExported at: {}\n\nError:\n{}\n",
@@ -246,7 +252,13 @@ pub async fn export_launcher_logs(
     // Censoring needs the app state (credentials, IPs). Without it an export
     // would silently ship secrets, so fail rather than degrade.
     let state = theseus::State::get().await?;
-    let archive = tokio::fs::File::create(&output_path).await?;
+    // create_new：导出路径来自 webview，File::create 会先把已存在的文件截成 0 字节，
+    // 路径写错时等于直接毁掉用户的文件。
+    let archive = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&output_path)
+        .await?;
     let mut writer = ZipFileWriter::with_tokio(archive);
 
     let (exported_logs, skipped_logs) =

@@ -287,14 +287,42 @@ pub struct ExtractDryRunResult {
     conflicting_files: Vec<String>,
 }
 
+/// Largest file the webview may pull in through a drop.
+const DRAGGED_FILE_MAX_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Dropped paths are picked by the OS and never passes through a file dialog,
+/// so this command is the only way the webview can read an arbitrary path. It
+/// stays limited to the image types the launcher actually consumes (dropped
+/// skin PNGs and custom wallpapers) instead of being a general file reader.
+const DRAGGED_FILE_EXTENSIONS: &[&str] =
+    &["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp"];
+
 #[tauri::command]
 pub async fn file_read_dragged_file(
     path: String,
 ) -> Result<tauri::ipc::Response> {
-    let metadata = tokio::fs::metadata(&path).await?;
+    let canonical = tokio::fs::canonicalize(&path).await?;
+    let metadata = tokio::fs::metadata(&canonical).await?;
     if !metadata.is_file() {
         return Err(theseus::Error::from(theseus::ErrorKind::OtherError(
             "Dropped path is not a file".to_string(),
+        ))
+        .into());
+    }
+    if metadata.len() > DRAGGED_FILE_MAX_BYTES {
+        return Err(theseus::Error::from(theseus::ErrorKind::OtherError(
+            "Dropped file is larger than 64 MiB".to_string(),
+        ))
+        .into());
+    }
+    let extension = canonical
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    if !DRAGGED_FILE_EXTENSIONS.contains(&extension.as_str()) {
+        return Err(theseus::Error::from(theseus::ErrorKind::OtherError(
+            "Dropped file is not a supported image".to_string(),
         ))
         .into());
     }
@@ -302,7 +330,7 @@ pub async fn file_read_dragged_file(
     // Raw binary payload: the frontend receives an ArrayBuffer instead of a
     // JSON number array, which would balloon multi-hundred-MB files to
     // gigabytes of transient memory on both sides of the IPC boundary.
-    Ok(tauri::ipc::Response::new(tokio::fs::read(path).await?))
+    Ok(tauri::ipc::Response::new(tokio::fs::read(&canonical).await?))
 }
 
 /// Decodes a screenshot and returns a downscaled thumbnail as raw image bytes,
@@ -506,8 +534,10 @@ pub async fn file_extract_zip(
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| base.clone());
 
-    let file_bytes = tokio::fs::read(&zip_path).await?;
-    let reader = Cursor::new(file_bytes);
+    // Stream from disk instead of reading the whole archive into memory: a
+    // resource zip can be hundreds of megabytes.
+    let file = tokio::fs::File::open(&canonical_zip).await?;
+    let reader = tokio::io::BufReader::new(file);
 
     let zip_reader = ZipFileReader::with_tokio(reader).await.map_err(|e| {
         theseus::Error::from(theseus::ErrorKind::OtherError(format!(
@@ -602,7 +632,14 @@ pub async fn file_save_as<R: Runtime>(
     file_path: &str,
 ) -> Result<()> {
     let base = get_full_path(instance_id).await?;
-    let source = base.join(file_path);
+    let canonical_base = tokio::fs::canonicalize(&base).await?;
+    let source = tokio::fs::canonicalize(canonical_base.join(file_path)).await?;
+    if !source.starts_with(&canonical_base) {
+        return Err(theseus::Error::from(theseus::ErrorKind::OtherError(
+            "file_path escapes the instance directory".to_string(),
+        ))
+        .into());
+    }
     let file_name = source
         .file_name()
         .unwrap_or_default()

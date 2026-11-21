@@ -633,7 +633,8 @@ async function fetchInstance() {
         linkedProjectV3.value?.minecraft_server != null
 
     if (nextInstance?.symlink_target) {
-        void allow_symlink_target(nextInstance.symlink_target).catch(() => {})
+        // 后端按实例 id 自己解析软链目标，不接受前端传路径。
+        void allow_symlink_target(nextInstance.id).catch(() => {})
     }
 
     if (
