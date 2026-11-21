@@ -3,9 +3,12 @@
  * 把 `release/<版本>/` 里的产物发到 GitHub Releases。
  *
  * 用法（在 `HaYenai-启动器/` 下）：
- *   GITHUB_TOKEN=ghp_xxx node scripts/publish-github.mjs             # 发当前版本
- *   GITHUB_TOKEN=ghp_xxx node scripts/publish-github.mjs --archive   # 历史包，每版一个 release
- *   node scripts/publish-github.mjs --dry-run                        # 只打印要做什么
+ *   node scripts/publish-github.mjs             # 发当前版本
+ *   node scripts/publish-github.mjs --archive   # 历史包，每版一个 release
+ *   node scripts/publish-github.mjs --dry-run   # 只打印要做什么
+ *
+ * token 解析顺序：`GITHUB_TOKEN` 环境变量 → `git credential fill`（Windows 凭据管理器里
+ * 给 github.com 存的那份，`gho_` OAuth token）。凭据只活在进程内存里，不落盘、不打印。
  *
  * 三条硬约束（踩过的坑）：
  * 1. **`latest.json` 必须落在"最新 release"里**：更新源是
@@ -18,6 +21,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { execFileSync } from 'node:child_process'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const FRONTEND = path.join(ROOT, 'apps', 'app-frontend')
@@ -28,9 +32,30 @@ const API = 'https://api.github.com'
 const UPLOAD = 'https://uploads.github.com'
 
 const argv = process.argv.slice(2)
-const dryRun = argv.includes('--dry-run') || !process.env.GITHUB_TOKEN
+
+/**
+ * 从 `git credential fill` 取 github.com 的凭据。凭据管理器里存的是 `gho_` OAuth token，
+ * 只用来发 release。取不到（没登录过 / 凭据被清）就返回空串，脚本退回 dry-run。
+ * 注意：`stdio` 的 stderr 必须丢弃 —— 没凭据时 git 会往 stderr 写提示，别让它混进日志。
+ */
+function tokenFromGitCredential() {
+    try {
+        const output = execFileSync('git', ['credential', 'fill'], {
+            input: 'protocol=https\nhost=github.com\n\n',
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'ignore'],
+            timeout: 10_000,
+        })
+        const line = output.split('\n').find((entry) => entry.startsWith('password='))
+        return line ? line.slice('password='.length).trim() : ''
+    } catch {
+        return ''
+    }
+}
+
+const token = process.env.GITHUB_TOKEN || tokenFromGitCredential()
+const dryRun = argv.includes('--dry-run') || !token
 const archiveMode = argv.includes('--archive')
-const token = process.env.GITHUB_TOKEN || ''
 
 const readVersion = () => JSON.parse(fs.readFileSync(path.join(FRONTEND, 'package.json'), 'utf8')).version
 
@@ -161,8 +186,8 @@ async function publishArchive() {
 }
 
 async function main() {
-    if (dryRun && !process.env.GITHUB_TOKEN) {
-        console.log('[publish] 没有 GITHUB_TOKEN，仅演练（不发任何请求）')
+    if (!token) {
+        console.log('[publish] 没有 GITHUB_TOKEN，也没有可用的 git 凭据；仅演练（不发任何请求）')
     }
     if (archiveMode) await publishArchive()
     else await publishCurrent()
