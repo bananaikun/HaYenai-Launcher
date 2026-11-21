@@ -1562,6 +1562,79 @@ pub fn ensure_local_log_config(
     Ok(())
 }
 
+/// `<jar>.verified` 的路径：记录「上次校验通过时的 size / mtime / sha1」。
+fn library_verification_stamp_path(path: &Path) -> PathBuf {
+    let mut raw = path.as_os_str().to_os_string();
+    raw.push(".verified");
+    PathBuf::from(raw)
+}
+
+/// 读一份校验戳。内容形如 `123456 1763700000000 <sha1>`。
+async fn read_library_verification_stamp(path: &Path) -> Option<(u64, u64, String)> {
+    let raw = tokio::fs::read_to_string(library_verification_stamp_path(path))
+        .await
+        .ok()?;
+    let mut parts = raw.split_whitespace();
+    let size = parts.next()?.parse().ok()?;
+    let mtime_ms = parts.next()?.parse().ok()?;
+    let sha1 = parts.next()?.to_string();
+    Some((size, mtime_ms, sha1))
+}
+
+async fn write_library_verification_stamp(
+    path: &Path,
+    size: u64,
+    mtime_ms: u64,
+    sha1: &str,
+) {
+    let stamp = library_verification_stamp_path(path);
+    if let Err(error) =
+        tokio::fs::write(&stamp, format!("{size} {mtime_ms} {sha1}\n")).await
+    {
+        tracing::debug!(?error, path = %stamp.display(), "Could not write the library verification stamp");
+    }
+}
+
+/// 库文件的 `(size, mtime_ms)`：校验戳的指纹部分。
+async fn library_file_fingerprint(path: &Path) -> Option<(u64, u64)> {
+    let metadata = tokio::fs::metadata(path).await.ok()?;
+    let mtime_ms = metadata
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis() as u64;
+    Some((metadata.len(), mtime_ms))
+}
+
+/// 已存在的库 jar 是否可信。
+///
+/// 每次启动都把全部库整份重算一遍 SHA-1 是启动耗时里最冤的一笔：文件根本没变，
+/// 只是上次启动已经算过了。所以先看旁边的 `.verified` 戳 —— 大小与修改时间都没变、
+/// 记的也是同一个 sha1，就认定它还是那份文件；对不上才真去算。
+pub(crate) async fn library_is_intact_or_stamped(
+    path: &Path,
+    expected_sha1: &str,
+) -> crate::Result<bool> {
+    let fingerprint = library_file_fingerprint(path).await;
+    if let Some((size, mtime_ms)) = fingerprint
+        && let Some((recorded_size, recorded_mtime, recorded_sha1)) =
+            read_library_verification_stamp(path).await
+        && recorded_size == size
+        && recorded_mtime == mtime_ms
+        && recorded_sha1.eq_ignore_ascii_case(expected_sha1)
+    {
+        return Ok(true);
+    }
+
+    let (_, actual_sha1) = sha1_file_async(path).await?;
+    let intact = actual_sha1.eq_ignore_ascii_case(expected_sha1);
+    if intact && let Some((size, mtime_ms)) = fingerprint {
+        write_library_verification_stamp(path, size, mtime_ms, &actual_sha1).await;
+    }
+    Ok(intact)
+}
+
 /// Reports whether an existing client JAR may be reused. `Ok(None)` means the
 /// version metadata carries no hash, so only its presence could be confirmed.
 async fn client_jar_is_intact(
@@ -2374,12 +2447,12 @@ pub async fn download_libraries(
                             .and_then(|downloads| downloads.artifact.as_ref())
                         {
                             Some(artifact) if !artifact.sha1.is_empty() => {
-                                client_jar_is_intact(
+                                // 戳对得上就跳过整份哈希；对不上才真校验。
+                                library_is_intact_or_stamped(
                                     &path,
-                                    Some(artifact.sha1.as_str()),
+                                    artifact.sha1.as_str(),
                                 )
                                 .await?
-                                    == Some(true)
                             }
                             _ => true,
                         };

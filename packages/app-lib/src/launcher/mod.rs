@@ -1,7 +1,9 @@
 //! Logic for launching Minecraft
 use crate::api::pack::import::direct_link::direct_link_group;
 use crate::data::ModLoader;
-use crate::event::emit::{emit_instance, emit_loading, init_loading};
+use crate::event::emit::{
+    emit_instance, emit_launch_stage, emit_loading, init_loading,
+};
 use crate::event::{InstancePayloadType, LoadingBarType};
 use crate::install::{
     InstallJavaStep, InstallPhaseDetails, InstallPhaseId, InstallProgress,
@@ -1876,6 +1878,9 @@ pub async fn launch_minecraft(
         .into());
     }
 
+    // Progress events are advisory: a failed emit must never fail a launch.
+    let _ = emit_launch_stage(&instance.id, "preparing").await;
+
     let state = State::get().await?;
 
     let runtime =
@@ -2163,10 +2168,15 @@ pub async fn launch_minecraft(
         }
     }
 
-    let java_version = if let Some(java) =
+    // Spawning a JVM to read its version is not free (~0.3-1s), and an
+    // overridden path has already paid for it in the branch below.
+    let (java_selection, java_selection_checked) = if let Some(java) =
         context.launch_overrides.java_path.as_ref()
     {
-        crate::api::jre::check_jre(std::path::PathBuf::from(java)).await?
+        (
+            crate::api::jre::check_jre(std::path::PathBuf::from(java)).await?,
+            true,
+        )
     } else if direct_launch
         .as_ref()
         .is_some_and(|direct| direct.dialect == LinkedLauncherDialect::Hmcl)
@@ -2178,7 +2188,7 @@ pub async fn launch_minecraft(
     {
         // The linked launcher configured its own Java runtime for this
         // version; prefer it over HaYenai's discovery.
-        java
+        (java, false)
     } else if let (Some(direct), Some(pcl)) =
         (direct_launch.as_ref(), pcl_launch.as_ref())
         && matches!(
@@ -2189,12 +2199,12 @@ pub async fn launch_minecraft(
     {
         // The linked PCL/PCL-CE instance selected its own Java runtime;
         // prefer it over HaYenai's discovery.
-        java
+        (java, false)
     } else {
         let key = required_java_major(&version_info);
 
         if let Some(java) = crate::api::jre::find_java_for_version(key).await? {
-            java
+            (java, false)
         } else if let Some(java) =
             crate::api::jre::find_compatible_java_for_version(key).await?
         {
@@ -2203,7 +2213,7 @@ pub async fn launch_minecraft(
                 java = java.path,
                 "Using a compatible Java runtime instead of the recommended version"
             );
-            java
+            (java, false)
         } else {
             return Err(crate::ErrorKind::LauncherError(
                 "Missing correct java installation".to_string(),
@@ -2212,9 +2222,13 @@ pub async fn launch_minecraft(
         }
     };
 
-    // Test jre version
-    let java_version =
-        crate::api::jre::check_jre(java_version.path.clone().into()).await?;
+    // Test jre version. An explicit path was already checked above; only a
+    // discovered runtime still needs the extra JVM spawn.
+    let java_version = if java_selection_checked {
+        java_selection
+    } else {
+        crate::api::jre::check_jre(java_selection.path.clone().into()).await?
+    };
     validate_loader_java_version(&version_info, &java_version)?;
 
     // Runtime-verify and fall back for GC arguments against the *actual* JVM
@@ -2441,6 +2455,7 @@ pub async fn launch_minecraft(
         })
         .await??;
     } else if direct_launch.is_none() {
+        let _ = emit_launch_stage(&instance.id, "libraries").await;
         if offline_mode {
             natives::prepare_native_libraries(
                 &state.directories.natives_dir(),
@@ -2757,6 +2772,7 @@ pub async fn launch_minecraft(
     // The launcher log must land where the game and log browser read it. The
     // resolved directory is PCL's PathIndie equivalent for direct links.
     let logs_folder = state.directories.game_logs_dir(&instance_path);
+    let _ = emit_launch_stage(&instance.id, "starting").await;
     // Create Minecraft child by inserting it into the state
     // This also spawns the process and prepares the subsequent processes
     state

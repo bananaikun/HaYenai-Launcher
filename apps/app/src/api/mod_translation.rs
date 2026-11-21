@@ -612,13 +612,12 @@ fn take_prepared_analysis(
     let Some(analysis_id) = analysis_id else {
         return Ok(None);
     };
-    let mut stale_workspaces = Vec::new();
-    let prepared = {
+    let (prepared, stale_workspaces) = {
         let mut registry = analyses()
             .lock()
             .map_err(|_| "分析注册表不可用".to_string())?;
-        stale_workspaces = prune_analyses(&mut registry);
-        registry.remove(analysis_id)
+        let stale = prune_analyses(&mut registry);
+        (registry.remove(analysis_id), stale)
     };
     // 工作目录里有上千个文件，删除必须在锁外：否则一个过期分析会卡住所有
     // 翻译任务。

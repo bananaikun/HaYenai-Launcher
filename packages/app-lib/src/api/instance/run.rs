@@ -18,6 +18,7 @@ pub use crate::launcher::jvm_args::{GcLaunchIntent, GcLaunchReport};
 const DEFAULT_LAUNCH_PREPARATION_TIMEOUT: u64 = 60;
 const MIN_LAUNCH_PREPARATION_TIMEOUT: u64 = 30;
 const MAX_LAUNCH_PREPARATION_TIMEOUT: u64 = 600;
+const MAINTENANCE_LOCK_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[derive(Debug, Clone)]
 pub enum QuickPlayType {
@@ -89,8 +90,24 @@ async fn run_with_extra_launch_args_inner(
 		)
 		.into());
     }
-    let _maintenance_guard =
-        crate::api::instance::lock_instance_maintenance(instance_id).await;
+    // This lock is taken before the preparation timeout starts, so without a
+    // bound here a long restore/delete we do not track as an "active operation"
+    // would hang the launch forever with no error and no way out for the user.
+    let _maintenance_guard = match tokio::time::timeout(
+        MAINTENANCE_LOCK_TIMEOUT,
+        crate::api::instance::lock_instance_maintenance(instance_id),
+    )
+    .await
+    {
+        Ok(guard) => guard,
+        Err(_) => {
+            return Err(crate::ErrorKind::LauncherError(
+                "The instance is still busy with a backup, restore or delete operation. Try launching it again when that finishes."
+                    .to_string(),
+            )
+            .as_error())
+        }
+    };
     let state = State::get().await?;
     let launch_preparation_timeout =
         crate::state::instances::commands::get_instance_launch_context(
@@ -124,7 +141,7 @@ async fn run_with_extra_launch_args_inner(
         crate::anti_piracy::ensure_offline_allowed().await?;
     }
 
-    tokio::time::timeout(
+    match tokio::time::timeout(
         Duration::from_secs(launch_preparation_timeout),
         run_credentials(
             instance_id,
@@ -137,14 +154,30 @@ async fn run_with_extra_launch_args_inner(
         ),
     )
     .await
-    .map_err(|_| {
-        crate::ErrorKind::LauncherError(
-            format!(
+    {
+        Ok(result) => result,
+        Err(_) => {
+            // The timeout can fire after the child was spawned and registered:
+            // the launch RPC is answered right before registration, so a slow
+            // "launch" reply plus a slow event could exceed the budget while
+            // the game is already up. Reporting a plain timeout there leaves a
+            // running game the UI calls "failed", and every retry then fails
+            // with "already running".
+            let state = State::get().await?;
+            if let Some(metadata) =
+                state.process_manager.get_by_instance_id(instance_id)
+            {
+                tracing::warn!(
+                    "Launch preparation for {instance_id} timed out after {launch_preparation_timeout}s, but its process is registered; reporting it as launched"
+                );
+                return Ok((metadata, None));
+            }
+            Err(crate::ErrorKind::LauncherError(format!(
                 "Minecraft launch preparation timed out after {launch_preparation_timeout} seconds"
-            ),
-        )
-        .as_error()
-    })?
+            ))
+            .as_error())
+        }
+    }
 }
 
 #[tracing::instrument(skip(credentials))]

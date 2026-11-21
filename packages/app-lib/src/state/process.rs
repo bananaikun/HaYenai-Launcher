@@ -515,7 +515,11 @@ impl ProcessManager {
             crash_reports_before,
         ));
 
-        emit_process(
+        // The child is spawned and registered at this point. Failing the whole
+        // launch because the UI event could not be delivered would leave a
+        // running game the launcher refuses to recognise ("already running"),
+        // so a delivery failure is logged instead of propagated.
+        if let Err(error) = emit_process(
             instance_id,
             metadata.uuid,
             metadata.pid,
@@ -526,13 +530,23 @@ impl ProcessManager {
             "Launched Minecraft",
             None,
         )
-        .await?;
+        .await
+        {
+            tracing::warn!("Failed to emit the launched process event: {error}");
+        }
 
         Ok(metadata)
     }
 
     pub fn get(&self, id: Uuid) -> Option<ProcessMetadata> {
         self.processes.get(&id).map(|x| x.metadata.clone())
+    }
+
+    pub fn get_by_instance_id(&self, instance_id: &str) -> Option<ProcessMetadata> {
+        self.processes
+            .iter()
+            .find(|entry| entry.value().metadata.instance_id == instance_id)
+            .map(|entry| entry.value().metadata.clone())
     }
 
     pub fn get_rpc(&self, id: Uuid) -> Option<RpcServer> {
@@ -567,6 +581,25 @@ impl ProcessManager {
     pub async fn kill(&self, id: Uuid) -> crate::Result<()> {
         if let Some(mut process) = self.processes.get_mut(&id) {
             process.manually_killed = true;
+            // The JVM is often started through a wrapper (`cmd /c`, a launcher
+            // shim, a batch file), so terminating the direct child can leave the
+            // real game running with no window the user can close. Kill the whole
+            // tree on Windows and fall back to the child handle if taskkill is
+            // unavailable.
+            #[cfg(windows)]
+            {
+                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                let pid = process.metadata.pid.to_string();
+                let mut command = tokio::process::Command::new("taskkill");
+                command
+                    .args(["/PID", pid.as_str(), "/T", "/F"])
+                    .creation_flags(CREATE_NO_WINDOW);
+                if let Ok(status) = command.status().await
+                    && status.success()
+                {
+                    return Ok(());
+                }
+            }
             if let Err(error) = process.child.kill().await {
                 process.manually_killed = false;
                 return Err(error.into());

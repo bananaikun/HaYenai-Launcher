@@ -4,7 +4,6 @@ use futures::prelude::*;
 use std::collections::VecDeque;
 use std::env;
 use std::path::PathBuf;
-use std::process::Command;
 use std::{collections::HashSet, path::Path};
 use tokio::task::JoinError;
 
@@ -24,6 +23,9 @@ const BFS_MAX_DIRS_PER_ROOT: usize = 10_000;
 /// How many blocking collection jobs (registry, BFS roots, ...) run at once.
 const COLLECT_CONCURRENCY: usize = 4;
 const JAVA_INSTALL_STAGING_SUFFIX: &str = ".installing";
+/// A JVM whose probe output never arrives (a wrapper script, a wedged
+/// installation) used to block the whole launch with no error and no timeout.
+const JAVA_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Directory names (lowercase, substring match) that make the BFS descend
 /// into a top-level directory of a search root.
@@ -778,12 +780,25 @@ pub async fn check_java_at_filepath(path: &Path) -> crate::Result<JavaVersion> {
     let (_temp, file_path) =
         get_resource_file!(env "JAVA_JARS_DIR" / "theseus.jar")?;
 
-    let output = Command::new(&java)
+    // tokio's Command so the probe can be cancelled (kill_on_drop) when the
+    // timeout below fires; a std Command would keep the child alive forever.
+    let mut command = tokio::process::Command::new(&java);
+    command
         .arg("-cp")
         .arg(file_path)
         .arg("com.modrinth.theseus.JavaInfo")
         .env_remove("_JAVA_OPTIONS")
-        .output()?;
+        .kill_on_drop(true);
+
+    let output = tokio::time::timeout(JAVA_PROBE_TIMEOUT, command.output())
+        .await
+        .map_err(|_| {
+            crate::ErrorKind::LauncherError(format!(
+                "Timed out while checking the Java installation at {}. Pick a different Java in Settings and try again.",
+                java.display()
+            ))
+            .as_error()
+        })??;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 

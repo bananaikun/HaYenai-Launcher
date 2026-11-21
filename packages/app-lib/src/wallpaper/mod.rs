@@ -225,6 +225,11 @@ pub struct WallpaperMeta {
     pub file: String,
     /// 预览图的相对路径（包内不存在则为 `None`）。
     pub preview: Option<String>,
+    /// 已经生成过首帧快照（`posters/<id>-frame.png`）。
+    ///
+    /// 切壁纸时先用它垫着，引擎出首帧后淡入，就不必盯着黑屏等整包解析。
+    #[serde(default)]
+    pub has_frame: bool,
     /// 包内文件数。
     pub entries: usize,
     /// 包内文件总字节数。

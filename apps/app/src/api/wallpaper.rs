@@ -349,6 +349,30 @@ pub async fn wallpaper_steam_import_url<R: Runtime>(
     .map_err(WallpaperCommandError::from_steam_url)
 }
 
+/// 保存一张由前端从正在渲染的 canvas 里抓下来的首帧快照。
+///
+/// 切壁纸时先用它垫着：整包取流 + 解析 + `.tex` 解码 + 着色器编译要几秒，
+/// 这期间用户看到的应该是这张静帧，而不是黑屏。
+#[tauri::command]
+pub async fn wallpaper_write_frame<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    id: String,
+    data: Vec<u8>,
+) -> Result<(), WallpaperCommandError> {
+    tracing::info!(
+        target: LOG_TARGET,
+        cmd = "wallpaper_write_frame",
+        %id,
+        bytes = data.len(),
+        "invoked"
+    );
+    let store = store_for(&app)?;
+    tauri::async_runtime::spawn_blocking(move || store.write_frame(&id, &data))
+        .await
+        .map_err(|_| WallpaperCommandError::interrupted())?
+        .map_err(WallpaperCommandError::from_wallpaper)
+}
+
 /// 注册插件。名字用连字符（与 `content-search` 等保持一致）。
 pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("wallpaper")
@@ -363,7 +387,8 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             wallpaper_config_set,
             wallpaper_steam_scan,
             wallpaper_steam_import,
-            wallpaper_steam_import_url
+            wallpaper_steam_import_url,
+            wallpaper_write_frame
         ])
         .build()
 }

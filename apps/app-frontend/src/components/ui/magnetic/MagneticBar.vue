@@ -22,7 +22,8 @@ import { useRouter } from 'vue-router'
 import StrokeText from '@/components/ui/fx/StrokeText.vue'
 import InstanceIcon from '@/components/ui/InstanceIcon.vue'
 import MagneticPanel from '@/components/ui/magnetic/MagneticPanel.vue'
-import { install_job_listener } from '@/helpers/events'
+import { install_job_listener, launch_stage_listener, process_listener } from '@/helpers/events'
+import { install_job_cancel } from '@/helpers/install'
 import { list as listInstances, run as runInstance } from '@/helpers/instance'
 import { useMagneticServers } from '@/helpers/magnetic/servers'
 import { type MagneticSettings,readMagneticSettings } from '@/helpers/magnetic-settings'
@@ -66,6 +67,12 @@ const messages = defineMessages({
     memory: { id: 'app.magnetic.memory', defaultMessage: 'Memory' },
     network: { id: 'app.magnetic.network', defaultMessage: 'Network' },
     launching: { id: 'app.magnetic.launching', defaultMessage: 'Launching…' },
+    stagePreparing: { id: 'app.magnetic.stage-preparing', defaultMessage: 'Preparing files…' },
+    stageLibraries: { id: 'app.magnetic.stage-libraries', defaultMessage: 'Checking libraries…' },
+    stageStarting: { id: 'app.magnetic.stage-starting', defaultMessage: 'Starting the game…' },
+    activity: { id: 'app.magnetic.activity', defaultMessage: 'In progress' },
+    cancelActivity: { id: 'app.magnetic.cancel-activity', defaultMessage: 'Cancel' },
+    installingJob: { id: 'app.magnetic.installing-job', defaultMessage: 'Installing…' },
 })
 
 type Mode = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads' | 'server'
@@ -323,9 +330,96 @@ interface InstallProgress {
 }
 const downloads = ref<InstallProgress[]>([])
 let unlistenJobs: (() => void) | null = null
+let unlistenLaunchStage: (() => void) | null = null
+let unlistenProcesses: (() => void) | null = null
 /** 订阅是 await 出来的：组件先卸载再解析完时得自己退订，否则监听永久泄漏。 */
 let jobsListenerDisposed = false
+let launchListenersDisposed = false
 const activeDownload = computed(() => downloads.value[0] ?? null)
+
+/* 启动阶段的进度：后端在准备好的各阶段发 launch_stage，
+   这样不论从条子还是实例页发起启动，条子都能显示"在干什么"。 */
+const launchingId = ref<string | null>(null)
+const launchStage = ref('')
+let launchStageTimer: number | null = null
+
+function instanceNameOf(id: string | null): string | null {
+    if (!id) return null
+    return instanceList.value.find((row) => row.id === id)?.name ?? null
+}
+
+const launchStageDetail = computed(() => {
+    if (launchStage.value === 'preparing') return formatMessage(messages.stagePreparing)
+    if (launchStage.value === 'libraries') return formatMessage(messages.stageLibraries)
+    if (launchStage.value === 'starting') return formatMessage(messages.stageStarting)
+    return formatMessage(messages.launching)
+})
+
+function clearLaunchActivity(): void {
+    launchingId.value = null
+    launchStage.value = ''
+    if (launchStageTimer !== null) {
+        window.clearTimeout(launchStageTimer)
+        launchStageTimer = null
+    }
+}
+
+function noteLaunchStage(id: string, stage: string): void {
+    launchingId.value = id
+    launchStage.value = stage
+    // 事件可能因为抢跑或异常丢一次：兜底 3 分钟后自己清掉，别把整条永久占住。
+    if (launchStageTimer !== null) window.clearTimeout(launchStageTimer)
+    launchStageTimer = window.setTimeout(clearLaunchActivity, 180_000)
+}
+
+/* ---------------- 占用式临时进度 ----------------
+   主人 2026-11-21：临时进度（启动实例/下载/安装）不该藏在页面菜单里，
+   而是在进行时把整条切成进度视图，结束后自动回原页、不丢轮播位置。
+   进入条件是「有条子自己发起的启动」或「有活动中的安装/下载任务」；
+   mode 不动，所以退出时还是原来那一页。 */
+interface BarActivity {
+    kind: 'launch' | 'install'
+    title: string
+    detail: string
+    /** null = 未知进度（启动阶段还没有百分比可汇报） */
+    percent: number | null
+    jobId?: string
+}
+
+const activity = computed<BarActivity | null>(() => {
+    if (launching.value || launchingId.value) {
+        return {
+            kind: 'launch',
+            title:
+                instanceNameOf(launchingId.value) ??
+                instance.value?.name ??
+                formatMessage(messages.noInstance),
+            detail: launchStageDetail.value,
+            percent: null,
+        }
+    }
+    const job = activeDownload.value
+    if (job) {
+        return {
+            kind: 'install',
+            title: job.name ?? formatMessage(messages.installingJob),
+            detail: formatMessage(messages.installingJob),
+            percent: Math.max(0, Math.min(100, Math.round(job.percent))),
+            jobId: job.id,
+        }
+    }
+    return null
+})
+
+async function cancelActivity(): Promise<void> {
+    const job = activity.value
+    if (!job?.jobId) return
+    try {
+        await install_job_cancel(job.jobId)
+    } catch (error) {
+        handleError(error)
+    }
+}
 
 /* ---------------- 交互 ---------------- */
 /* ---------------- 拖动 / 3 秒回位 ----------------
@@ -505,12 +599,14 @@ async function loadInstances() {
 async function launchSome(id: string): Promise<void> {
     if (launching.value) return
     launching.value = true
+    noteLaunchStage(id, 'preparing')
     try {
         await runInstance(id)
     } catch (error) {
         handleError(error)
     } finally {
         launching.value = false
+        clearLaunchActivity()
     }
 }
 
@@ -518,12 +614,14 @@ async function launchGame() {
     const row = instance.value
     if (!row || launching.value) return
     launching.value = true
+    noteLaunchStage(row.id, 'preparing')
     try {
         await runInstance(row.id)
     } catch (error) {
         handleError(error)
     } finally {
         launching.value = false
+        clearLaunchActivity()
     }
 }
 
@@ -596,6 +694,35 @@ onMounted(async () => {
     } catch {
         unlistenJobs = null
     }
+    try {
+        unlistenLaunchStage = await launch_stage_listener((payload: unknown) => {
+            const stage = payload as { instance_id?: string; stage?: string }
+            if (!stage?.instance_id) return
+            noteLaunchStage(stage.instance_id, stage.stage ?? '')
+        })
+        if (launchListenersDisposed) {
+            unlistenLaunchStage()
+            unlistenLaunchStage = null
+        }
+    } catch {
+        unlistenLaunchStage = null
+    }
+    try {
+        unlistenProcesses = await process_listener((payload: unknown) => {
+            const process = payload as { instance_id?: string; event?: string }
+            if (!process?.instance_id) return
+            // 进程登记成功（launched）或已退出（finished）时，启动阶段就该收尾了。
+            if (process.event === 'launched' || process.event === 'finished') {
+                if (process.instance_id === launchingId.value) clearLaunchActivity()
+            }
+        })
+        if (launchListenersDisposed) {
+            unlistenProcesses()
+            unlistenProcesses = null
+        }
+    } catch {
+        unlistenProcesses = null
+    }
 })
 
 onMounted(() => {
@@ -617,6 +744,10 @@ onBeforeUnmount(() => {
     waveRaf = 0
     jobsListenerDisposed = true
     unlistenJobs?.()
+    launchListenersDisposed = true
+    unlistenLaunchStage?.()
+    unlistenProcesses?.()
+    clearLaunchActivity()
 })
 </script>
 
@@ -648,7 +779,36 @@ onBeforeUnmount(() => {
         />
         <div class="mb-pages" @wheel.prevent="onWheel">
             <Transition name="mb-swap" mode="out-in">
-                <section v-if="mode === 'lyrics'" key="lyrics" class="mb-face mb-lyric">
+                <section v-if="activity" key="activity" class="mb-face mb-activity">
+                    <span class="mb-kicker">{{ formatMessage(messages.activity) }}</span>
+                    <div class="mb-activity-row">
+                        <span class="mb-activity-name">{{ activity.title }}</span>
+                        <span
+                            class="mb-dl-meter"
+                            :class="{ 'is-indeterminate': activity.percent === null }"
+                        >
+                            <i
+                                :style="
+                                    activity.percent === null
+                                        ? undefined
+                                        : { width: `${activity.percent}%` }
+                                "
+                            />
+                        </span>
+                        <b v-if="activity.percent !== null">{{ activity.percent }}%</b>
+                        <button
+                            v-if="activity.jobId"
+                            type="button"
+                            class="mb-activity-cancel"
+                            @click="cancelActivity"
+                        >
+                            {{ formatMessage(messages.cancelActivity) }}
+                        </button>
+                    </div>
+                    <span class="mb-sub">{{ activity.detail }}</span>
+                </section>
+
+                <section v-else-if="mode === 'lyrics'" key="lyrics" class="mb-face mb-lyric">
                     <span v-if="song?.pic" class="mb-cover">
                         <img :src="song.pic" alt="" loading="lazy" decoding="async" />
                     </span>
@@ -889,8 +1049,11 @@ onBeforeUnmount(() => {
             </div>
         </Transition>
 
-        <div v-if="activeDownload" class="mb-progress" aria-hidden="true">
-            <i :style="{ width: `${activeDownload.percent}%` }" />
+        <div v-if="activity" class="mb-progress" aria-hidden="true">
+            <i
+                :class="{ 'is-indeterminate': activity.percent === null }"
+                :style="activity.percent === null ? undefined : { width: `${activity.percent}%` }"
+            />
         </div>
     </div>
 </template>
@@ -1407,6 +1570,48 @@ onBeforeUnmount(() => {
     opacity: 0.8;
 }
 
+/* 占用式临时进度：启动/安装进行时顶掉当前页，结束后原页自动回来 */
+.mb-activity-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95em;
+}
+
+.mb-activity-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.mb-activity-row b {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.88em;
+    opacity: 0.8;
+}
+
+.mb-activity-cancel {
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--stroke-1);
+    background: transparent;
+    color: var(--text-2);
+    font-size: 0.82em;
+    cursor: pointer;
+
+    &:hover {
+        color: var(--text-1);
+        background: var(--glass-2);
+    }
+}
+
+.mb-dl-meter.is-indeterminate i {
+    width: 38%;
+    animation: mb-scan 1.4s var(--ease) infinite;
+}
+
 .mb-dots {
     display: flex;
     flex-direction: column;
@@ -1579,6 +1784,21 @@ onBeforeUnmount(() => {
         border-radius: inherit;
         background: var(--grad-a);
         transition: width 240ms var(--ease);
+    }
+
+    /* 未知进度：一条来回扫的短光带，避免"0% 但还在动"的错觉 */
+    i.is-indeterminate {
+        width: 38%;
+        animation: mb-scan 1.4s var(--ease) infinite;
+    }
+}
+
+@keyframes mb-scan {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(263%);
     }
 }
 

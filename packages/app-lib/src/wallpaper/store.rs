@@ -124,6 +124,52 @@ impl WallpaperStore {
         self.root.join(CONFIG_FILE_NAME)
     }
 
+    /// 切壁纸时先画的那张首帧快照。
+    ///
+    /// 和 `posters/` 里导入时的预览图放在一起（协议已服务这个目录），但文件名
+    /// 单独带 `-frame` 后缀：预览图是包自带的，这张是渲染出来的，重新导入时
+    /// 预览图会被覆盖，快照不该跟着换。
+    pub fn frame_path(&self, id: &str) -> PathBuf {
+        self.posters_dir().join(format!("{id}-frame.png"))
+    }
+
+    /// 这个壁纸有没有已生成的首帧快照。
+    pub fn has_frame(&self, id: &str) -> bool {
+        self.frame_path(id).is_file()
+    }
+
+    /// 落一张首帧快照。内容由前端从正在渲染的 canvas 里抓，
+    /// 调用方保证 `data` 是一张解码得出的 PNG（这里只校验签名与上限）。
+    pub fn write_frame(&self, id: &str, data: &[u8]) -> Result<()> {
+        if !is_valid_id(id) {
+            return Err(WallpaperError::UnknownPackage);
+        }
+        // 一张 4K 的 PNG 也就几 MB；给 32MB 上限，超过基本是调用方传错了东西。
+        const MAX_FRAME_BYTES: usize = 32 * 1024 * 1024;
+        if data.is_empty() || data.len() > MAX_FRAME_BYTES {
+            return Err(WallpaperError::Io(std::io::Error::new(
+                ErrorKind::InvalidData,
+                "frame snapshot has an unexpected size",
+            )));
+        }
+        if !data.starts_with(&[0x89, b'P', b'N', b'G']) {
+            return Err(WallpaperError::Io(std::io::Error::new(
+                ErrorKind::InvalidData,
+                "frame snapshot is not a PNG",
+            )));
+        }
+        if !self.package_dir(id)?.is_dir() {
+            return Err(WallpaperError::UnknownPackage);
+        }
+        fs::create_dir_all(self.posters_dir())?;
+        let path = self.frame_path(id);
+        let mut temp = tempfile::NamedTempFile::new_in(self.posters_dir())
+            .map_err(WallpaperError::Io)?;
+        temp.write_all(data).map_err(WallpaperError::Io)?;
+        temp.persist(&path).map_err(|error| WallpaperError::Io(error.error))?;
+        Ok(())
+    }
+
     /// 建好四个必需目录。幂等。
     pub fn ensure_dirs(&self) -> Result<()> {
         for dir in [
@@ -176,6 +222,8 @@ impl WallpaperStore {
                 },
             };
             meta.id = id;
+            // 快照可能是在清单缓存写完之后才生成的，所以每次都现查。
+            meta.has_frame = self.has_frame(&meta.id);
             if project.is_none() {
                 meta.damaged = true;
             } else if meta.damaged {
@@ -242,6 +290,7 @@ impl WallpaperStore {
         }
         if let Some(mut meta) = read_meta_file(&dir) {
             meta.id = id.to_string();
+            meta.has_frame = self.has_frame(id);
             return Ok(meta);
         }
         let Some(project) = pkg::read_project_file(&dir)? else {
@@ -249,6 +298,7 @@ impl WallpaperStore {
         };
         let mut meta = self.meta_from_dir(id, &dir, &project)?;
         meta.id = id.to_string();
+        meta.has_frame = self.has_frame(id);
         Ok(meta)
     }
 
@@ -264,7 +314,11 @@ impl WallpaperStore {
             for entry in read_dir.flatten() {
                 let path = entry.path();
                 let matches_id =
-                    path.file_stem().and_then(|stem| stem.to_str()) == Some(id);
+                    path.file_stem().and_then(|stem| stem.to_str()) == Some(id)
+                        // 首帧快照是 `<id>-frame.png`：文件名主干不是 id，单独认一次，
+                        // 否则删掉壁纸后海报目录里会一直留着一张孤儿图。
+                        || path.file_name().and_then(|name| name.to_str())
+                            == Some(format!("{id}-frame.png").as_str());
                 if matches_id {
                     let _ = fs::remove_file(path);
                 }
@@ -913,6 +967,8 @@ fn meta_from_project(
             .unwrap_or_default(),
         file: file_rel.unwrap_or(raw_file),
         preview,
+        // 由调用方（`list` / `get`）补：这个函数拿不到 store，而快照在 posters 目录里。
+        has_frame: false,
         entries: stat.entries,
         bytes: stat.bytes,
         installed_at,

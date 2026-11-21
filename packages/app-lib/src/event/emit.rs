@@ -7,8 +7,8 @@ use crate::event::{
 #[cfg(feature = "tauri")]
 use crate::event::{
     InstanceGroupsChangedPayload, InstancePayload, JavaDiscoveryPayload,
-    JavaDownloadConfirmationPayload, LoadingPayload, ProcessPayload,
-    ServerPayload, WarningPayload,
+    JavaDownloadConfirmationPayload, LaunchStagePayload, LoadingPayload,
+    ProcessPayload, ServerPayload, WarningPayload,
 };
 use futures::prelude::*;
 use serde_json::Value;
@@ -365,6 +365,29 @@ pub async fn emit_process(
                     event,
                     message: message.to_string(),
                     crashed,
+                },
+            )
+            .map_err(EventError::from)?;
+    }
+    Ok(())
+}
+
+// emit_launch_stage(instance_id, stage)
+#[allow(unused_variables)]
+pub async fn emit_launch_stage(
+    instance_id: &str,
+    stage: &str,
+) -> crate::Result<()> {
+    #[cfg(feature = "tauri")]
+    {
+        let event_state = crate::EventState::get()?;
+        event_state
+            .app
+            .emit(
+                "launch_stage",
+                LaunchStagePayload {
+                    instance_id: instance_id.to_string(),
+                    stage: stage.to_string(),
                 },
             )
             .map_err(EventError::from)?;

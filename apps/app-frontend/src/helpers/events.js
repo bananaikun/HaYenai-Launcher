@@ -58,6 +58,17 @@ export async function process_listener(callback) {
     return await listen('process', (event) => callback(event.payload))
 }
 
+/// Payload for the 'launch_stage' event
+/*
+    LaunchStagePayload {
+        instance_id: instance being prepared,
+        stage: coarse phase, one of "preparing", "libraries", "starting"
+    }
+*/
+export async function launch_stage_listener(callback) {
+    return await listen('launch_stage', (event) => callback(event.payload))
+}
+
 /// Payload for the 'instance' event
 /*
     InstancePayload {

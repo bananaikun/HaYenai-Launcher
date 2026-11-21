@@ -17,10 +17,10 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { reactive } from 'vue'
 
 /** 壁纸命令注册在 `wallpaper` 插件里，必须带 `plugin:` 前缀。 */
 const PLUGIN = 'plugin:wallpaper'
-import { reactive } from 'vue'
 
 /** `project.json.type` 归一化后的类型，与 Rust 侧 `WallpaperType` 一一对应。 */
 export type WallpaperKind = 'scene' | 'video' | 'web' | 'application' | 'other'
@@ -64,6 +64,8 @@ export interface WallpaperMeta {
     /** Unix 毫秒。 */
     installedAt: number
     hasProperties: boolean
+    /** 已经存下过首帧快照（`posters/<id>-frame.png`）。 */
+    hasFrame: boolean
     texAudit: WallpaperTexAudit
     /** `file` 指向的文件不存在时为 `true`。 */
     damaged: boolean
@@ -379,16 +381,29 @@ export function wallpaperAssetUrl(id: string, rel: string): string {
 }
 
 /**
- * 海报地址：包内 `preview` 的取流地址。
+ * 首帧快照地址（`/posters/<id>-frame.png`）。
+ *
+ * 这张图是上一次渲染时从 canvas 里抓下来的，切壁纸先垫它：整包取流 + 解析 +
+ * `.tex` 解码 + 着色器编译要好几秒，用包自带的 preview 顶多是一张静态图，
+ * 而快照就是这张壁纸真实的样子。
+ */
+export function wallpaperFrameUrl(id: string): string {
+    return `${WALLPAPER_PROTOCOL_ORIGIN}/posters/${encodeURIComponent(id)}-frame.png`
+}
+
+/**
+ * 海报地址：优先用首帧快照，没有才退回包内 `preview`。
  *
  * 为什么不用 `wallpapers/posters/<id>.jpg`：那份副本是给「包被删了一半」这类
- * 场景留的兜底，而取流协议只映射 `packages/<id>/<rel>`，海报目录不在协议里。
- * 预览图本来就在包内，直接用协议取，少一条路径、少一次 IO。
+ * 场景留的兜底。`-frame.png` 是另一回事 —— 它是渲染出来的，走的是同一条协议
+ * （`/posters/` 旁路），所以这里可以直接用。
  */
 export function wallpaperPosterUrl(
-    meta: Pick<WallpaperMeta, 'id' | 'preview'> | null | undefined,
+    meta: Pick<WallpaperMeta, 'id' | 'preview' | 'hasFrame'> | null | undefined,
 ): string | null {
-    if (!meta || !meta.preview) return null
+    if (!meta) return null
+    if (meta.hasFrame) return wallpaperFrameUrl(meta.id)
+    if (!meta.preview) return null
     return wallpaperAssetUrl(meta.id, meta.preview)
 }
 
@@ -544,6 +559,11 @@ export function wallpaperErrorMessage(error: unknown): string | null {
 /** 列出所有已安装的壁纸。损坏的也会出来（`damaged: true`）。 */
 export async function listWallpapers(): Promise<WallpaperMeta[]> {
     return await invoke<WallpaperMeta[]>(`${PLUGIN}|wallpaper_list`)
+}
+
+/** 保存一张首帧快照（PNG 字节）。由渲染层在首帧出现后调用。 */
+export async function writeWallpaperFrame(id: string, data: Uint8Array): Promise<void> {
+    await invoke(`${PLUGIN}|wallpaper_write_frame`, { id, data: Array.from(data) })
 }
 
 /** 导入一个包。`path` 是 `.mpkg` / `.pkg` 文件或目录。 */

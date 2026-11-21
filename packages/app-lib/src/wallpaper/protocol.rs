@@ -30,7 +30,7 @@ use std::time::UNIX_EPOCH;
 
 use super::pkg::safe_rel;
 use super::steam::is_valid_workshop_id;
-use super::store::{PACKAGES_DIR_NAME, is_valid_id};
+use super::store::{PACKAGES_DIR_NAME, POSTERS_DIR_NAME, is_valid_id};
 
 /// 自定义协议名。
 pub const SCHEME: &str = "hayenai-we";
@@ -45,6 +45,10 @@ pub const CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 pub const STEAM_CACHE_CONTROL: &str = "public, max-age=300";
 /// 工坊取流路径的前缀（`/steam/<id>/<rel>`）。
 pub const STEAM_PREFIX: &str = "steam/";
+/// 首帧快照路径的前缀（`/posters/<file>`）。
+///
+/// 切壁纸时先画这一张，不用等引擎把整包取流、解析、解码、编译完。
+pub const POSTERS_PREFIX: &str = "posters/";
 /// 一次响应最多吐多少字节。
 ///
 /// Tauri 的同步协议 handler 只能返回 `Vec<u8>`，没有流式回退；
@@ -141,7 +145,20 @@ pub fn resolve_with_steam(
         return resolve_steam(rest, request, steam_lookup);
     }
 
-    // 3. 否则就是已导入的包：`/<id>/<rel>`。
+    // 3. `/posters/<file>`：切壁纸时先画的那张静帧（首帧快照），只读。
+    //    放在包路径之前，否则 `posters` 会被当成包 id（它确实是个合法 id 字符集）。
+    if let Some(rest) = decoded
+        .strip_prefix('/')
+        .and_then(|path| path.strip_prefix(POSTERS_PREFIX))
+    {
+        let Some(rel) = safe_rel(rest) else {
+            return ProtocolResponse::empty(403);
+        };
+        let posters = root.join(POSTERS_DIR_NAME);
+        return serve_file(&posters.join(&rel), &posters, &rel, request, CACHE_CONTROL);
+    }
+
+    // 4. 否则就是已导入的包：`/<id>/<rel>`。
     let Some((id, rel_raw)) = split_id_and_rel(&decoded) else {
         return ProtocolResponse::empty(400);
     };

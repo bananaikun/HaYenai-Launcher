@@ -832,6 +832,12 @@ const startInstance = async (context: string) => {
         }
         playing.value = true
     } catch (err) {
+        // Stop the "starting…" state before analysing the failure: the crash
+        // modal uploads logs and asks the AI service, which can take a while,
+        // and the button must not look stuck for that whole time.
+        clearInterval(launchElapsedTimer)
+        launchElapsedTimer = undefined
+        loading.value = false
         const handled = await handleMinecraftLaunchError(err, {
             instance_id: props.id,
             instance_name: instance.value.name,

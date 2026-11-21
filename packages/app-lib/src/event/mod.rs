@@ -411,6 +411,18 @@ pub struct InstancePayload {
     pub event: InstancePayloadType,
 }
 
+/// Coarse progress for a launch that has not produced a process yet.
+/// Preparation can take tens of seconds, and the only thing the UI had to show
+/// was a stopwatch, so the bar could not tell downloading from hashing from a
+/// stuck launch.
+#[derive(Serialize, Clone, Debug)]
+#[cfg(feature = "tauri")]
+pub struct LaunchStagePayload {
+    pub instance_id: String,
+    /// Stable machine-readable key: `preparing`, `libraries`, `starting`.
+    pub stage: String,
+}
+
 #[derive(Serialize, Clone)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum InstancePayloadType {

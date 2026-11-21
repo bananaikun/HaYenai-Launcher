@@ -32,14 +32,15 @@ import {
     DEFAULT_WALLPAPER_QUALITY,
     probeWallpaperGpu,
     wallpaperAssetUrl,
-    wallpaperRenderability,
     type WallpaperGpuCaps,
     type WallpaperMeta,
     type WallpaperQuality,
+    wallpaperRenderability,
+    writeWallpaperFrame,
 } from '@/helpers/wallpaper'
-
 import { wallpaperState } from '@/helpers/wallpaper'
 import { applyToneFromSurface } from '@/helpers/wallpaper-theme'
+
 import SceneWallpaper from './SceneWallpaper.vue'
 import VideoWallpaper from './VideoWallpaper.vue'
 import WebWallpaper from './WebWallpaper.vue'
@@ -320,7 +321,50 @@ function onFirstFrame(): void {
         toneTimer = null
         if (token !== toneToken) return
         captureToneFromSurface(false)
+        void captureFrameSnapshot()
     }, 1200)
+}
+
+/** 已经成功抓过静帧的壁纸 id（模块级：同一次运行里切回来不必再抓一次）。 */
+const capturedFrames = new Set<string>()
+
+/**
+ * 首帧稳定后把画面存成静帧。
+ *
+ * 这张图就是下次切到这张壁纸时先画的东西 —— 整包取流、解析、`.tex` 解码、
+ * 着色器编译要好几秒，这段时间里画一张静态真相比画包自带的 preview 强得多。
+ * 失败不报错：静帧只是加速，没有它也只是回到原来的等待。
+ */
+async function captureFrameSnapshot(): Promise<void> {
+    const meta = props.meta
+    if (!meta || meta.type !== 'scene' || meta.hasFrame) return
+    if (capturedFrames.has(meta.id)) return
+    const src = rootEl.value?.querySelector<HTMLCanvasElement>('canvas[data-webwallgl]')
+    if (!src || !src.width || !src.height) return
+
+    // 下采样到 1600 宽：静帧只用来顶几秒，没必要存一张 4K PNG。
+    const scale = Math.min(1, 1600 / src.width)
+    const snap = document.createElement('canvas')
+    snap.width = Math.max(1, Math.round(src.width * scale))
+    snap.height = Math.max(1, Math.round(src.height * scale))
+    const ctx = snap.getContext('2d')
+    if (!ctx) return
+    try {
+        ctx.drawImage(src, 0, 0, snap.width, snap.height)
+    } catch {
+        return
+    }
+
+    const blob = await new Promise<Blob | null>((resolve) => snap.toBlob(resolve, 'image/png'))
+    if (!blob) return
+
+    capturedFrames.add(meta.id)
+    try {
+        await writeWallpaperFrame(meta.id, new Uint8Array(await blob.arrayBuffer()))
+    } catch {
+        // 磁盘满 / 包被删掉之类：下次进到这个壁纸时再试。
+        capturedFrames.delete(meta.id)
+    }
 }
 
 function onFail(reason: string): void {
@@ -528,8 +572,8 @@ defineExpose({
 
         <WebWallpaper
             v-else-if="mode === 'web' && meta"
-            :key="`web:${meta.id}`"
             :id="meta.id"
+            :key="`web:${meta.id}`"
             :entry="meta.file"
             :resolve-url="wallpaperAssetUrl"
             :active="engineActive"
