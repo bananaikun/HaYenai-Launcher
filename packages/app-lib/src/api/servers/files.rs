@@ -26,6 +26,7 @@ pub async fn write_file(
     file: &str,
     contents: &str,
 ) -> Result<()> {
+    ensure_not_reserved(server_id)?;
     let path = resolve_server_file(server_id, file).await?;
     io::write(&path, contents).await?;
     Ok(())
@@ -37,8 +38,23 @@ pub async fn download_file(
     filename: &str,
     expected_sha1: Option<String>,
 ) -> Result<()> {
+    ensure_not_reserved(server_id)?;
     let dir = server_path(server_id).await?;
     download_to_dir(server_id, &dir, url, filename, expected_sha1).await
+}
+
+/// Rejects a user-initiated write while a start/delete/install owns the
+/// server. Installs call [`download_to_dir`] directly, so they are not
+/// affected by this guard.
+fn ensure_not_reserved(server_id: &str) -> Result<()> {
+    if super::lifecycle::is_reserved(server_id) {
+        return Err(ErrorKind::OtherError(
+            "The server is being installed or deleted; try again in a moment"
+                .to_string(),
+        )
+        .into());
+    }
+    Ok(())
 }
 
 /// Downloads a URL into a nested, relative path inside the server directory

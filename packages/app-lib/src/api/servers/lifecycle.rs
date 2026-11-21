@@ -105,6 +105,49 @@ pub(super) fn release_reservation(server_id: &str) {
     SERVER_STARTING.remove(server_id);
 }
 
+/// Whether a start / delete / install currently owns this server. File writes
+/// consult it so an upload cannot land in `mods/` while an install is
+/// rewriting the same directory.
+pub(super) fn is_reserved(server_id: &str) -> bool {
+    SERVER_STARTING.contains(server_id)
+}
+
+/// Holds the shared start/delete/install slot for the duration of one
+/// operation and releases it on drop, including early `?` returns.
+pub(super) struct OperationGuard<'a> {
+    server_id: &'a str,
+}
+
+impl Drop for OperationGuard<'_> {
+    fn drop(&mut self) {
+        release_reservation(self.server_id);
+    }
+}
+
+/// Claims the server for an install-style operation: refuses to run while the
+/// JVM is up (it would fight over `mods/` and `config/`) or while another
+/// operation already holds the slot.
+pub(super) fn begin_operation<'a>(
+    server_id: &'a str,
+    action: &str,
+) -> Result<OperationGuard<'a>> {
+    if is_running(server_id) {
+        return Err(ErrorKind::OtherError(format!(
+            "Stop the server before {action}"
+        ))
+        .into());
+    }
+    if !try_reserve(server_id) {
+        return Err(ErrorKind::OtherError(
+            "Another operation is already using this server; try again in a \
+             moment"
+                .to_string(),
+        )
+        .into());
+    }
+    Ok(OperationGuard { server_id })
+}
+
 /// Whether a server process is currently tracked. Used by the log-file tailer
 /// to stop following once the server has exited.
 pub(super) fn is_server_running(server_id: &str) -> bool {

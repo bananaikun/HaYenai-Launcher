@@ -32,6 +32,11 @@ pub async fn install_forge(
     build: &str,
     java_path: Option<String>,
 ) -> Result<()> {
+    // The installer unpacks libraries and a launcher jar into the server
+    // directory, so it takes the same slot as start/delete/modpack install.
+    let _install_guard =
+        super::lifecycle::begin_operation(server_id, "installing Forge")?;
+
     let dir = server_path(server_id).await?;
 
     let mut manifest = read_manifest(&dir).await?;
