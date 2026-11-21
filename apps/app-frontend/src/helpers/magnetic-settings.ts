@@ -33,7 +33,25 @@ export const MAGNETIC_WIDGET_IDS = [
 export type MagneticWidgetId = (typeof MAGNETIC_WIDGET_IDS)[number]
 
 /** 磁悬条**条子上**可以轮播的页面（不是展开菜单里的卡片）。 */
-export type MagneticBarPage = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads'
+export type MagneticBarPage = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads' | 'server'
+
+/**
+ * 服务器卡 / 条子服务器页的一个探测目标。
+ *
+ * 地址两种写法都认：
+ * - `host[:port]`：走 MC 的 Server List Ping，能拿到 MOTD / 图标 / 人数 / 延迟；
+ * - `http(s)://…`：退回 HTTP 探活，只判 2xx 在线（适合面板/上游服务）。
+ */
+export interface MagneticServerTarget {
+    /** 稳定 id：同一次会话的多次探测靠它认住同一行，改地址也不会换行。 */
+    id: string
+    /** 显示名；留空时用地址兜底。 */
+    name: string
+    address: string
+}
+
+/** 最多几台。条子与卡片的高度按这个数排的，加到更多就要改布局。 */
+export const MAGNETIC_MAX_SERVERS = 4
 
 export interface MagneticBarPagePref {
     id: MagneticBarPage
@@ -148,8 +166,8 @@ export interface MagneticSettings {
     /** 条子上页面的顺序与开关。 */
     barPages: MagneticBarPagePref[]
     widgets: MagneticWidgetPref[]
-    /** 服务器状态：手动填地址，探 `GET <url>` 是否 200。 */
-    server: { name: string; url: string; playersUrl?: string }
+    /** 服务器状态：最多 4 个目标，每个 `host[:port]` 或 `http(s)://…`。 */
+    servers: MagneticServerTarget[]
 }
 
 const STORAGE_KEY = 'hayenai.magnetic'
@@ -198,14 +216,23 @@ const DEFAULT_SETTINGS: MagneticSettings = {
         { id: 'lyrics', enabled: false },
         { id: 'downloads', enabled: false },
     ],
-    server: { name: 'HaYenai', url: 'http://192.168.10.149:23443/api/health', playersUrl: '' },
+    servers: [
+        {
+            id: 'hayenai',
+            name: 'HaYenai',
+            address: 'http://192.168.10.149:23443/api/health',
+        },
+    ],
 }
 
 export function readMagneticSettings(): MagneticSettings {
     try {
         const raw = localStorage.getItem(STORAGE_KEY)
         if (!raw) return structuredClone(DEFAULT_SETTINGS)
-        const parsed = JSON.parse(raw) as Partial<MagneticSettings>
+        const parsed = JSON.parse(raw) as Partial<MagneticSettings> & {
+            /** 1.0.48 及以前的单服务器配置，读出来迁移成 servers[0]。 */
+            server?: { name?: string; url?: string }
+        }
         const merged: MagneticSettings = {
             barEnabled: parsed.barEnabled !== false,
             opacity: clamp(Number(parsed.opacity ?? DEFAULT_SETTINGS.opacity), 0, 100),
@@ -213,17 +240,14 @@ export function readMagneticSettings(): MagneticSettings {
             panelWidth: clamp(Number(parsed.panelWidth ?? DEFAULT_SETTINGS.panelWidth), 560, 1080),
             barPages: mergeBarPages(parsed.barPages),
             widgets: mergeWidgets(parsed.widgets),
-            server: {
-                name: parsed.server?.name ?? DEFAULT_SETTINGS.server.name,
-                url: parsed.server?.url ?? DEFAULT_SETTINGS.server.url,
-                playersUrl: parsed.server?.playersUrl ?? '',
-            },
+            servers: mergeServers(parsed.servers, parsed.server),
         }
-        // 补齐过（老配置缺新组件）就写回一次 —— 否则「添加组件」里永远看不到新类型，
-        // 因为 availableWidgets 是从内存里的 widgets 算的，而下次读盘又回到旧清单。
+        // 补齐过（老配置缺新组件 / 服务器还是老的单对象）就写回一次 —— 否则「添加组件」里
+        // 永远看不到新类型，因为 availableWidgets 是从内存里的 widgets 算的，而下次读盘又回到旧清单。
         if (
             (parsed.widgets?.length ?? 0) !== merged.widgets.length ||
-            (parsed.barPages?.length ?? 0) !== merged.barPages.length
+            (parsed.barPages?.length ?? 0) !== merged.barPages.length ||
+            !Array.isArray(parsed.servers)
         ) {
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
@@ -283,13 +307,14 @@ const BAR_PAGE_IDS: MagneticBarPage[] = [
     'system',
     'instances',
     'downloads',
+    'server',
 ]
 
 /**
  * 老配置里没有这个页面时的默认开关。
  *
  * 原来一律 `enabled: true`：新增页面等于「偷偷给所有用户打开一页」。
- * 现在原有三页保持开（它们本来就在配置里），新加的两页默认关，由用户自己勾。
+ * 现在原有三页保持开（它们本来就在配置里），新加的页默认关，由用户自己勾。
  */
 const BAR_PAGE_DEFAULT_ENABLED: Record<MagneticBarPage, boolean> = {
     lyrics: true,
@@ -297,6 +322,7 @@ const BAR_PAGE_DEFAULT_ENABLED: Record<MagneticBarPage, boolean> = {
     system: true,
     instances: false,
     downloads: false,
+    server: false,
 }
 
 function mergeBarPages(saved?: MagneticBarPagePref[]): MagneticBarPagePref[] {
@@ -341,6 +367,44 @@ function mergeWidgets(saved?: MagneticWidgetPref[]): MagneticWidgetPref[] {
         if (!seen.has(id)) result.push({ id, enabled: false })
     }
     return result
+}
+
+/**
+ * 服务器列表清洗 + 老配置迁移。
+ *
+ * 规则：丢空地址、上限 4 条、id 与名字补缺省；一条都没有时，用 1.0.48 的单服务器配置
+ * 兜底（用户填过的地址不能因为升级就消失），再没有才回到默认那一台。
+ */
+function mergeServers(
+    saved: unknown,
+    legacy?: { name?: string; url?: string },
+): MagneticServerTarget[] {
+    const list: MagneticServerTarget[] = []
+    if (Array.isArray(saved)) {
+        for (const item of saved) {
+            if (!item || typeof item !== 'object') continue
+            const row = item as Partial<MagneticServerTarget>
+            const address = String(row.address ?? '').trim()
+            if (!address) continue
+            list.push({
+                id: String(row.id ?? '').trim() || `s${list.length + 1}`,
+                name: String(row.name ?? '').trim() || address,
+                address,
+            })
+            if (list.length >= MAGNETIC_MAX_SERVERS) break
+        }
+    }
+    if (!list.length) {
+        const url = legacy?.url?.trim()
+        if (url) {
+            list.push({
+                id: 'legacy',
+                name: legacy?.name?.trim() || url,
+                address: url,
+            })
+        }
+    }
+    return list.length ? list : structuredClone(DEFAULT_SETTINGS.servers)
 }
 
 function optionalNumber(value: unknown): number | undefined {

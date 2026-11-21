@@ -25,16 +25,19 @@ import { useRouter } from 'vue-router'
 import { install_job_listener } from '@/helpers/events'
 import { list as listInstances, run as runInstance } from '@/helpers/instance'
 import { MAGNETIC_WIDGET_KEYWORDS, magneticWidgetMessages } from '@/helpers/magnetic/labels'
-import { currentSong, music } from '@/store/music'
+import { useMagneticServers } from '@/helpers/magnetic/servers'
 import {
     MAGNETIC_COLUMNS,
+    MAGNETIC_MAX_SERVERS,
     MAGNETIC_WIDGET_DEFAULT_COLS,
     MAGNETIC_WIDGET_OPTION_DEFAULTS,
-    readMagneticSettings,
-    writeMagneticSettings,
+    type MagneticServerTarget,
     type MagneticSettings,
     type MagneticWidgetId,
+    readMagneticSettings,
+    writeMagneticSettings,
 } from '@/helpers/magnetic-settings'
+import { currentSong, music } from '@/store/music'
 
 const props = defineProps<{ open: boolean; anchor: { left: number; bottom: number } | null }>()
 const emit = defineEmits<{ close: []; 'open-settings': [] }>()
@@ -62,6 +65,12 @@ const messages = defineMessages({
     serverOnline: { id: 'app.magnetic.server-online', defaultMessage: 'Online' },
     serverOffline: { id: 'app.magnetic.server-offline', defaultMessage: 'Offline' },
     serverUnknown: { id: 'app.magnetic.server-unknown', defaultMessage: 'Checking…' },
+    serverEmpty: {
+        id: 'app.magnetic.server-empty',
+        defaultMessage: 'No server yet — add one in Settings → Home & navigation.',
+    },
+    serverAdd: { id: 'app.magnetic.server-add', defaultMessage: 'Add server' },
+    serverRemove: { id: 'app.magnetic.server-remove', defaultMessage: 'Remove' },
     launch: { id: 'app.magnetic.launch', defaultMessage: 'Launch' },
     noLyric: { id: 'app.magnetic.no-lyric', defaultMessage: 'Nothing playing' },
     noDownload: { id: 'app.magnetic.no-download', defaultMessage: 'No active download' },
@@ -130,6 +139,24 @@ const settings = ref<MagneticSettings>(readMagneticSettings())
 const query = ref('')
 const searchEl = ref<HTMLInputElement | null>(null)
 const now = ref(new Date())
+
+/**
+ * `now` 每秒跳一次，而月历只有跨天才需要重算。
+ * 月历（42 格 × 农历转换）若挂在 `now` 上，就是每秒 42 次 `Intl` 调用白烧 CPU，
+ * 所以单独维护一个「今天」的源，只在日期真正变了时更新。
+ */
+const todayDate = ref(new Date(now.value.getFullYear(), now.value.getMonth(), now.value.getDate()))
+
+watch(now, (value) => {
+    const today = todayDate.value
+    if (
+        value.getFullYear() !== today.getFullYear() ||
+        value.getMonth() !== today.getMonth() ||
+        value.getDate() !== today.getDate()
+    ) {
+        todayDate.value = new Date(value.getFullYear(), value.getMonth(), value.getDate())
+    }
+})
 
 /* ---------------- 自由摆放：布局引擎 / 拖动 / 吸附 / 右键菜单 ---------------- */
 
@@ -814,9 +841,30 @@ function resetWidgetPosition(id: MagneticWidgetId): void {
     saveSettings()
 }
 
-/** 弹窗里改服务器信息。 */
-function setServerField(field: 'name' | 'url', value: string): void {
-    settings.value.server[field] = value
+/** 弹窗里改服务器列表：改名 / 改地址 / 加一台 / 删一台（上限 4 台）。 */
+function serverTarget(id: string): MagneticServerTarget | undefined {
+    return settings.value.servers.find((item) => item.id === id)
+}
+
+function setServerField(id: string, field: 'name' | 'address', value: string): void {
+    const target = serverTarget(id)
+    if (!target) return
+    target[field] = value
+    saveSettings()
+}
+
+function addServer(): void {
+    if (settings.value.servers.length >= MAGNETIC_MAX_SERVERS) return
+    settings.value.servers.push({
+        id: `s${Date.now().toString(36)}`,
+        name: '',
+        address: '',
+    })
+    saveSettings()
+}
+
+function removeServer(id: string): void {
+    settings.value.servers = settings.value.servers.filter((item) => item.id !== id)
     saveSettings()
 }
 
@@ -1077,15 +1125,6 @@ const visibleWidgets = computed<MagneticWidgetId[]>(() => {
 
 /* ---------------- 数据：实例 / 系统 / 服务器 ---------------- */
 
-interface ServerPing {
-    online: boolean
-    latencyMs: number | null
-    playersOnline: number | null
-    playersMax: number | null
-    motd: string | null
-    statusBlocked: boolean
-}
-
 interface InstanceRow {
     id: string
     name: string
@@ -1108,14 +1147,20 @@ const stats = ref({
     diskTotal: null as number | null,
     diskFree: null as number | null,
 })
-const serverState = ref<'unknown' | 'online' | 'offline'>('unknown')
-/** 上次探测耗时（ms），卡片里可选显示。 */
-const serverLatency = ref<number | null>(null)
-/** 在线人数（没配人数接口就是 null，不要显示 0）。 */
-const serverOnline = ref<number | null>(null)
-/** 人数上限（只有 MC 目标能拿到）。 */
-const serverMax = ref<number | null>(null)
+/**
+ * 服务器行：与条子共用一份探测结果（见 helpers/magnetic/servers.ts）。
+ * 面板关闭时 stop，条子还开着就继续用同一份数据，不重复打 IPC。
+ */
+const {
+    rows: serverRows,
+    start: startServerPolling,
+    stop: stopServerPolling,
+} = useMagneticServers(
+    () => settings.value.servers,
+    () => optsOf('server').serverTimeout,
+)
 const song = computed(() => currentSong())
+
 interface RunningJob {
     id: string
     percent: number
@@ -1130,11 +1175,17 @@ const jobs = ref<RunningJob[]>([])
 /** 卡片里最多显示几条（用户可配 1–3）。 */
 const visibleJobs = computed(() => jobs.value.slice(0, optsOf('downloads').downloadRows))
 let unlistenJobs: (() => void) | null = null
+/** 关面板后异步才解析出来的订阅句柄要自己释放，见 startTimers 里的 .then。 */
+let jobsListenerDisposed = false
+/**
+ * 服务器轮询由面板与条子共享（引用计数）。面板只能释放自己拿到的那一份，
+ * 否则条子服务器页还开着时会把它的轮询一起停掉，人数与延迟就冻住了。
+ */
+let serverPollingActive = false
 const launchingId = ref<string | null>(null)
 
 let statsTimer: number | null = null
 let clockTimer: number | null = null
-let serverTimer: number | null = null
 
 async function pollStats(): Promise<void> {
     try {
@@ -1161,94 +1212,6 @@ async function pollStats(): Promise<void> {
     }
 }
 
-/**
- * 服务器探测。
- *
- * 支持两种目标（都按真实结果判定，不再"能连上就算在线"）：
- * - `host` / `host:port` → 走本机 SLP 命令 `server_status`（Rust 侧裸 TCP 握手）：
- *   拿到真实延迟、在线/上限人数、MOTD；端口缺省 25565；
- * - `http(s)://…` → 走 `http_probe` 命令（Rust 发 GET）看**真实状态码**，2xx 才算在线。
- *   不用 webview 的 `fetch(mode:'no-cors')`：那是 opaque response，404/500 也会被算成功。
- */
-function isMinecraftAddress(value: string): boolean {
-    return Boolean(value) && !/^https?:\/\//i.test(value) && !value.includes('/')
-}
-
-function withTimeout<T>(task: Promise<T>, ms: number): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-        const timer = window.setTimeout(() => reject(new Error('timeout')), ms)
-        task.then(
-            (value) => {
-                window.clearTimeout(timer)
-                resolve(value)
-            },
-            (error) => {
-                window.clearTimeout(timer)
-                reject(error)
-            },
-        )
-    })
-}
-
-
-/** `host[:port]` 拆分：缺省端口交给后端（25565）。 */
-function splitHostPort(value: string): [string, number | null] {
-    const trimmed = value.trim().replace(/^\s+|\s+$/g, '')
-    const match = trimmed.match(/^(.+?):(\d{1,5})$/)
-    if (!match) return [trimmed, null]
-    return [match[1], Number(match[2])]
-}
-
-async function pollServer(): Promise<void> {
-    const target = settings.value.server.url?.trim()
-    if (!target) {
-        serverState.value = 'unknown'
-        serverOnline.value = null
-        serverMax.value = null
-        return
-    }
-
-    const timeout = Math.max(500, optsOf('server').serverTimeout)
-
-    if (isMinecraftAddress(target)) {
-        const [host, port] = splitHostPort(target)
-        try {
-            const status = await withTimeout(
-                invoke<ServerPing>('server_status', { host, port }),
-                timeout * 3,
-            )
-            serverLatency.value = status.latencyMs ?? null
-            serverOnline.value = status.playersOnline ?? null
-            serverMax.value = status.playersMax ?? null
-            // statusBlocked：服务器在，但状态查询被墙（只有延迟是真的），仍算在线。
-            serverState.value = status.online ? 'online' : 'offline'
-        } catch {
-            serverLatency.value = null
-            serverOnline.value = null
-            serverMax.value = null
-            serverState.value = 'offline'
-        }
-        return
-    }
-
-    const startedAt = performance.now()
-    try {
-        const probe = await invoke<{ status: number; ok: boolean }>('http_probe', {
-            url: target,
-            timeoutMs: timeout,
-        })
-        serverLatency.value = Math.round(performance.now() - startedAt)
-        // 只有 2xx 算在线：404/500 说明服务在但坏了，不该给绿灯。
-        serverState.value = probe.ok ? 'online' : 'offline'
-    } catch {
-        serverLatency.value = null
-        serverState.value = 'offline'
-    }
-    // 非 MC 目标没有"人数"概念，别拿 0 冒充。
-    serverOnline.value = null
-    serverMax.value = null
-}
-
 async function loadInstances(): Promise<void> {
     try {
         instances.value = (await listInstances()) as InstanceRow[]
@@ -1259,6 +1222,7 @@ async function loadInstances(): Promise<void> {
 
 function startTimers(): void {
     timersSignature = timersKey()
+    jobsListenerDisposed = false
     void pollStats()
     // 下载进度：面板打开才订阅，关掉就退订（磁悬条在每个页面都挂着，不能常驻监听）。
     if (settings.value.widgets.some((w) => w.id === 'downloads' && w.enabled)) {
@@ -1306,6 +1270,12 @@ function startTimers(): void {
             else jobs.value = [...jobs.value, next]
         })
             .then((unlisten) => {
+                // 订阅是异步建起来的：面板先关掉再解析完的话，句柄永远没人释放，
+                // 每开关一次就漏一个监听。
+                if (jobsListenerDisposed) {
+                    unlisten()
+                    return
+                }
                 unlistenJobs = unlisten
             })
             .catch(() => {
@@ -1317,20 +1287,24 @@ function startTimers(): void {
         statsTimer = window.setInterval(pollStats, Math.max(500, optsOf('system').statsInterval))
     }
     if (settings.value.widgets.some((w) => w.id === 'server' && w.enabled)) {
-        void pollServer()
-        serverTimer = window.setInterval(pollServer, 15000)
+        startServerPolling()
+        serverPollingActive = true
     }
 }
 
 function stopTimers(): void {
+    jobsListenerDisposed = true
     unlistenJobs?.()
     unlistenJobs = null
-    for (const timer of [statsTimer, clockTimer, serverTimer]) {
+    if (serverPollingActive) {
+        serverPollingActive = false
+        stopServerPolling()
+    }
+    for (const timer of [statsTimer, clockTimer]) {
         if (timer !== null) window.clearInterval(timer)
     }
     statsTimer = null
     clockTimer = null
-    serverTimer = null
 }
 
 async function launch(id: string): Promise<void> {
@@ -1391,7 +1365,7 @@ const DATE_WEEK_HEAD = ['一', '二', '三', '四', '五', '六', '日']
 
 /** 当月月历：固定 6 行 × 7 列，避免切换月份时卡片高度跳动。 */
 const dateMonthGrid = computed(() => {
-    const today = now.value
+    const today = todayDate.value
     const year = today.getFullYear()
     const month = today.getMonth()
     const first = new Date(year, month, 1)
@@ -1415,9 +1389,10 @@ const dateMonthGrid = computed(() => {
     return cells
 })
 
-const dateMonthTitle = computed(() =>
-    now.value.toLocaleDateString([], { year: 'numeric', month: 'long' }),
-)
+/** 月标题格式器复用同一个实例：`toLocaleDateString` 每次调用都要重建格式器。 */
+const monthTitleFormatter = new Intl.DateTimeFormat([], { year: 'numeric', month: 'long' })
+
+const dateMonthTitle = computed(() => monthTitleFormatter.format(todayDate.value))
 
 const diskPercent = computed(() => {
     const total = stats.value.diskTotal ?? 0
@@ -1446,7 +1421,7 @@ function isoWeek(date: Date): number {
 const calendarWeeks = computed(() => {
     const opts = optsOf('calendar')
     const startsMonday = opts.calendarWeekStart !== 0
-    const today = now.value
+    const today = todayDate.value
     const year = today.getFullYear()
     const month = today.getMonth()
     const first = new Date(year, month, 1)
@@ -1509,6 +1484,16 @@ function formatBytes(value: number): string {
         index += 1
     }
     return `${size.toFixed(size >= 10 || index === 0 ? 0 : 1)} ${units[index]}`
+}
+
+/** MOTD 常是多行＋带 § 颜色码：只取第一个非空行，超长截断。 */
+function motdLine(motd: string): string {
+    const line = motd
+        .split(/\r?\n/)
+        .map((part) => part.replace(/§./g, '').trim())
+        .find(Boolean)
+    if (!line) return ''
+    return line.length > 42 ? `${line.slice(0, 41)}…` : line
 }
 
 function go(to: string): void {
@@ -1620,10 +1605,10 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                         @keydown="onSearchKeydown"
                     />
                     <button
+                        v-tooltip="formatMessage(messages.addWidget)"
                         type="button"
                         class="mbp-icon-btn"
                         :aria-label="formatMessage(messages.addWidget)"
-                        v-tooltip="formatMessage(messages.addWidget)"
                         @click.stop="addOpen = !addOpen"
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1631,10 +1616,10 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                         </svg>
                     </button>
                     <button
+                        v-tooltip="formatMessage(messages.settings)"
                         type="button"
                         class="mbp-icon-btn"
                         :aria-label="formatMessage(messages.settings)"
-                        v-tooltip="formatMessage(messages.settings)"
                         @click="emit('open-settings')"
                     >
                         <SettingsIcon />
@@ -1689,13 +1674,13 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                     <button
                         v-for="item in shortcutItems"
                         :key="item.key"
-                        type="button"
-                        class="mbp-shortcut"
                         v-tooltip="
                             item.instanceId
                                 ? `${item.label} · ${formatMessage(messages.dblLaunch)}`
                                 : item.label
                         "
+                        type="button"
+                        class="mbp-shortcut"
                         @click="onShortcut(item)"
                         @dblclick="item.instanceId && launch(item.instanceId)"
                     >
@@ -1773,13 +1758,13 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                                     <button
                                         v-for="item in shortcutItems.slice(0, 8)"
                                         :key="item.key"
-                                        type="button"
-                                        class="mbp-icon-cell"
                                         v-tooltip="
                                             item.instanceId
                                                 ? `${item.label} · ${formatMessage(messages.dblLaunch)}`
                                                 : item.label
                                         "
+                                        type="button"
+                                        class="mbp-icon-cell"
                                         @click="onShortcut(item)"
                                         @dblclick="item.instanceId && launch(item.instanceId)"
                                     >
@@ -1992,7 +1977,7 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                             </div>
                         </section>
 
-                        <!-- 服务器状态（手动地址） -->
+                        <!-- 服务器状态：每台一行（最多 4 台），MC 目标带图标 / MOTD / 真实人数 -->
                         <section
                             v-if="visibleWidgets.includes('server')"
                             class="mbp-card"
@@ -2000,31 +1985,65 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
                         >
                             <div class="mbp-card-body">
                                 <span class="mbp-label">{{ widgetLabel('server') }}</span>
-                                <div class="mbp-server">
-                                    <span class="mbp-server-name">{{ settings.server.name }}</span>
-                                    <span class="mbp-server-state" :class="serverState">
-                                        {{
-                                            serverState === 'online'
-                                                ? formatMessage(messages.serverOnline)
-                                                : serverState === 'offline'
-                                                  ? formatMessage(messages.serverOffline)
-                                                  : formatMessage(messages.serverUnknown)
-                                        }}
-                                        <em
-                                            v-if="
-                                                optsOf('server').serverLatency && serverLatency !== null
-                                            "
-                                            class="mbp-latency"
-                                        >
-                                            {{ serverLatency }} ms
-                                        </em>
-                                        <em v-if="serverOnline !== null" class="mbp-latency">
-                                            {{ serverOnline
-                                            }}{{ serverMax !== null ? `/${serverMax}` : ''
-                                            }}{{ ' ' }}{{ formatMessage(messages.players) }}
-                                        </em>
-                                    </span>
+                                <div v-if="serverRows.length" class="mbp-servers">
+                                    <div
+                                        v-for="row in serverRows"
+                                        :key="row.id"
+                                        class="mbp-server-row"
+                                        :title="row.address"
+                                    >
+                                        <img
+                                            v-if="row.favicon"
+                                            class="mbp-server-icon"
+                                            :src="row.favicon"
+                                            alt=""
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        <span
+                                            v-else
+                                            class="mbp-server-icon mbp-server-icon--dot"
+                                            :class="row.status"
+                                        />
+                                        <span class="mbp-server-text">
+                                            <span class="mbp-server-name">{{ row.name }}</span>
+                                            <span v-if="row.motd" class="mbp-server-motd">
+                                                {{ motdLine(row.motd) }}
+                                            </span>
+                                        </span>
+                                        <span class="mbp-server-meta">
+                                            <em
+                                                v-if="row.playersOnline !== null"
+                                                class="mbp-latency"
+                                            >
+                                                {{ row.playersOnline
+                                                }}{{
+                                                    row.playersMax !== null
+                                                        ? `/${row.playersMax}`
+                                                        : ''
+                                                }}{{ ' ' }}{{ formatMessage(messages.players) }}
+                                            </em>
+                                            <em
+                                                v-else-if="row.status === 'offline'"
+                                                class="mbp-latency is-offline"
+                                            >
+                                                {{ formatMessage(messages.serverOffline) }}
+                                            </em>
+                                            <em
+                                                v-if="
+                                                    optsOf('server').serverLatency &&
+                                                    row.latency !== null
+                                                "
+                                                class="mbp-latency"
+                                            >
+                                                {{ row.latency }} ms
+                                            </em>
+                                        </span>
+                                    </div>
                                 </div>
+                                <p v-else class="mbp-hint">
+                                    {{ formatMessage(messages.serverEmpty) }}
+                                </p>
                             </div>
                         </section>
                         <!-- 缩放手柄：叠加在每张卡片右下角。放在画布层而不是卡片里，
@@ -2182,28 +2201,45 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
 
                     <template v-if="settingsFor === 'server'">
                         <p class="mbp-sheet-label">{{ widgetLabel('server') }}</p>
-                        <label class="mbp-field">
-                            <span>{{ formatMessage(messages.serverName) }}</span>
+                        <div v-for="row in settings.servers" :key="row.id" class="mbp-server-edit">
                             <input
-                                :value="settings.server.name"
+                                :value="row.name"
+                                :placeholder="formatMessage(messages.serverName)"
                                 @input="
                                     setServerField(
+                                        row.id,
                                         'name',
                                         ($event.target as HTMLInputElement).value,
                                     )
                                 "
                             />
-                        </label>
-                        <label class="mbp-field">
-                            <span>{{ formatMessage(messages.serverUrl) }}</span>
                             <input
-                                :value="settings.server.url"
+                                :value="row.address"
                                 placeholder="play.example.com:25565"
                                 @input="
-                                    setServerField('url', ($event.target as HTMLInputElement).value)
+                                    setServerField(
+                                        row.id,
+                                        'address',
+                                        ($event.target as HTMLInputElement).value,
+                                    )
                                 "
                             />
-                        </label>
+                            <button
+                                type="button"
+                                class="mbp-server-del"
+                                @click="removeServer(row.id)"
+                            >
+                                {{ formatMessage(messages.serverRemove) }}
+                            </button>
+                        </div>
+                        <button
+                            v-if="settings.servers.length < MAGNETIC_MAX_SERVERS"
+                            type="button"
+                            class="mbp-server-add"
+                            @click="addServer"
+                        >
+                            + {{ formatMessage(messages.serverAdd) }}
+                        </button>
                     </template>
                     <p v-if="!optionRows.length && settingsFor !== 'server'" class="mbp-hint">
                         {{ formatMessage(messages.noOptions) }}
@@ -2665,12 +2701,55 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     color: var(--color-text-tertiary);
 }
 
-.mbp-server {
+.mbp-servers {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.45em;
+    flex-direction: column;
+    gap: 0.3em;
+    min-height: 0;
+    overflow-y: auto;
     font-size: 1em;
+}
+
+.mbp-server-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.45em;
+    min-width: 0;
+}
+
+.mbp-server-icon {
+    width: 1.35em;
+    height: 1.35em;
+    border-radius: 0.25em;
+    object-fit: cover;
+    flex: none;
+    image-rendering: pixelated;
+}
+
+/* 没有图标（非 MC 目标或还没拿到）时退化成状态点 */
+.mbp-server-icon--dot {
+    width: 0.42em;
+    height: 0.42em;
+    margin: 0 0.47em;
+    border-radius: 50%;
+    background: var(--color-text-tertiary);
+}
+
+.mbp-server-icon--dot.online {
+    background: var(--color-brand);
+    box-shadow: 0 0 0 0.18em color-mix(in srgb, var(--color-brand) 25%, transparent);
+}
+
+.mbp-server-icon--dot.offline {
+    background: var(--color-red, #e05a5a);
+}
+
+.mbp-server-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.15;
 }
 
 .mbp-server-name {
@@ -2679,20 +2758,19 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     white-space: nowrap;
 }
 
-.mbp-server-state {
-    font-size: 0.86em;
-    padding: 0.08em 0.5em;
-    border-radius: 0.5em;
-    border: 1px solid var(--stroke-1);
+.mbp-server-motd {
+    font-size: 0.82em;
+    color: var(--color-text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.mbp-server-state.online {
-    color: var(--color-brand);
-    border-color: color-mix(in srgb, var(--color-brand) 45%, transparent);
-}
-
-.mbp-server-state.offline {
-    color: var(--color-red, #e05a5a);
+.mbp-server-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    flex: none;
 }
 
 .mbp-menu {
@@ -2999,6 +3077,56 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     background: color-mix(in srgb, var(--color-brand) 18%, transparent);
 }
 
+/* 服务器列表编辑器：名称 + 地址 + 删除，一行一台 */
+.mbp-server-edit {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) auto;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.mbp-server-edit input {
+    width: 100%;
+    padding: 0.32rem 0.45rem;
+    border-radius: 8px;
+    border: 1px solid var(--stroke-1);
+    background: var(--glass-1);
+    color: var(--text-0);
+    font-size: 0.74rem;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.mbp-server-del {
+    padding: 0.3rem 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--stroke-1);
+    background: transparent;
+    color: var(--color-red, #e05a5a);
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.mbp-server-del:hover {
+    border-color: color-mix(in srgb, var(--color-red, #e05a5a) 55%, transparent);
+}
+
+.mbp-server-add {
+    align-self: flex-start;
+    padding: 0.3rem 0.6rem;
+    border-radius: 8px;
+    border: 1px dashed var(--stroke-1);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 0.74rem;
+    cursor: pointer;
+}
+
+.mbp-server-add:hover {
+    border-color: color-mix(in srgb, var(--color-brand) 45%, transparent);
+    color: var(--text-0);
+}
+
 /* 输入框要能选中文字：画布的 user-select:none 不能传染到这里 */
 .mbp-search,
 .mbp-field input {
@@ -3069,6 +3197,15 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
     font-size: 0.8em;
     font-style: normal;
     opacity: 0.72;
+}
+
+.mbp-server-meta .mbp-latency {
+    margin-left: 0;
+}
+
+.mbp-latency.is-offline {
+    color: var(--color-red, #e05a5a);
+    opacity: 1;
 }
 
 /* 下载卡片：多条任务 */
@@ -3297,8 +3434,8 @@ onBeforeUnmount(() => window.removeEventListener('hayenai:magnetic-changed', onS
 .mbp-icon-grid,
 .mbp-datecal,
 .mbp-jobs,
-.mbp-lyric,
-.mbp-server {
+.mbp-servers,
+.mbp-lyric {
     align-self: stretch;
     width: 100%;
     text-align: start;

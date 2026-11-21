@@ -20,11 +20,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import StrokeText from '@/components/ui/fx/StrokeText.vue'
-import MagneticPanel from '@/components/ui/magnetic/MagneticPanel.vue'
 import InstanceIcon from '@/components/ui/InstanceIcon.vue'
+import MagneticPanel from '@/components/ui/magnetic/MagneticPanel.vue'
 import { install_job_listener } from '@/helpers/events'
 import { list as listInstances, run as runInstance } from '@/helpers/instance'
-import { readMagneticSettings, type MagneticSettings } from '@/helpers/magnetic-settings'
+import { useMagneticServers } from '@/helpers/magnetic/servers'
+import { type MagneticSettings,readMagneticSettings } from '@/helpers/magnetic-settings'
 import { BAND_COUNT, readBands } from '@/helpers/music/music-analyser'
 import {
     currentSong,
@@ -45,6 +46,12 @@ const messages = defineMessages({
     system: { id: 'app.magnetic.system', defaultMessage: 'System' },
     instances: { id: 'app.magnetic.page.instances', defaultMessage: 'Instances' },
     downloads: { id: 'app.magnetic.page.downloads', defaultMessage: 'Downloads' },
+    server: { id: 'app.magnetic.page.server', defaultMessage: 'Servers' },
+    serverOffline: { id: 'app.magnetic.server-offline', defaultMessage: 'Offline' },
+    serverEmpty: {
+        id: 'app.magnetic.server-empty',
+        defaultMessage: 'No server yet — add one in Settings → Home & navigation.',
+    },
     noDownloads: { id: 'app.magnetic.no-downloads', defaultMessage: 'No active downloads' },
     play: { id: 'app.magnetic.play', defaultMessage: 'Play' },
     pause: { id: 'app.magnetic.pause', defaultMessage: 'Pause' },
@@ -61,7 +68,7 @@ const messages = defineMessages({
     launching: { id: 'app.magnetic.launching', defaultMessage: 'Launching…' },
 })
 
-type Mode = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads'
+type Mode = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads' | 'server'
 /** 顺序即主人指定的顺序：歌词 → 启动/版本 → 系统 */
 /** 条子上实际轮播的页面：顺序与开关都由「设置 → 首页与导航 → 磁悬条」决定。 */
 const modes = computed<Mode[]>(() => {
@@ -316,6 +323,8 @@ interface InstallProgress {
 }
 const downloads = ref<InstallProgress[]>([])
 let unlistenJobs: (() => void) | null = null
+/** 订阅是 await 出来的：组件先卸载再解析完时得自己退订，否则监听永久泄漏。 */
+let jobsListenerDisposed = false
 const activeDownload = computed(() => downloads.value[0] ?? null)
 
 /* ---------------- 交互 ---------------- */
@@ -350,6 +359,16 @@ const panelAnchor = computed(() => {
     }
 })
 const settings = ref<MagneticSettings>(readMagneticSettings())
+
+/**
+ * 服务器页与面板共用一份探测结果：两边都开着也只有一路 IPC 轮询。
+ * 只在切到服务器页时才 start，离开就 stop（条子常驻，不能一直打网络）。
+ */
+const {
+    rows: serverRows,
+    start: startServerPolling,
+    stop: stopServerPolling,
+} = useMagneticServers(() => settings.value.servers)
 
 // 用户在设置里关掉当前页（比如把「歌词」关了）时，条子要立刻切到第一个可用页，
 // 否则 mode 指向一个不再渲染的分支，看起来就是"条子空了"。
@@ -535,6 +554,8 @@ function openVersionSettings() {
 watch(mode, (value) => {
     if (value === 'system') startStats()
     else stopStats()
+    if (value === 'server') startServerPolling()
+    else stopServerPolling()
 })
 
 onMounted(async () => {
@@ -568,6 +589,10 @@ onMounted(async () => {
                 { id: job.job_id, percent, name: label },
             ]
         })
+        if (jobsListenerDisposed) {
+            unlistenJobs()
+            unlistenJobs = null
+        }
     } catch {
         unlistenJobs = null
     }
@@ -590,6 +615,7 @@ onBeforeUnmount(() => {
     stopStats()
     if (waveRaf) cancelAnimationFrame(waveRaf)
     waveRaf = 0
+    jobsListenerDisposed = true
     unlistenJobs?.()
 })
 </script>
@@ -710,10 +736,10 @@ onBeforeUnmount(() => {
                         <button
                             v-for="row in instanceList.slice(0, 4)"
                             :key="row.id"
+                            v-tooltip="`${row.name} · ${row.game_version ?? ''}`"
                             type="button"
                             class="mb-chip mb-instance-chip"
                             :disabled="launching"
-                            v-tooltip="`${row.name} · ${row.game_version ?? ''}`"
                             @click="launchSome(row.id)"
                         >
                             <InstanceIcon
@@ -742,6 +768,29 @@ onBeforeUnmount(() => {
                         </div>
                         <span v-if="!downloads.length" class="mb-sub">
                             {{ formatMessage(messages.noDownloads) }}
+                        </span>
+                    </div>
+                </section>
+
+                <section v-else-if="mode === 'server'" key="server" class="mb-face mb-servers">
+                    <span class="mb-kicker">{{ formatMessage(messages.server) }}</span>
+                    <div class="mb-server-row">
+                        <div v-for="row in serverRows" :key="row.id" class="mb-server">
+                            <span class="mb-server-dot" :class="row.status" />
+                            <span class="mb-server-name">{{ row.name }}</span>
+                            <b v-if="row.playersOnline !== null">
+                                {{ row.playersOnline
+                                }}{{ row.playersMax !== null ? `/${row.playersMax}` : '' }}
+                            </b>
+                            <em v-else-if="row.status === 'offline'">
+                                {{ formatMessage(messages.serverOffline) }}
+                            </em>
+                            <span v-if="row.latency !== null" class="mb-server-ms">
+                                {{ row.latency }} ms
+                            </span>
+                        </div>
+                        <span v-if="!serverRows.length" class="mb-sub">
+                            {{ formatMessage(messages.serverEmpty) }}
                         </span>
                     </div>
                 </section>
@@ -1247,6 +1296,71 @@ onBeforeUnmount(() => {
     white-space: nowrap;
 }
 
+/* 「服务器」页：每台一格，状态点 + 名称 + 人数/延迟，一行排不下就裁掉末尾 */
+.mb-server-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+}
+
+.mb-server {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    max-width: 170px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--stroke-1);
+    background: var(--glass-1);
+    font-size: 0.92em;
+}
+
+.mb-server-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--color-text-tertiary);
+}
+
+.mb-server-dot.online {
+    background: var(--color-brand);
+}
+
+.mb-server-dot.offline {
+    background: var(--color-red, #e05a5a);
+}
+
+.mb-server-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mb-server b {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.88em;
+}
+
+.mb-server em {
+    flex: none;
+    font-style: normal;
+    font-size: 0.85em;
+    color: var(--color-red, #e05a5a);
+}
+
+.mb-server-ms {
+    flex: none;
+    font-size: 0.82em;
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+}
+
 /* 「下载」页：最多两条任务，进度条按可用宽度拉满 */
 .mb-dl-row {
     display: flex;
@@ -1500,6 +1614,43 @@ onBeforeUnmount(() => {
 @media (max-width: 900px) {
     .magnetic-bar {
         width: calc(100vw - 120px);
+    }
+}
+
+/*
+ * 分屏 / 窄窗第二档（≤ 760px）。
+ * 120px 的左右留白在这个宽度下太奢侈：贴边取满，再把「固定占位」的
+ * 页点与播放控件收小 —— 内容是主角，控件不该把内容挤成省略号。
+ * 页点保留（缩小），因为它是"这里还有别的页"的唯一视觉线索。
+ */
+@media (max-width: 760px) {
+    .magnetic-bar {
+        width: calc(100vw - 24px);
+        gap: 8px;
+        padding-left: 12px;
+        padding-right: 10px;
+    }
+
+    .mb-dots {
+        gap: 3px;
+    }
+
+    .mb-dot {
+        width: 4px;
+        height: 4px;
+    }
+
+    .mb-actions {
+        gap: 3px;
+    }
+
+    .mb-ctl {
+        width: 24px;
+        height: 24px;
+    }
+
+    .mb-server {
+        max-width: 130px;
     }
 }
 </style>
