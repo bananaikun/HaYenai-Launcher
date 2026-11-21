@@ -739,6 +739,8 @@ function getMcmodUrl(item: ContentItem) {
     return lookup ? mcmodUrls.value.get(getMcmodLookupKey(lookup.provider, lookup.slug)) : undefined
 }
 
+let mcmodLookupSignature = ''
+
 async function refreshMcmodUrls(items: ContentItem[]) {
     const lookupVersion = ++mcmodLookupVersion
     const modrinthSlugs = new Set<string>()
@@ -750,6 +752,14 @@ async function refreshMcmodUrls(items: ContentItem[]) {
         if (lookup.provider === 'modrinth') modrinthSlugs.add(lookup.slug)
         else curseForgeSlugs.add(lookup.slug)
     }
+
+    // 内容刷新会重建 projects 数组，但 slug 集合常常没变；没变就别再打一次
+    // wiki id 查询。
+    const signature = `${[...modrinthSlugs].sort().join(',')}|${[...curseForgeSlugs]
+        .sort()
+        .join(',')}`
+    if (signature === mcmodLookupSignature) return
+    mcmodLookupSignature = signature
 
     if (modrinthSlugs.size === 0 && curseForgeSlugs.size === 0) {
         mcmodUrls.value = new Map()

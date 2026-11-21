@@ -182,10 +182,11 @@ fn collect_tex(
 
     for entry in read_dir {
         let entry = entry?;
-        let file_type = entry.file_type()?;
-        if file_type.is_symlink() {
+        let meta = std::fs::symlink_metadata(entry.path())?;
+        if crate::util::io::is_symlink_or_reparse(&meta) {
             continue;
         }
+        let file_type = meta.file_type();
         let path = entry.path();
         if file_type.is_dir() {
             collect_tex(&path, out, depth + 1)?;

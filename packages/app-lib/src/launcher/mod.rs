@@ -30,7 +30,7 @@ use crate::state::{
 };
 use crate::util::io;
 use crate::util::rpc::RpcServerBuilder;
-use crate::{State, get_resource_file, process};
+use crate::{State, get_resource_file};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use chrono::Utc;
@@ -2374,16 +2374,19 @@ pub async fn launch_minecraft(
 
     let env_args = Vec::from(env_args);
 
-    // Check if instance has a running process, and reject running the command if it does
-    // Done late so a quick double call doesn't launch two instances
-    let existing_processes = process::get_by_instance_id(&instance.id).await?;
-    if let Some(process) = existing_processes.first() {
-        return Err(crate::ErrorKind::LauncherError(format!(
-            "Instance {} is already running as process {}",
-            instance.id, process.uuid
-        ))
-        .as_error());
-    }
+    // Claim the instance before any of the preparation below. The reservation is
+    // released on drop, so every error path frees it again, and a second click
+    // during the preparation window can no longer start a second game process.
+    let _launch_reservation = state
+        .process_manager
+        .reserve_instance_launch(&instance.id)
+        .ok_or_else(|| {
+            crate::ErrorKind::LauncherError(format!(
+                "Instance {} is already running",
+                instance.id
+            ))
+            .as_error()
+        })?;
 
     // Ensure phase (HMCL/PCL parity): before anything reads from the linked
     // installation, complete its missing libraries, assets, and logging

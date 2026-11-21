@@ -253,6 +253,76 @@ const MATERIAL_ORDER: &[(&str, &str)] = &[
     (r"\bMangrove\b", "红树"),
 ];
 
+/// 审计用到的正则只编译一次：audit_semantic 是逐 key 调的，
+/// 以前每 key 都要把 OFFICIAL_TERMS 的几十条规则重新编译一遍。
+static OFFICIAL_TERM_REGEXES: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    OFFICIAL_TERMS
+        .iter()
+        .map(|term| {
+            Regex::new(term.source).expect("official term pattern should compile")
+        })
+        .collect()
+});
+
+static PLANKS_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\bPlanks\b").expect("planks pattern should compile"));
+
+static STEM_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\bStem\b").expect("stem pattern should compile"));
+
+static LOG_KEY_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:^|_)log(?:_|$)").expect("log key pattern should compile")
+});
+
+static TIMBER_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b(?:Log|Stem|Timber|Wood)\b").expect("timber pattern should compile")
+});
+
+static LOGBOOK_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b(?:Journal|Logbook|Research Log|Data Log)\b")
+        .expect("logbook pattern should compile")
+});
+
+static LOG_STEM_CHINESE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:原木|菌柄)").expect("log stem pattern should compile"));
+
+static OPEN_KEY_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:^|[._])open$").expect("open key pattern should compile"));
+
+static CLOSE_KEY_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:^|[._])close$").expect("close key pattern should compile"));
+
+static OPEN_CHINESE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:打开|开启)").expect("open chinese pattern should compile"));
+
+static CLOSE_CHINESE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:关闭|合上)").expect("close chinese pattern should compile"));
+
+static FOUR_PANE_WINDOW_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b(?:Four )?Pane Window\b").expect("pane window pattern should compile")
+});
+
+static FOUR_PANE_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"Four Pane").expect("four pane pattern should compile"));
+
+static PANE_WINDOW_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bPane Window\b").expect("pane window pattern should compile")
+});
+
+static MATERIAL_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    MATERIAL_ORDER
+        .iter()
+        .map(|(pattern, _)| {
+            Regex::new(pattern).expect("material pattern should compile")
+        })
+        .collect()
+});
+
+static WINDOW_BASE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bWindow (?:Four |Half )?Pane Base\b|\bWindow Base\b")
+        .expect("window base pattern should compile")
+});
+
 /// 语义审计：官方术语 + 材料族 + 动作区分 + 同原文同译法。
 pub fn audit_semantic(
     source: &BTreeMap<String, String>,
@@ -269,8 +339,7 @@ pub fn audit_semantic(
         if chinese.trim().is_empty() {
             continue;
         }
-        for term in OFFICIAL_TERMS {
-            let regex = Regex::new(term.source).unwrap();
+        for (term, regex) in OFFICIAL_TERMS.iter().zip(OFFICIAL_TERM_REGEXES.iter()) {
             if regex.is_match(english) && !chinese.contains(term.chinese) {
                 issues.push(AuditIssue {
                     severity: AuditSeverity::Error,
@@ -279,7 +348,7 @@ pub fn audit_semantic(
                 });
             }
         }
-        if Regex::new(r"\bPlanks\b").unwrap().is_match(english)
+        if PLANKS_PATTERN.is_match(english)
             && !chinese.contains("木板")
         {
             issues.push(AuditIssue {
@@ -288,7 +357,7 @@ pub fn audit_semantic(
                 message: "Planks 必须保留“木板”材料含义".to_string(),
             });
         }
-        if Regex::new(r"\bStem\b").unwrap().is_match(english)
+        if STEM_PATTERN.is_match(english)
             && !chinese.contains("菌柄")
         {
             issues.push(AuditIssue {
@@ -298,7 +367,7 @@ pub fn audit_semantic(
             });
         }
 
-        let log_key = Regex::new(r"(?:^|_)log(?:_|$)").unwrap().is_match(key);
+        let log_key = LOG_KEY_PATTERN.is_match(key);
         let plank_sibling = log_key
             && source.keys().any(|candidate| {
                 candidate
@@ -307,12 +376,8 @@ pub fn audit_semantic(
                     == *key
                     || candidate == &key.replace("_log", "_plank")
             });
-        let source_means_timber = Regex::new(r"\b(?:Log|Stem|Timber|Wood)\b")
-            .unwrap()
-            .is_match(english)
-            && !Regex::new(r"\b(?:Journal|Logbook|Research Log|Data Log)\b")
-                .unwrap()
-                .is_match(english);
+        let source_means_timber =
+            TIMBER_PATTERN.is_match(english) && !LOGBOOK_PATTERN.is_match(english);
         if log_key
             && (plank_sibling || source_means_timber)
             && !chinese.contains("原木")
@@ -334,7 +399,7 @@ pub fn audit_semantic(
             && source.keys().any(|candidate| {
                 candidate == &format!("{prefix}.{stem}_plank_pane_window")
             })
-            && !Regex::new(r"(?:原木|菌柄)").unwrap().is_match(chinese)
+            && !LOG_STEM_CHINESE.is_match(chinese)
         {
             issues.push(AuditIssue {
                 severity: AuditSeverity::Error,
@@ -352,7 +417,7 @@ pub fn audit_semantic(
             && source.keys().any(|candidate| {
                 candidate == &format!("{prefix}.{stem}_plank_window")
             })
-            && !Regex::new(r"(?:原木|菌柄)").unwrap().is_match(chinese)
+            && !LOG_STEM_CHINESE.is_match(chinese)
         {
             issues.push(AuditIssue {
                 severity: AuditSeverity::Error,
@@ -363,9 +428,7 @@ pub fn audit_semantic(
             });
         }
 
-        if Regex::new(r"(?:^|[._])open$").unwrap().is_match(key)
-            && !Regex::new(r"(?:打开|开启)").unwrap().is_match(chinese)
-        {
+        if OPEN_KEY_PATTERN.is_match(key) && !OPEN_CHINESE.is_match(chinese) {
             issues.push(AuditIssue {
                 severity: AuditSeverity::Error,
                 key: key.clone(),
@@ -373,9 +436,7 @@ pub fn audit_semantic(
                     .to_string(),
             });
         }
-        if Regex::new(r"(?:^|[._])close$").unwrap().is_match(key)
-            && !Regex::new(r"(?:关闭|合上)").unwrap().is_match(chinese)
-        {
+        if CLOSE_KEY_PATTERN.is_match(key) && !CLOSE_CHINESE.is_match(chinese) {
             issues.push(AuditIssue {
                 severity: AuditSeverity::Error,
                 key: key.clone(),
@@ -384,11 +445,9 @@ pub fn audit_semantic(
             });
         }
 
-        if Regex::new(r"\b(?:Four )?Pane Window\b")
-            .unwrap()
-            .is_match(english)
+        if FOUR_PANE_WINDOW_PATTERN.is_match(english)
             && !chinese.contains("玻璃板")
-            && !Regex::new(r"Four Pane").unwrap().is_match(english)
+            && !FOUR_PANE_PATTERN.is_match(english)
         {
             issues.push(AuditIssue {
                 severity: AuditSeverity::Warning,
@@ -397,11 +456,11 @@ pub fn audit_semantic(
                     .to_string(),
             });
         }
-        if Regex::new(r"\bPane Window\b").unwrap().is_match(english)
-            && chinese.contains("玻璃板")
-        {
-            for (pattern, material) in MATERIAL_ORDER {
-                if Regex::new(pattern).unwrap().is_match(english)
+        if PANE_WINDOW_PATTERN.is_match(english) && chinese.contains("玻璃板") {
+            for ((_, material), compiled) in
+                MATERIAL_ORDER.iter().zip(MATERIAL_PATTERNS.iter())
+            {
+                if compiled.is_match(english)
                     && chinese.find(material).unwrap_or(usize::MAX)
                         > chinese.find("玻璃板").unwrap_or(usize::MAX)
                 {
@@ -415,10 +474,7 @@ pub fn audit_semantic(
                 }
             }
         }
-        if Regex::new(r"\bWindow (?:Four |Half )?Pane Base\b|\bWindow Base\b")
-            .unwrap()
-            .is_match(english)
-            && !chinese.contains("底座")
+        if WINDOW_BASE_PATTERN.is_match(english) && !chinese.contains("底座")
         {
             issues.push(AuditIssue {
                 severity: AuditSeverity::Warning,
@@ -440,11 +496,12 @@ pub fn audit_semantic(
         }
         let variants: std::collections::HashSet<&String> =
             group.iter().map(|(_, chinese)| *chinese).collect();
-        let distinguishes_action = group.iter().any(|(key, _)| {
-            Regex::new(r"(?:^|[._])open$").unwrap().is_match(key)
-        }) && group.iter().any(|(key, _)| {
-            Regex::new(r"(?:^|[._])close$").unwrap().is_match(key)
-        });
+        let distinguishes_action = group
+            .iter()
+            .any(|(key, _)| OPEN_KEY_PATTERN.is_match(key))
+            && group
+                .iter()
+                .any(|(key, _)| CLOSE_KEY_PATTERN.is_match(key));
         if variants.len() > 1 && !distinguishes_action {
             for (key, _) in group {
                 issues.push(AuditIssue {

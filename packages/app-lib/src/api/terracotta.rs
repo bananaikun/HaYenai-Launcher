@@ -1134,6 +1134,21 @@ pub async fn start_terracotta(
     Ok(())
 }
 
+/// Whether something still answers on the terracotta HTTP port. Used after a
+/// stop attempt to avoid claiming "stopped" while the process is alive.
+async fn terracotta_port_answers(port: u16) -> bool {
+    matches!(
+        tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            terracotta_client()
+                .get(format!("http://127.0.0.1:{port}/"))
+                .send(),
+        )
+        .await,
+        Ok(Ok(_))
+    )
+}
+
 pub async fn stop_terracotta() -> eyre::Result<()> {
     let _operation = TERRACOTTA_OPERATION.lock().await;
     let mut runtime = TERRACOTTA_RUNTIME.lock().await;
@@ -1141,7 +1156,9 @@ pub async fn stop_terracotta() -> eyre::Result<()> {
         task.abort();
     }
     if let Some(mut process) = runtime.process.take() {
-        process.child.start_kill().ok();
+        if let Err(error) = process.child.start_kill() {
+            warn!("failed to kill terracotta child: {}", error);
+        }
         info!("stopped terracotta");
     }
     runtime.lan_announcer.sync(None);
@@ -1161,20 +1178,46 @@ pub async fn stop_terracotta() -> eyre::Result<()> {
                 .map(|info| info.port)
         })
     };
+    let mut stopped_over_http = false;
     if let Some(port) = port {
-        let _ = tokio::time::timeout(
-            std::time::Duration::from_secs(3),
-            terracotta_client()
-                .get(format!("http://127.0.0.1:{port}/panic?peaceful=true"))
+        stopped_over_http = matches!(
+            tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                terracotta_client().get(format!(
+                    "http://127.0.0.1:{port}/panic?peaceful=true"
+                ))
                 .send(),
-        )
-        .await;
+            )
+            .await,
+            Ok(Ok(response)) if response.status().is_success()
+        );
     }
 
     let mut state = TERRACOTTA_STATE.lock().await;
     *state = TerracottaState::default();
     state.binary_installed = is_binary_installed();
     drop(state);
+    if !stopped_over_http
+        && let Some(port) = port
+        && terracotta_port_answers(port).await
+    {
+        // Nothing confirmed the shutdown and the endpoint still answers:
+        // reporting idle here would hide a terracotta that is still running
+        // and still announcing the room.
+        let mut state = TERRACOTTA_STATE.lock().await;
+        state.status = TerracottaStatus::Error;
+        state.error_type = Some(TerracottaErrorType::Terracotta);
+        state.error_message = Some(
+            "terracotta did not confirm shutdown and may still be running"
+                .to_string(),
+        );
+        drop(state);
+        super::multiplayer::release_provider(
+            super::multiplayer::MultiplayerProvider::Terracotta,
+        )
+        .await;
+        bail!("terracotta did not confirm shutdown");
+    }
     super::multiplayer::release_provider(
         super::multiplayer::MultiplayerProvider::Terracotta,
     )

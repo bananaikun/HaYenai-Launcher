@@ -1083,16 +1083,16 @@ onBeforeRouteLeave(async (to) => {
 })
 
 onMounted(() => {
-    userCheckInterval = window.setInterval(checkUserChanges, 250)
+    startUserChecks()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     void setupNativeDropHandler()
 })
 
 onUnmounted(() => {
     isUnmounted = true
     removeNavigationFailureHandler()
-    if (userCheckInterval !== null) {
-        window.clearInterval(userCheckInterval)
-    }
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    stopUserChecks()
 
     if (unlistenNativeDrop) {
         unlistenNativeDrop()
@@ -1104,6 +1104,32 @@ onUnmounted(() => {
         pendingSkinRefreshTimeout = null
     }
 })
+
+// 这个轮询走 get_default_user → 后端凭据读取，凭据快过期时还会触发一次多步
+// OAuth 刷新。原来 250ms 一次：刷新失败（比如断网）时就会每 250ms 拿同一个
+// 一次性 refresh_token 重试，互相作废，最终把账号踢下线。
+const USER_CHECK_INTERVAL = 2_000
+
+function startUserChecks() {
+    stopUserChecks()
+    userCheckInterval = window.setInterval(checkUserChanges, USER_CHECK_INTERVAL)
+}
+
+function stopUserChecks() {
+    if (userCheckInterval !== null) {
+        window.clearInterval(userCheckInterval)
+        userCheckInterval = null
+    }
+}
+
+function handleVisibilityChange() {
+    if (document.hidden) {
+        stopUserChecks()
+        return
+    }
+    void checkUserChanges()
+    startUserChecks()
+}
 
 async function checkUserChanges() {
     try {

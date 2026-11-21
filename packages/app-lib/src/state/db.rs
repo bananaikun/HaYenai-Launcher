@@ -225,7 +225,28 @@ pub async fn copy_database_between_channels(
     source_pool.close().await;
     result?;
 
-    tokio::fs::rename(&temporary_path, &target_path).await?;
+    let result = tokio::fs::rename(&temporary_path, &target_path).await;
+    if let Err(error) = result {
+        let _ = tokio::fs::remove_file(&temporary_path).await;
+        return Err(error.into());
+    }
+
+    // The target database was just replaced wholesale, so anything the previous
+    // copy left in its sidecar files is stale. SQLite would replay those frames
+    // over the fresh database on the next open.
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = target_dir.join(format!("{LEGACY_APP_DB_FILE}{suffix}"));
+        if let Err(error) = tokio::fs::remove_file(&sidecar).await
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!(
+                path = %sidecar.display(),
+                %error,
+                "Could not remove a stale database sidecar after the channel copy"
+            );
+        }
+    }
+
     tracing::info!(
         source = %source_path.display(),
         destination = %target_path.display(),
@@ -554,17 +575,21 @@ async fn migrate_legacy_release_database(
     }
 
     crate::util::io::create_dir_all(&release_dir).await?;
-    tokio::fs::rename(&legacy_path, &release_path).await?;
+
+    // The sidecars move first: renaming the main file is the commit point of the
+    // whole migration, so a crash before it leaves the legacy database intact
+    // together with its write-ahead log and SQLite can still open it.
     for suffix in ["-wal", "-shm"] {
         let legacy_sidecar = sidecar_path(&legacy_path, suffix);
         if legacy_sidecar.try_exists()? {
-            tokio::fs::rename(
-                &legacy_sidecar,
-                sidecar_path(&release_path, suffix),
-            )
-            .await?;
+            let release_sidecar = sidecar_path(&release_path, suffix);
+            if release_sidecar.try_exists()? {
+                tokio::fs::remove_file(&release_sidecar).await?;
+            }
+            tokio::fs::rename(&legacy_sidecar, &release_sidecar).await?;
         }
     }
+    tokio::fs::rename(&legacy_path, &release_path).await?;
 
     tracing::info!(
         database = %release_path.display(),

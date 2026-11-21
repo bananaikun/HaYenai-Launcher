@@ -116,10 +116,9 @@ export class ISO3166Module extends AbstractModule {
             }
         } catch (err) {
             console.error('Error fetching ISO3166 data:', err)
-            return {
-                countries: [],
-                subdivisions: {},
-            }
+            // 以前这里返回空表，调用方拿到的是一个「合法但没有国家」的列表，
+            // 断网时界面上永远是个空下拉框。抛出去让调用方自己决定怎么降级。
+            throw err
         }
     }
 }

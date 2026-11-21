@@ -149,6 +149,18 @@ impl ModMetadata {
     }
 }
 
+/// Releases the shared start/delete/install slot when the install ends, even
+/// on an early `?` return.
+struct InstallReservation<'a> {
+    server_id: &'a str,
+}
+
+impl Drop for InstallReservation<'_> {
+    fn drop(&mut self) {
+        super::lifecycle::release_reservation(self.server_id);
+    }
+}
+
 /// Installs a modpack into an existing managed server.
 ///
 /// `mrpack_url` / `mrpack_sha1` identify the `.mrpack` archive to download;
@@ -174,6 +186,25 @@ pub async fn install_modpack(
     modpack_title: Option<String>,
     modpack_icon_url: Option<String>,
 ) -> Result<()> {
+    // An install rewrites `mods/` and `config/` in place: two installs at
+    // once, or an install while the JVM is running from that directory,
+    // corrupts both. The reservation shares the slot used by start/delete.
+    if super::lifecycle::is_running(server_id) {
+        return Err(ErrorKind::OtherError(
+            "Stop the server before installing a modpack".to_string(),
+        )
+        .into());
+    }
+    if !super::lifecycle::try_reserve(server_id) {
+        return Err(ErrorKind::OtherError(
+            "Another operation is already using this server; try again in a \
+             moment"
+                .to_string(),
+        )
+        .into());
+    }
+    let _install_reservation = InstallReservation { server_id };
+
     let dir = server_path(server_id).await?;
     let mut manifest = read_manifest(&dir).await?;
     manifest.install_state = Some(InstallState::Incomplete);

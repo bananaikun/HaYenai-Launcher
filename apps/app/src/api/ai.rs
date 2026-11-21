@@ -46,20 +46,35 @@ pub async fn ai_update_provider(update: AiProviderConfigUpdate) -> Result<()> {
 }
 
 #[tauri::command]
-pub fn ai_set_api_key(
+pub async fn ai_set_api_key(
     provider_id: String,
     secret: Option<String>,
 ) -> Result<()> {
-    Ok(ai::set_api_key(provider_id, secret)?)
+    // 凭据落在系统钥匙串里（Linux 走 dbus），同步命令会卡主线程。
+    tauri::async_runtime::spawn_blocking(move || Ok(ai::set_api_key(provider_id, secret)?))
+        .await
+        .map_err(|error| {
+            theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+                "credential store task failed: {error}"
+            )))
+        })?
 }
 
 #[tauri::command]
-pub fn ai_set_credential(
+pub async fn ai_set_credential(
     provider_id: String,
     credential: String,
     secret: Option<String>,
 ) -> Result<()> {
-    Ok(ai::set_credential(provider_id, credential, secret)?)
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(ai::set_credential(provider_id, credential, secret)?)
+    })
+    .await
+    .map_err(|error| {
+        theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+            "credential store task failed: {error}"
+        )))
+    })?
 }
 
 #[tauri::command]
@@ -101,8 +116,14 @@ pub async fn ai_poll_oauth(flow_id: uuid::Uuid) -> Result<OAuthPollStatus> {
 }
 
 #[tauri::command]
-pub fn ai_disconnect_oauth(provider_id: String) -> Result<()> {
-    Ok(ai::disconnect_oauth(provider_id)?)
+pub async fn ai_disconnect_oauth(provider_id: String) -> Result<()> {
+    tauri::async_runtime::spawn_blocking(move || Ok(ai::disconnect_oauth(provider_id)?))
+        .await
+        .map_err(|error| {
+            theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+                "credential store task failed: {error}"
+            )))
+        })?
 }
 
 /* ------------------------------------------------------------------ *

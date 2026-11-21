@@ -68,7 +68,6 @@ export async function startModpackServerInstall(
         throw new Error('This server already has an install running')
     }
     const entry: ActiveServerInstall = { progress: null, log: [] }
-    activeInstalls[serverId] = entry
 
     // [SERVER-DOWNLOAD-BRIDGE] Create a synthetic job that mirrors this server
     // install in the global Downloads page.  The job_id uses a `server-` prefix
@@ -133,6 +132,11 @@ export async function startModpackServerInstall(
         console.log(`[SERVER-DOWNLOAD-BRIDGE] Cancelling server install ${serverId}`)
         await servers.stop(serverId).catch(() => {})
     })
+
+    // Registered only once both listeners exist: an install that never got this
+    // far must not leave a registry entry behind, because nothing else would ever
+    // clear it and every later attempt would report "installing".
+    activeInstalls[serverId] = entry
 
     let installSucceeded = false
     try {

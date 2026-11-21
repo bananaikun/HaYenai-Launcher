@@ -44,16 +44,37 @@ window.addEventListener(DIRECT_LINKS_SYNCED_EVENT, refreshInstances)
 
 const { offline } = useNetworkStatus()
 
-const unlistenInstance = await instance_listener(async () => {
-    await refreshInstances()
-})
-const unlistenInstanceGroups = await instance_groups_listener(async () => {
-    await refreshInstances()
-})
+// 先把清理挂上去，再订阅：这几个 await 期间用户可能已经离开 /library，
+// 那时 onUnmounted 还没注册，监听会永久残留。
+let disposed = false
+let unlistenInstance: (() => void) | undefined
+let unlistenInstanceGroups: (() => void) | undefined
 onUnmounted(() => {
-    unlistenInstance()
-    unlistenInstanceGroups()
+    disposed = true
+    unlistenInstance?.()
+    unlistenInstanceGroups?.()
     window.removeEventListener(DIRECT_LINKS_SYNCED_EVENT, refreshInstances)
+})
+
+void instance_listener(async () => {
+    if (disposed) return
+    await refreshInstances()
+}).then((unlisten) => {
+    if (disposed) {
+        unlisten()
+        return
+    }
+    unlistenInstance = unlisten
+})
+void instance_groups_listener(async () => {
+    if (disposed) return
+    await refreshInstances()
+}).then((unlisten) => {
+    if (disposed) {
+        unlisten()
+        return
+    }
+    unlistenInstanceGroups = unlisten
 })
 </script>
 

@@ -976,10 +976,17 @@ pub async fn instance_get_many(
 
 #[tauri::command]
 pub async fn instance_list() -> Result<Vec<Instance>> {
-    let mut instances = Vec::new();
-    for metadata in theseus::instance::list().await? {
-        instances.push(instance_from_metadata(metadata).await?);
-    }
+    // Icon probing reads the instance directory, so doing it one instance at a
+    // time made listing instances cost a serial disk walk per row.
+    let instances = futures::future::join_all(
+        theseus::instance::list()
+            .await?
+            .into_iter()
+            .map(instance_from_metadata),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>>>()?;
     Ok(instances)
 }
 
@@ -1596,31 +1603,29 @@ pub async fn instance_check_installed(
     instance_id: &str,
     project_id: &str,
 ) -> Result<bool> {
-    if let Ok(projects) =
-        theseus::instance::get_projects(instance_id, None).await
-    {
-        Ok(projects.into_iter().any(|(_, project)| {
-            project
-                .provider_refs
-                .iter()
-                .any(|reference| match reference {
-                    theseus::data::ContentProviderRef::Modrinth {
-                        project_id: id,
-                        ..
-                    } => project_id == id.as_str(),
-                    theseus::data::ContentProviderRef::CurseForge {
-                        project_id: id,
-                        ..
-                    } => project_id == format!("curseforge:{}", id.get()),
-                    theseus::data::ContentProviderRef::McArchive {
-                        project_id: id,
-                        ..
-                    } => project_id == format!("mcarchive:{id}"),
-                })
-        }))
-    } else {
-        Ok(false)
-    }
+    // Do not turn a failed read into "not installed": callers use this to decide
+    // whether to install, so a swallowed database error means duplicate installs.
+    let projects =
+        theseus::instance::get_projects(instance_id, None).await?;
+    Ok(projects.into_iter().any(|(_, project)| {
+        project
+            .provider_refs
+            .iter()
+            .any(|reference| match reference {
+                theseus::data::ContentProviderRef::Modrinth {
+                    project_id: id,
+                    ..
+                } => project_id == id.as_str(),
+                theseus::data::ContentProviderRef::CurseForge {
+                    project_id: id,
+                    ..
+                } => project_id == format!("curseforge:{}", id.get()),
+                theseus::data::ContentProviderRef::McArchive {
+                    project_id: id,
+                    ..
+                } => project_id == format!("mcarchive:{id}"),
+            })
+    }))
 }
 
 #[tauri::command]

@@ -48,6 +48,8 @@ export {
 }
 
 export const activeJobStatuses = new Set(['queued', 'running', 'canceling', 'waiting_for_user'])
+/** How long a queued job may be missing from the job list before it counts as gone. */
+const QUEUED_JOB_GRACE_MS = 15_000
 
 function selectedItemKey(provider: ContentSelectionProvider, projectId: string) {
     return `${provider}:${projectId}`
@@ -73,7 +75,7 @@ export function createContentSelection({
     const state = ref<ContentSelectionState>('idle')
     const progress = ref({ completed: 0, total: 0 })
     const errorKeys = ref<Set<string>>(new Set())
-    const jobIdsByKey = ref<Map<string, string>>(new Map())
+    const jobIdsByKey = ref<Map<string, { jobId: string; queuedAt: number }>>(new Map())
     const installedIdentityCache = new Map<string, ContentIdentity[]>()
     const installedIdentityKeys = ref<Set<string>>(new Set())
     const installedIdentitySlugs = ref<Set<string>>(new Set())
@@ -412,10 +414,16 @@ export function createContentSelection({
     function isInstalling(key: string) {
         const instanceId = targetInstance.value?.id
         if (!instanceId) return false
-        const jobId = jobIdsByKey.value.get(installJobKey(instanceId, key))
-        if (!jobId) return false
-        const job = downloadManager.jobs.value.find((candidate) => candidate.job_id === jobId)
-        return !job || activeJobStatuses.has(job.status)
+        const queued = jobIdsByKey.value.get(installJobKey(instanceId, key))
+        if (!queued) return false
+        const job = downloadManager.jobs.value.find((candidate) => candidate.job_id === queued.jobId)
+        if (!job) {
+            // The job list can be refreshed between queueing and the job showing up,
+            // but a job that never comes back means it is gone. Without the window
+            // the item would stay "installing" until the page is reloaded.
+            return Date.now() - queued.queuedAt < QUEUED_JOB_GRACE_MS
+        }
+        return activeJobStatuses.has(job.status)
     }
 
     async function installSelected() {
@@ -524,7 +532,10 @@ export function createContentSelection({
                 const next = new Map(jobIdsByKey.value)
                 for (const item of resources) {
                     if (activeRoots.includes(item.key)) {
-                        next.set(installJobKey(instance.id, item.key), job.job_id)
+                        next.set(installJobKey(instance.id, item.key), {
+                            jobId: job.job_id,
+                            queuedAt: Date.now(),
+                        })
                         queuedKeys.add(item.key)
                     }
                     remove(item.key)
@@ -548,7 +559,10 @@ export function createContentSelection({
                 acceptedJobs++
                 const next = new Map(jobIdsByKey.value)
                 for (const item of includedWorlds) {
-                    next.set(installJobKey(instance.id, item.key), job.job_id)
+                    next.set(installJobKey(instance.id, item.key), {
+                        jobId: job.job_id,
+                        queuedAt: Date.now(),
+                    })
                     queuedKeys.add(item.key)
                     remove(item.key)
                 }
@@ -580,8 +594,8 @@ export function createContentSelection({
             )
             if (!terminalJobIds.size) return
             let next: Map<string, string> | undefined
-            for (const [key, jobId] of jobIdsByKey.value) {
-                if (!terminalJobIds.has(jobId)) continue
+            for (const [key, queued] of jobIdsByKey.value) {
+                if (!terminalJobIds.has(queued.jobId)) continue
                 next ??= new Map(jobIdsByKey.value)
                 next.delete(key)
             }

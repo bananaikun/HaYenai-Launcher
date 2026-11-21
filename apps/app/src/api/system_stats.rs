@@ -78,8 +78,19 @@ fn last_sample() -> &'static Mutex<Option<NetSample>> {
     LAST.get_or_init(|| Mutex::new(None))
 }
 
+/// 采样一次系统状态。
+///
+/// sysinfo 的 `refresh_*` 会遍历进程与网络接口，`nvidia-smi` 还要起一个子进程，
+/// 都不是能放在 Tauri 主线程上的活：主线程被占住时整个窗口（含滚动与输入）
+/// 一起卡。磁悬条与内存卡都按 1s 轮询这里，所以必须走 blocking 池。
 #[tauri::command]
-pub fn system_stats() -> Result<SystemStats, String> {
+pub async fn system_stats() -> Result<SystemStats, String> {
+    tauri::async_runtime::spawn_blocking(sample_system_stats)
+        .await
+        .map_err(|error| format!("system stats task failed: {error}"))?
+}
+
+fn sample_system_stats() -> Result<SystemStats, String> {
     let (cpu, memory_used, memory_total) = {
         let mut sys = system()
             .lock()

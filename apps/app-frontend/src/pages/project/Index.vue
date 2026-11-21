@@ -1349,6 +1349,7 @@ async function loadProjectPage() {
 void loadProjectPage()
 
 let unlistenProcesses
+let processesDisposed = false
 process_listener((e) => {
     if (
         e.event === 'finished' &&
@@ -1358,10 +1359,17 @@ process_listener((e) => {
         serverPlaying.value = false
     }
 }).then((unlisten) => {
+    // The listener resolves asynchronously; if the page is already gone by then
+    // the handle would never be released, so drop it right away.
+    if (processesDisposed) {
+        unlisten()
+        return
+    }
     unlistenProcesses = unlisten
 })
 
 onUnmounted(() => {
+    processesDisposed = true
     unlistenProcesses?.()
 })
 

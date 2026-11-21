@@ -53,7 +53,18 @@ export function useMultiplayerSession() {
     function schedulePoll() {
         if (!mounted) return
         clearTimeout(pollTimer)
+        // 不可见时不做 IPC：这两条查询在后端要读联机状态并扫监听端口，
+        // 后台每 0.5–2 秒跑一轮没人看，重新可见时由 visibilitychange 立刻补一次。
+        if (document.hidden) return
         pollTimer = setTimeout(() => void pollState(), pollInterval())
+    }
+
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            clearTimeout(pollTimer)
+            return
+        }
+        void pollState()
     }
 
     async function pollState() {
@@ -158,6 +169,7 @@ export function useMultiplayerSession() {
     onMounted(() => {
         mounted = true
         void pollState()
+        document.addEventListener('visibilitychange', handleVisibilityChange)
         void terracotta
             .getPlatformKey()
             .then((value) => {
@@ -181,6 +193,7 @@ export function useMultiplayerSession() {
     onUnmounted(() => {
         mounted = false
         clearTimeout(pollTimer)
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
     })
 
     return {

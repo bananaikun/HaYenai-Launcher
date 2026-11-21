@@ -432,6 +432,14 @@ export function useDropImport(options: DropImportOptions) {
             id: 'app.drop.batch.import-cancelled-text',
             defaultMessage: 'Nothing was imported.',
         },
+        dropImportBusyTitle: {
+            id: 'app.drop.batch.busy-title',
+            defaultMessage: 'An import is already running',
+        },
+        dropImportBusyText: {
+            id: 'app.drop.batch.busy-text',
+            defaultMessage: 'Finish or cancel the current import before dropping more files.',
+        },
         dropBatchNothingImportableTitle: {
             id: 'app.drop.batch.nothing-importable-title',
             defaultMessage: 'Nothing to import',
@@ -713,14 +721,21 @@ export function useDropImport(options: DropImportOptions) {
         await handleDropHelp()
     }
 
+    /** 把拖入目录列表还原成拖入前的样子（同步失败时用，见 routeToGamedirFlow）。 */
+    function restoreMinecraftDirectories(raw: string | null) {
+        if (raw === null) localStorage.removeItem('axolotl-minecraft-directories')
+        else localStorage.setItem('axolotl-minecraft-directories', raw)
+    }
+
     async function routeToGamedirFlow(paths: string[]) {
         dropDebug('gamedir flow: attempting direct-link sync', { paths })
         const roots = paths
             .filter((path) => path.trim())
             .map((path) => ({ path: path.trim(), mode: 'automatic' as const }))
         if (roots.length === 0) return false
+        let raw: string | null = null
         try {
-            const raw = localStorage.getItem('axolotl-minecraft-directories')
+            raw = localStorage.getItem('axolotl-minecraft-directories')
             const existing = raw ? JSON.parse(raw) : []
             const merged = [...(Array.isArray(existing) ? existing : []), ...roots]
             const unique = [...new Map(merged.map((root) => [root.path, root])).values()]
@@ -737,6 +752,9 @@ export function useDropImport(options: DropImportOptions) {
             })
             return true
         } catch (error) {
+            // 路径没通过校验时不能把它留在配置里：否则每次启动都会重试同步同一个坏目录，
+            // 用户还得自己去找这条脏数据删掉。
+            restoreMinecraftDirectories(raw)
             addNotification({
                 title: formatMessage(messages.dropScanFailed),
                 text: error instanceof Error ? error.message : String(error),
@@ -1660,7 +1678,19 @@ export function useDropImport(options: DropImportOptions) {
 
     async function startBatchImport(paths: string[]) {
         console.log('[BatchDrop] startBatchImport paths=', paths.length, paths)
-        if (batchPhase.value !== 'idle') return
+        if (batchPhase.value !== 'idle') {
+            // The global drop composable already set its processing lock before
+            // handing the paths over; leaving without releasing it would silently
+            // swallow every later drop, so report and unlock.
+            console.warn('[BatchDrop] ignored drop while another batch is running', paths)
+            finishBatch()
+            addNotification({
+                title: formatMessage(messages.dropImportBusyTitle),
+                text: formatMessage(messages.dropImportBusyText),
+                type: 'info',
+            })
+            return
+        }
         batchPhase.value = 'scanning'
         batchOriginalCount.value = paths.length
         batchScanDone.value = 0
@@ -2295,6 +2325,19 @@ export function useDropImport(options: DropImportOptions) {
                     const result = await new Promise<'installed' | 'skipped' | 'failed'>(
                         (resolve) => {
                             batchCompatResolve = resolve
+                            // The dialog can also close without a decision (route
+                            // change, dismissal elsewhere). Without this the batch
+                            // would wait forever and stay stuck in "installing".
+                            const stopWatching = watch(
+                                pendingDropIncompatibility,
+                                (pending) => {
+                                    if (pending) return
+                                    stopWatching()
+                                    if (batchCompatResolve !== resolve) return
+                                    batchCompatResolve = null
+                                    resolve('skipped')
+                                },
+                            )
                         },
                     )
                     if (result === 'installed') {
@@ -2461,18 +2504,27 @@ export function useDropImport(options: DropImportOptions) {
             }
             return
         }
-        // Delegate to content install provider for normal flow
-        await contentInstall.install(version.project_id, version.id, null, 'IncompatibilityWarning')
+        // Delegate to the content install provider for the normal flow. The
+        // warning modal is shared, but the provider holds the callback of the
+        // install request that opened it, so going through `install()` would
+        // start a second request and leave the first one unsettled.
+        await contentInstall.handleIncompatibilityWarningInstall(
+            version as Parameters<
+                ContentInstallContext['handleIncompatibilityWarningInstall']
+            >[0],
+        )
     }
 
     function handleIncompatibilityWarningCancel() {
         const decision = batchCompatResolve
         batchCompatResolve = null
+        const droppedFilePending = pendingDropIncompatibility.value !== null
         pendingDropIncompatibility.value = null
         if (decision) {
             decision('skipped')
             return
         }
+        if (!droppedFilePending) contentInstall.handleIncompatibilityWarningCancel()
     }
 
     function handleDropInstallSearchCompat() {

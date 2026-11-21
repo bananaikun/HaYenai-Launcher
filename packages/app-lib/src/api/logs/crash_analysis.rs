@@ -1137,36 +1137,77 @@ fn select_run_candidates(
 async fn read_sources(candidates: Vec<SourceCandidate>) -> Vec<SourceText> {
     let mut sources = Vec::new();
     for candidate in candidates {
-        let Ok(bytes) = tokio::fs::read(&candidate.path).await else {
-            tracing::warn!(
-                "Unable to read crash analysis source: {}",
-                candidate.path.display()
-            );
-            continue;
+        let (first_line, content) = match read_source_tail(&candidate.path).await
+        {
+            Ok(read) => read,
+            Err(error) => {
+                tracing::warn!(
+                    "Unable to read crash analysis source: {} ({error})",
+                    candidate.path.display()
+                );
+                continue;
+            }
         };
-        let start = bytes.len().saturating_sub(MAX_SOURCE_BYTES as usize);
-        let start = if start > 0 {
-            bytes[start..]
-                .iter()
-                .position(|byte| *byte == b'\n')
-                .map(|offset| start + offset + 1)
-                .unwrap_or(bytes.len())
-        } else {
-            0
-        };
-        let first_line =
-            1 + bytes[..start].iter().filter(|byte| **byte == b'\n').count();
-        let bytes = &bytes[start..];
         sources.push(SourceText {
             first_line,
             filename: candidate.filename,
             upload_name: candidate.upload_name,
             source_type: candidate.source_type,
             modified: candidate.modified,
-            content: String::from_utf8_lossy(bytes).into_owned(),
+            content,
         });
     }
     sources
+}
+
+/// Reads at most `MAX_SOURCE_BYTES` from the end of the file, skipping a
+/// partial first line, and reports the 1-based line number the tail starts at.
+/// Modded `debug.log` reaches hundreds of megabytes, so the file is seeked
+/// rather than read whole.
+async fn read_source_tail(
+    path: &std::path::Path,
+) -> std::io::Result<(usize, String)> {
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
+    let mut file = tokio::fs::File::open(path).await?;
+    let len = file.metadata().await?.len();
+    let tail_start = len.saturating_sub(MAX_SOURCE_BYTES as u64);
+    let mut chunk = vec![0u8; (len - tail_start) as usize];
+    file.seek(std::io::SeekFrom::Start(tail_start)).await?;
+    file.read_exact(&mut chunk).await?;
+
+    let skip = if tail_start > 0 {
+        chunk
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map(|offset| offset + 1)
+            .unwrap_or(chunk.len())
+    } else {
+        0
+    };
+
+    let prefix_end = tail_start + skip as u64;
+    let mut first_line = 1usize;
+    if prefix_end > 0 {
+        file.seek(std::io::SeekFrom::Start(0)).await?;
+        let mut remaining = prefix_end;
+        let mut buffer = vec![0u8; 64 * 1024];
+        while remaining > 0 {
+            let want = remaining.min(buffer.len() as u64) as usize;
+            let read = file.read(&mut buffer[..want]).await?;
+            if read == 0 {
+                break;
+            }
+            first_line +=
+                buffer[..read].iter().filter(|byte| **byte == b'\n').count();
+            remaining -= read as u64;
+        }
+    }
+
+    Ok((
+        first_line,
+        String::from_utf8_lossy(&chunk[skip..]).into_owned(),
+    ))
 }
 
 fn analyze_sources(sources: &[SourceText]) -> Vec<CrashAnalysisFinding> {

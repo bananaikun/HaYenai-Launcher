@@ -29,7 +29,23 @@ export function useDownloadTelemetry(jobs: Readonly<Ref<TelemetryJob[]>>) {
 
     const telemetry = shallowRef(sample())
     const timer = setInterval(() => {
-        telemetry.value = sample()
+        const next = sample()
+        // 没有下载在跑时别每秒换一个新 Map：shallowRef 身份一变，整个下载列表
+        // 就重渲染一遍。
+        if (next.size === 0 && telemetry.value.size === 0) return
+        if (
+            next.size === telemetry.value.size &&
+            [...next].every(([key, value]) => {
+                const current = telemetry.value.get(key)
+                return (
+                    current?.speed_bytes_per_second === value.speed_bytes_per_second &&
+                    current?.eta_seconds === value.eta_seconds
+                )
+            })
+        ) {
+            return
+        }
+        telemetry.value = next
     }, 1000)
     onScopeDispose(() => clearInterval(timer))
 

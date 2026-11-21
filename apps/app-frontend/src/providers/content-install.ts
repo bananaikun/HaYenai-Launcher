@@ -1003,6 +1003,8 @@ export function createContentInstall(opts: {
         if (!incompatibilityWarningInstalled) removeInstallingItems(instance.id, [project.id])
         callback(result.versionId, result.installedProjectIds)
         markInstanceContentChanged(instance.id)
+        incompatibilityWarningInstance = null
+        incompatibilityWarningCallback = () => {}
         incompatibilityWarningModalRef?.hide()
         removeInstallingItems(instance.id, [project.id])
 
@@ -1018,8 +1020,14 @@ export function createContentInstall(opts: {
     }
 
     function handleIncompatibilityWarningCancel() {
-        if (incompatibilityWarningInstance && !incompatibilityWarningInstalled) {
-            incompatibilityWarningCallback()
+        const instance = incompatibilityWarningInstance
+        const callback = incompatibilityWarningCallback
+        // Clear before settling: the warning modal is shared with the drag and
+        // drop flow, so it can be dismissed from paths that never showed it.
+        incompatibilityWarningInstance = null
+        incompatibilityWarningCallback = () => {}
+        if (instance && !incompatibilityWarningInstalled) {
+            callback()
         }
         incompatibilityWarningInstalled = false
     }
@@ -1225,17 +1233,18 @@ export function createContentInstall(opts: {
                 createInstanceCallback,
                 provider: 'modrinth',
             }
+            // Build the link map once: the old per-version filter walked every
+            // instance for every version (O(versions × instances)).
+            const packsByVersionId = new Map<string, { id: string; name: string }[]>()
+            for (const pack of packs) {
+                const link = pack.link
+                if (!link || link.project_id !== project.id || !link.version_id) continue
+                const list = packsByVersionId.get(link.version_id)
+                if (list) list.push({ id: pack.id, name: pack.name })
+                else packsByVersionId.set(link.version_id, [{ id: pack.id, name: pack.name }])
+            }
             const existingInstancesByVersion = Object.fromEntries(
-                sortedVersions.map((version) => [
-                    version.id,
-                    packs
-                        .filter(
-                            (pack) =>
-                                pack.link?.project_id === project.id &&
-                                pack.link?.version_id === version.id,
-                        )
-                        .map((pack) => ({ id: pack.id, name: pack.name })),
-                ]),
+                sortedVersions.map((version) => [version.id, packsByVersionId.get(version.id) ?? []]),
             )
             modpackInstallModalRef?.show({
                 project,

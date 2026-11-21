@@ -612,11 +612,20 @@ fn take_prepared_analysis(
     let Some(analysis_id) = analysis_id else {
         return Ok(None);
     };
-    let mut registry = analyses()
-        .lock()
-        .map_err(|_| "分析注册表不可用".to_string())?;
-    prune_analyses(&mut registry);
-    let Some(prepared) = registry.remove(analysis_id) else {
+    let mut stale_workspaces = Vec::new();
+    let prepared = {
+        let mut registry = analyses()
+            .lock()
+            .map_err(|_| "分析注册表不可用".to_string())?;
+        stale_workspaces = prune_analyses(&mut registry);
+        registry.remove(analysis_id)
+    };
+    // 工作目录里有上千个文件，删除必须在锁外：否则一个过期分析会卡住所有
+    // 翻译任务。
+    for workspace in stale_workspaces {
+        let _ = std::fs::remove_dir_all(workspace);
+    }
+    let Some(prepared) = prepared else {
         return Ok(None);
     };
     let matches = requested_hash == Some(prepared.input_hash.as_str())
@@ -634,7 +643,9 @@ fn take_prepared_analysis(
     }))
 }
 
-fn prune_analyses(registry: &mut HashMap<String, PreparedAnalysis>) {
+fn prune_analyses(
+    registry: &mut HashMap<String, PreparedAnalysis>,
+) -> Vec<PathBuf> {
     let now = SystemTime::now();
     let expired = registry
         .iter()
@@ -645,11 +656,13 @@ fn prune_analyses(registry: &mut HashMap<String, PreparedAnalysis>) {
                 .map(|_| id.clone())
         })
         .collect::<Vec<_>>();
+    let mut removed = Vec::new();
     for id in expired {
         if let Some(prepared) = registry.remove(&id) {
-            let _ = std::fs::remove_dir_all(prepared.workspace);
+            removed.push(prepared.workspace);
         }
     }
+    removed
 }
 
 fn claim_locks(task_id: &str, keys: &[String]) -> Result<(), String> {

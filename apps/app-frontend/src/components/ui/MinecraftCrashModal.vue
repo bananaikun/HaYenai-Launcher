@@ -1092,7 +1092,9 @@ async function shareDiagnostic(): Promise<void> {
             type: 'error',
         })
     } finally {
-        if (!stale()) sharing.value = false
+        // 无条件复位：面板关掉时 stale() 为真，条件复位会让按钮永远卡在
+        // 「Sharing diagnostic...」且不可再点。
+        sharing.value = false
     }
 }
 

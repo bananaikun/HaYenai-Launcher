@@ -1,4 +1,5 @@
 use crate::api::Result;
+use crate::api::TheseusSerializableError;
 use crate::api::oauth_utils;
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -356,12 +357,20 @@ pub fn list_yggdrasil_saved_logins() -> Result<Vec<SavedYggdrasilLogin>> {
     read_yggdrasil_saved_logins()
 }
 
-#[tauri::command]
-pub fn get_yggdrasil_password(
-    api_root: String,
-    login: String,
+/// keyring 在 Linux 上走 dbus（secret-service），可能阻塞几秒甚至弹解锁框；
+/// 同步命令会在主线程上跑，所以这几条都丢进 spawn_blocking。
+fn keyring_blocking_error(error: impl std::fmt::Display) -> TheseusSerializableError {
+    theseus::Error::from(theseus::ErrorKind::OtherError(format!(
+        "credential store task failed: {error}"
+    )))
+    .into()
+}
+
+fn get_yggdrasil_password_blocking(
+    api_root: &str,
+    login: &str,
 ) -> Result<Option<String>> {
-    let entry = yggdrasil_password_entry(&api_root, &login)?;
+    let entry = yggdrasil_password_entry(api_root, login)?;
     match entry.get_password() {
         Ok(password) => Ok(Some(password)),
         Err(keyring::Error::NoEntry) => Ok(None),
@@ -370,17 +379,28 @@ pub fn get_yggdrasil_password(
 }
 
 #[tauri::command]
-pub fn set_yggdrasil_password(
+pub async fn get_yggdrasil_password(
     api_root: String,
     login: String,
-    password: String,
+) -> Result<Option<String>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        get_yggdrasil_password_blocking(&api_root, &login)
+    })
+    .await
+    .map_err(|error| keyring_blocking_error(error))?
+}
+
+fn set_yggdrasil_password_blocking(
+    api_root: &str,
+    login: &str,
+    password: &str,
 ) -> Result<()> {
     if password.is_empty() {
-        return delete_yggdrasil_password(api_root, login);
+        return delete_yggdrasil_password_blocking(api_root, login);
     }
-    let saved_login = normalize_saved_yggdrasil_login(&api_root, &login)?;
+    let saved_login = normalize_saved_yggdrasil_login(api_root, login)?;
     yggdrasil_password_entry(&saved_login.api_root, &saved_login.login)?
-        .set_password(&password)
+        .set_password(password)
         .map_err(keyring_error)?;
 
     let mut saved_logins = read_yggdrasil_saved_logins()?;
@@ -389,11 +409,23 @@ pub fn set_yggdrasil_password(
 }
 
 #[tauri::command]
-pub fn delete_yggdrasil_password(
+pub async fn set_yggdrasil_password(
     api_root: String,
     login: String,
+    password: String,
 ) -> Result<()> {
-    let saved_login = normalize_saved_yggdrasil_login(&api_root, &login)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        set_yggdrasil_password_blocking(&api_root, &login, &password)
+    })
+    .await
+    .map_err(|error| keyring_blocking_error(error))?
+}
+
+fn delete_yggdrasil_password_blocking(
+    api_root: &str,
+    login: &str,
+) -> Result<()> {
+    let saved_login = normalize_saved_yggdrasil_login(api_root, login)?;
     match yggdrasil_password_entry(&saved_login.api_root, &saved_login.login)?
         .delete_credential()
     {
@@ -404,6 +436,18 @@ pub fn delete_yggdrasil_password(
     let mut saved_logins = read_yggdrasil_saved_logins()?;
     remove_saved_yggdrasil_login(&mut saved_logins, &saved_login);
     write_yggdrasil_saved_logins(&saved_logins)
+}
+
+#[tauri::command]
+pub async fn delete_yggdrasil_password(
+    api_root: String,
+    login: String,
+) -> Result<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        delete_yggdrasil_password_blocking(&api_root, &login)
+    })
+    .await
+    .map_err(|error| keyring_blocking_error(error))?
 }
 
 fn yggdrasil_password_entry(

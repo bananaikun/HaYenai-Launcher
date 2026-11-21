@@ -72,6 +72,9 @@ export class TauriModrinthClient extends XHRUploadClient {
                 method: options.method ?? 'GET',
                 headers: options.headers,
                 body,
+                // 之前把这两项丢了：取消按钮无效，卡住的请求也永远不会超时。
+                signal: options.signal,
+                connectTimeout: options.timeout,
             })
 
             if (!response.ok) {

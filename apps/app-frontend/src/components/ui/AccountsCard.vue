@@ -593,9 +593,13 @@ function hasResolvedAccountHead(account: MinecraftCredential) {
 }
 
 function hasMissingAccountHeads() {
-    return accounts.value.some(
-        (account) => account.account_type !== 'offline' && !hasResolvedAccountHead(account),
-    )
+    return accounts.value.some((account) => {
+        if (account.account_type === 'offline') return false
+        // 没有可用皮肤就没什么可拉的，界面上已经是默认头像；把它算成「缺失」
+        // 会让刷新链每 60 秒空转一次，永远停不下来。
+        if (!getAccountSkin(account)) return false
+        return !hasResolvedAccountHead(account)
+    })
 }
 
 function clearHeadRefreshRetry() {

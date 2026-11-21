@@ -109,6 +109,13 @@ export class NodeAuthFeature extends AbstractFeature {
 
     private applyAuth(context: RequestContext, auth: NodeAuth): void {
         const baseUrl = getNodeBaseUrl(auth.url)
+        // 明文 http 上带 Bearer 等于把令牌交给中间人；只有本机回环可以例外。
+        if (baseUrl.startsWith('http://') && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl)) {
+            throw new ModrinthApiError(
+                `Refusing to send a node token to an insecure URL: ${baseUrl}`,
+                { statusCode: 0, context: 'node-auth' },
+            )
+        }
         context.url = this.buildUrl(context.path, baseUrl, context.options.version)
 
         context.options.headers = {

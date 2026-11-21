@@ -104,6 +104,31 @@ async function handleOptimize() {
     }
 }
 
+/**
+ * 每秒拉一次内存状态。窗口最小化/被完全遮挡时停表：这条 IPC 在后端要 enumerate
+ * 进程树里每个 world 的 mods 目录，后台空跑纯属白耗磁盘，而用户看不见也没意义。
+ */
+function startPolling() {
+    stopPolling()
+    timer = setInterval(() => void refresh(), 1000)
+}
+
+function stopPolling() {
+    if (timer) {
+        clearInterval(timer)
+        timer = undefined
+    }
+}
+
+function handleVisibilityChange() {
+    if (document.hidden) {
+        stopPolling()
+        return
+    }
+    void refresh()
+    startPolling()
+}
+
 watch(
     () => [props.instanceId, props.memory.maximum, props.memory.automatic],
     () => void refresh(),
@@ -111,11 +136,13 @@ watch(
 
 onMounted(() => {
     void refresh()
-    timer = setInterval(() => void refresh(), 1000)
+    if (!document.hidden) startPolling()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onBeforeUnmount(() => {
-    if (timer) clearInterval(timer)
+    stopPolling()
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

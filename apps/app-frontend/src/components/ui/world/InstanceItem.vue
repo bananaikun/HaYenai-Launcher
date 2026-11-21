@@ -133,13 +133,6 @@ const stop = async (event: MouseEvent) => {
     loading.value = false
 }
 
-const unlistenProcesses =
-    props.playing === undefined
-        ? await process_listener(async () => {
-              await checkProcess()
-          })
-        : () => undefined
-
 const checkProcess = async () => {
     if (props.playing !== undefined) return
     const runningProcesses = await get_by_instance_id(props.instance.id).catch(handleError)
@@ -147,12 +140,32 @@ const checkProcess = async () => {
     internalPlaying.value = runningProcesses.length > 0
 }
 
+// 每张卡各注册一个监听：先按 instance_id 过滤，否则一次进程事件会让整个网格
+// 的每张卡都去发一次 IPC。
+let disposed = false
+let unlistenProcesses: (() => void) | undefined
+if (props.playing === undefined) {
+    void process_listener((event) => {
+        if (event.instance_id !== props.instance.id) return
+        void checkProcess()
+    }).then((unlisten) => {
+        // 卡在注册完成前就被卸载：立刻退订，否则监听会永久挂着一个死组件。
+        if (disposed) {
+            unlisten()
+            return
+        }
+        unlistenProcesses = unlisten
+    })
+}
+
 onMounted(() => {
-    checkProcess()
+    void checkProcess()
 })
 
 onUnmounted(() => {
-    unlistenProcesses()
+    disposed = true
+    unlistenProcesses?.()
+    unlistenProcesses = undefined
 })
 </script>
 <template>

@@ -151,6 +151,11 @@ pub async fn delete_world_datapack(
     Ok(())
 }
 
+/// level.dat is rewritten whole on every toggle; two toggles at the same time
+/// would each read the old list and drop the other's change.
+static LEVEL_DAT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
+
 /// Enables or disables a datapack by updating the `DataPacks` tag in the
 /// world's `level.dat`.
 pub async fn set_world_datapack_enabled(
@@ -193,6 +198,7 @@ pub async fn set_world_datapack_enabled(
     };
 
     let level_dat_path = world_dir.join("level.dat");
+    let _level_dat_guard = LEVEL_DAT_LOCK.lock().await;
     let raw = io::read(&level_dat_path).await?;
     let updated = tokio::task::spawn_blocking(move || {
         let (mut root, _) = quartz_nbt::io::read_nbt(

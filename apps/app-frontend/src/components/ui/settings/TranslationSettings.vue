@@ -10,7 +10,7 @@ import {
     Toggle,
     useVIntl,
 } from '@modrinth/ui'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { type AIProviderDefinition, getAICatalog, getAIState, sharedAIState } from '@/helpers/ai'
 import {
@@ -452,19 +452,42 @@ async function refreshGoogleIpPool() {
     }
 }
 
+function stopPoolTimer() {
+    clearInterval(poolTimer)
+    poolTimer = undefined
+}
+
+function startPoolTimer() {
+    stopPoolTimer()
+    if (settings.value.provider !== 'google') return
+    poolTimer = setInterval(() => void refreshGoogleIpPool(), 5000)
+}
+
 watch(
     () => settings.value.provider,
     (provider) => {
-        clearInterval(poolTimer)
+        stopPoolTimer()
         if (provider !== 'google') return
         void refreshGoogleIpPool()
-        poolTimer = setInterval(() => void refreshGoogleIpPool(), 5000)
+        startPoolTimer()
     },
     { immediate: true },
 )
 
+/**
+ * 页面被 `KeepAlive` 缓存时组件不会 unmount，5 秒一轮的 IP 池查询会一直挂着；
+ * 离开就停、回来补一次。
+ */
+onActivated(() => {
+    if (settings.value.provider !== 'google') return
+    void refreshGoogleIpPool()
+    startPoolTimer()
+})
+
+onDeactivated(stopPoolTimer)
+
 onUnmounted(() => {
-    clearInterval(poolTimer)
+    stopPoolTimer()
     if (loading.value || !saveTimer) return
     clearTimeout(saveTimer)
     saveTimer = undefined

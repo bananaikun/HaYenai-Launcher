@@ -16,6 +16,7 @@ pub use self::files::{download_file, read_file, write_file};
 pub use self::forge::install_forge;
 pub use self::lifecycle::{
     kill, resize_console, send_command, send_console_input, start, stop,
+    stop_all_for_shutdown,
 };
 pub use self::link::{
     DEFAULT_READY_TIMEOUT_MS, is_local_address, wait_until_ready,

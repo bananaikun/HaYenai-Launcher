@@ -53,7 +53,12 @@ pub(super) async fn download_to_dir(
     expected_sha1: Option<String>,
 ) -> Result<()> {
     let destination = safe_relative_join(dir, rel_path)?;
-    let partial = destination.with_extension("part");
+    // A unique staging name: two downloads of the same path (double click, two
+    // install jobs) would otherwise interleave their bytes into one `.part`
+    // file and publish a corrupt jar that still "succeeded".
+    let partial = destination
+        .with_extension(format!("part-{}", uuid::Uuid::new_v4()));
+    let staging = StagedFile::new(partial.clone());
 
     if let Some(parent) = destination.parent() {
         io::create_dir_all(parent).await?;
@@ -110,6 +115,7 @@ pub(super) async fn download_to_dir(
     tokio::fs::rename(&partial, &destination)
         .await
         .map_err(|e| IOError::with_path(e, &destination))?;
+    staging.commit();
     emit_server(
         server_id,
         ServerPayloadType::DownloadProgress {
@@ -120,6 +126,31 @@ pub(super) async fn download_to_dir(
     .await
     .ok();
     Ok(())
+}
+
+/// Deletes its staging file on drop unless the download committed, so a failed
+/// or cancelled download does not leave `.part-<uuid>` files behind.
+struct StagedFile {
+    path: PathBuf,
+    keep: bool,
+}
+
+impl StagedFile {
+    fn new(path: PathBuf) -> Self {
+        Self { path, keep: false }
+    }
+
+    fn commit(mut self) {
+        self.keep = true;
+    }
+}
+
+impl Drop for StagedFile {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
 }
 
 async fn resolve_server_file(server_id: &str, file: &str) -> Result<PathBuf> {

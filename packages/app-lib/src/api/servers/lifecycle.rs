@@ -28,6 +28,7 @@ use super::manifest::{
 
 const DEFAULT_MEMORY_MB: u32 = 2048;
 const STOP_TIMEOUT_SECS: u64 = 60;
+const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 const MAX_CONSOLE_ROWS: u16 = 8192;
 
 struct ServerProcess {
@@ -94,6 +95,16 @@ pub(super) fn is_running(server_id: &str) -> bool {
     SERVER_PROCESSES.contains_key(server_id)
 }
 
+/// Claims the server for an exclusive operation. `start` and `delete` share the
+/// same slot, so a delete cannot sweep the directory while a JVM is spawning.
+pub(super) fn try_reserve(server_id: &str) -> bool {
+    SERVER_STARTING.insert(server_id.to_string())
+}
+
+pub(super) fn release_reservation(server_id: &str) {
+    SERVER_STARTING.remove(server_id);
+}
+
 /// Whether a server process is currently tracked. Used by the log-file tailer
 /// to stop following once the server has exited.
 pub(super) fn is_server_running(server_id: &str) -> bool {
@@ -106,16 +117,14 @@ pub async fn start(
     memory_mb: Option<u32>,
     jvm_args: Option<Vec<String>>,
 ) -> Result<()> {
-    if SERVER_PROCESSES.contains_key(server_id)
-        || !SERVER_STARTING.insert(server_id.to_string())
-    {
+    if SERVER_PROCESSES.contains_key(server_id) || !try_reserve(server_id) {
         return Err(ErrorKind::InputError(
             "Server is already running".to_string(),
         )
         .as_error());
     }
     let result = start_inner(server_id, java_path, memory_mb, jvm_args).await;
-    SERVER_STARTING.remove(server_id);
+    release_reservation(server_id);
     result
 }
 
@@ -512,6 +521,33 @@ pub async fn stop(server_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Stops every managed server before the app exits. Each JVM gets a `stop`
+/// command (so worlds save) and `SHUTDOWN_GRACE` to finish; whatever is still
+/// alive after that is killed. Without this the servers outlive the launcher.
+pub async fn stop_all_for_shutdown() {
+    let processes: Vec<(String, Arc<ServerProcess>)> = SERVER_PROCESSES
+        .iter()
+        .map(|entry| (entry.key().clone(), entry.value().clone()))
+        .collect();
+    if processes.is_empty() {
+        return;
+    }
+
+    for (_, process) in &processes {
+        process.stop_requested.store(true, Ordering::SeqCst);
+        let mut input = process.input.lock().await;
+        let _ = input.write_all(b"stop\n").await;
+    }
+
+    tokio::time::sleep(SHUTDOWN_GRACE).await;
+
+    for (server_id, process) in &processes {
+        if SERVER_PROCESSES.contains_key(server_id) {
+            let _ = process.child.lock().await.kill().await;
+        }
+    }
+}
+
 pub async fn kill(server_id: &str) -> Result<()> {
     let process = SERVER_PROCESSES
         .get(server_id)
@@ -531,25 +567,40 @@ async fn monitor_server_process(
     dir: PathBuf,
     process: Arc<ServerProcess>,
 ) {
+    let mut poll_failures = 0u32;
     loop {
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         let exit_status = {
             let mut child = process.child.lock().await;
             match child.try_wait() {
                 Ok(Some(success)) => Some(success),
-                Ok(None) => continue,
+                Ok(None) => {
+                    poll_failures = 0;
+                    continue;
+                }
                 Err(error) => {
-                    tracing::warn!(
+                    poll_failures += 1;
+                    // A child that cannot be polled will never report an exit;
+                    // giving up keeps the entry from pinning the server as
+                    // "running" for the rest of the session.
+                    if poll_failures < 40 {
+                        tracing::warn!(
+                            %error,
+                            server_id = %server_id,
+                            "Failed to poll server process; keeping it registered"
+                        );
+                        continue;
+                    }
+                    tracing::error!(
                         %error,
                         server_id = %server_id,
-                        "Failed to poll server process; keeping it registered"
+                        "Unable to poll the server process any more; dropping it from the running set"
                     );
-                    continue;
+                    None
                 }
             }
         };
 
-        SERVER_PROCESSES.remove(&server_id);
         let stop_requested = process.stop_requested.load(Ordering::SeqCst);
         let eula_accepted = read_eula_accepted(&dir).await;
         let crashed = exit_status
@@ -575,6 +626,16 @@ async fn monitor_server_process(
         emit_server(&server_id, ServerPayloadType::Stopped { crashed, reason })
             .await
             .ok();
+
+        // Drop the entry only after `Stopped` went out: while it is registered
+        // `start` refuses to run, so a second JVM cannot claim the same
+        // directory and receive this run's `Stopped` event.
+        if let Some(current) = SERVER_PROCESSES.get(&server_id)
+            && Arc::ptr_eq(current.value(), &process)
+        {
+            drop(current);
+            SERVER_PROCESSES.remove(&server_id);
+        }
         return;
     }
 }

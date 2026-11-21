@@ -113,7 +113,13 @@ export abstract class XHRUploadClient extends AbstractModrinthClient {
                     try {
                         resolve(xhr.response ? JSON.parse(xhr.response) : (undefined as T))
                     } catch {
-                        resolve(undefined as T)
+                        // 2xx 但不是 JSON：静默 resolve undefined 会让调用方以为
+                        // 上传返回了空对象，报错比假装成功好。
+                        reject(
+                            new ModrinthApiError(
+                                'Upload succeeded but the response was not valid JSON',
+                            ),
+                        )
                     }
                 } else {
                     reject(this.createUploadError(xhr))

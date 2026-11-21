@@ -707,6 +707,10 @@ pub async fn delete_logs(instance_id: &str) -> crate::Result<()> {
         let path = entry.path();
         if path.is_dir() {
             io::remove_dir_all(&path).await?;
+        } else {
+            // Log files live directly in the folder; skipping them made
+            // "clear logs" report success while deleting nothing.
+            io::remove_file(&path).await?;
         }
     }
     Ok(())

@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { PauseIcon, PlayIcon, RefreshCwIcon } from '@modrinth/assets'
 import { defineMessages, useVIntl } from '@modrinth/ui'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import NeteasePanel from '@/components/ui/music/NeteasePanel.vue'
 import { METING_SOURCES, hostOf } from '@/helpers/music/music-source'
@@ -187,6 +187,9 @@ function cycleSleep() {
         }
     }, 1000)
 }
+// 离开页面就收掉定时器：组件销毁后它还挂着，到点仍会去暂停全局播放，
+// 再设一个新定时器时两个会同时倒计时。
+onUnmounted(stopSleepTimer)
 const song = computed(() => currentSong())
 const progress = computed(() =>
     music.duration > 0 ? Math.min(100, (music.currentTime / music.duration) * 100) : 0,

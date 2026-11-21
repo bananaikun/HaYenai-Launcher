@@ -1360,6 +1360,18 @@ pub async fn get_dragged_skin_data(
         return Err(ErrorKind::InvalidSkinTexture.into());
     }
 
+    // 皮肤必须是 64x64/64x32 的 PNG，几 KB 就够；上限挡住的是「拿这条命令去
+    // 读一张几百 MB 的 PNG」这种情况。
+    const MAX_SKIN_BYTES: u64 = 8 * 1024 * 1024;
+    if let Ok(metadata) = tokio::fs::metadata(path).await {
+        if metadata.len() > MAX_SKIN_BYTES {
+            tracing::warn!(path = ?path, "Refusing an oversized skin file");
+            return Err(ErrorKind::InvalidSkinTexture.into());
+        }
+    } else {
+        return Err(ErrorKind::InvalidSkinTexture.into());
+    }
+
     let data = match tokio::fs::read(path).await {
         Ok(data) => {
             tracing::debug!(

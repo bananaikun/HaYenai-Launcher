@@ -1,17 +1,25 @@
 //! Listing, creation, and settings management for servers.
 
 use chrono::Utc;
+use std::sync::LazyLock;
 use uuid::Uuid;
 
 use crate::state::remove_log_buffer;
 use crate::util::io::{self, IOError};
 use crate::{ErrorKind, Result, State};
 
-use super::lifecycle::is_running;
+use super::lifecycle::{is_running, release_reservation, try_reserve};
 use super::manifest::{
     LinkedWorld, ServerInfo, ServerManifest, build_server_info, read_manifest,
     sanitize_folder_name, server_path, type_default_jar_name, write_manifest,
 };
+
+/// Manifest edits are read-modify-write over a small JSON file. Two commands
+/// racing on the same server (rename while the icon is being set, for example)
+/// would otherwise drop each other's fields, so every mutation takes this lock
+/// for the whole read/apply/write cycle.
+static MANIFEST_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 pub async fn list() -> Result<Vec<ServerInfo>> {
     let state = State::get().await?;
@@ -105,6 +113,7 @@ pub async fn set_icon(
     server_id: &str,
     icon_path: Option<String>,
 ) -> Result<ServerManifest> {
+    let _manifest_guard = MANIFEST_LOCK.lock().await;
     let path = server_path(server_id).await?;
     let mut manifest = read_manifest(&path).await?;
     manifest.icon_path = icon_path;
@@ -121,6 +130,7 @@ pub async fn set_linked_world(
     server_id: &str,
     linked: Option<LinkedWorld>,
 ) -> Result<ServerManifest> {
+    let _manifest_guard = MANIFEST_LOCK.lock().await;
     let path = server_path(server_id).await?;
     let mut manifest = read_manifest(&path).await?;
     let linked = normalize_linked_world(linked);
@@ -190,6 +200,7 @@ pub async fn update_settings(
     pre_launch_hook: Option<String>,
     home_pinned: Option<bool>,
 ) -> Result<ServerManifest> {
+    let _manifest_guard = MANIFEST_LOCK.lock().await;
     let path = server_path(server_id).await?;
     let mut manifest = read_manifest(&path).await?;
     if let Some(name) = name {
@@ -237,6 +248,18 @@ pub async fn delete(server_id: &str) -> Result<()> {
         )
         .as_error());
     }
+    if !try_reserve(server_id) {
+        return Err(ErrorKind::InputError(
+            "The server is starting; try again in a moment".to_string(),
+        )
+        .as_error());
+    }
+    let result = delete_reserved(server_id).await;
+    release_reservation(server_id);
+    result
+}
+
+async fn delete_reserved(server_id: &str) -> Result<()> {
     let path = server_path(server_id).await?;
     remove_log_buffer(server_id);
     tokio::fs::remove_dir_all(&path)

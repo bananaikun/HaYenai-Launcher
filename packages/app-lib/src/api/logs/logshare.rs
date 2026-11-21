@@ -177,13 +177,17 @@ async fn remove_shared_log_record(id: &str) -> crate::Result<()> {
 }
 
 pub async fn delete_shared_log(id: String, token: String) -> crate::Result<()> {
-    let remote_result = delete_log(&id, &token).await;
-    if let Err(error) = remote_result {
-        tracing::warn!(
-            "Remote LogShare deletion failed for {id}; removing the local record anyway: {error}"
-        );
+    match delete_log(&id, &token).await {
+        Ok(_) => remove_shared_log_record(&id).await,
+        // A 404 means the remote copy is already gone: the local record has
+        // nothing left to retry, so treat it as deleted.
+        Err(error) if error.to_string().contains("HTTP 404") => {
+            remove_shared_log_record(&id).await
+        }
+        // Anything else (timeout, 401, 5xx) leaves the log publicly readable;
+        // keep the record so the user can retry instead of showing "deleted".
+        Err(error) => Err(error),
     }
-    remove_shared_log_record(&id).await
 }
 
 fn now_seconds() -> i64 {

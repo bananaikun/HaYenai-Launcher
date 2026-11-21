@@ -102,6 +102,8 @@ const seeInstance = async () => {
     await router.push(`/instance/${encodeURIComponent(props.instance.id)}`)
 }
 
+// 只在挂载与进程事件时核对：悬停触发会让每张卡各发一次 IPC，
+// 而进程状态本来就由下面的监听实时推上来。
 const checkProcess = async () => {
     if (props.playing !== undefined) return
     const runningProcesses = await get_by_instance_id(props.instance.id).catch(handleError)
@@ -186,20 +188,32 @@ defineExpose({
 
 const currentEvent = ref(null)
 
-const unlisten =
-    props.playing === undefined
-        ? await process_listener((e) => {
-              if (e.instance_id === props.instance.id) {
-                  currentEvent.value = e.event
-                  if (e.event === 'finished') {
-                      internalPlaying.value = false
-                  }
-              }
-          })
-        : () => undefined
+let disposed = false
+let unlisten
+if (props.playing === undefined) {
+    void process_listener((e) => {
+        if (e.instance_id === props.instance.id) {
+            currentEvent.value = e.event
+            if (e.event === 'finished') {
+                internalPlaying.value = false
+            }
+        }
+    }).then((un) => {
+        // 卸载发生在注册完成前时，清理钩子还没挂上，这里必须自己退订。
+        if (disposed) {
+            un()
+            return
+        }
+        unlisten = un
+    })
+}
 
 onMounted(() => checkProcess())
-onUnmounted(() => unlisten())
+onUnmounted(() => {
+    disposed = true
+    unlisten?.()
+    unlisten = undefined
+})
 </script>
 
 <template>
@@ -212,7 +226,6 @@ onUnmounted(() => unlisten())
                     : 'card-shadow bg-surface-2 p-3 pl-4 hover:brightness-90'
             "
             @click="seeInstance"
-            @mouseenter="checkProcess"
         >
             <InstanceIcon
                 size="48px"
@@ -234,7 +247,6 @@ onUnmounted(() => unlisten())
                     color="red"
                     circular
                     icon-only
-                    @mousehover="checkProcess"
                     @click="(e) => stop(e, 'InstanceCard')"
                     ><StopCircleIcon />
                 </Button>
@@ -259,7 +271,6 @@ onUnmounted(() => unlisten())
                     icon-only
                     :disabled="offline && !installed"
                     @click="(e) => play(e, 'InstanceCard')"
-                    @mousehover="checkProcess"
                 >
                     <PlayIcon />
                 </Button>
@@ -285,7 +296,6 @@ onUnmounted(() => unlisten())
         <div
             class="group relative flex w-full cursor-pointer select-none flex-col items-start justify-end gap-3 overflow-clip rounded-[20px] border border-solid border-surface-4 bg-surface-3 p-3 text-left transition-[border-color,filter,transform] hover:border-surface-5 hover:brightness-110 active:scale-[0.98]"
             @click="seeInstance"
-            @mouseenter="checkProcess"
         >
             <div
                 class="relative flex aspect-square w-full shrink-0 items-center overflow-clip rounded-2xl"
@@ -324,7 +334,6 @@ onUnmounted(() => unlisten())
                         circular
                         icon-only
                         @click="(e) => stop(e, 'InstanceCard')"
-                        @mousehover="checkProcess"
                         ><StopCircleIcon />
                     </Button>
                     <Button
@@ -362,7 +371,6 @@ onUnmounted(() => unlisten())
                                 !disabled,
                         }"
                         @click="(e) => play(e, 'InstanceCard')"
-                        @mousehover="checkProcess"
                         ><PlayIcon />
                     </Button>
                 </div>
@@ -390,7 +398,6 @@ onUnmounted(() => unlisten())
                     : 'rounded-xl bg-surface-2 p-4'
             "
             @click="seeInstance"
-            @mouseenter="checkProcess"
         >
             <div class="relative flex items-center justify-center">
                 <InstanceIcon
@@ -413,7 +420,6 @@ onUnmounted(() => unlisten())
                         :class="{ 'scale-100 opacity-100': isPlaying }"
                         class="transition-all origin-bottom opacity-0 card-shadow"
                         @click="(e) => stop(e, 'InstanceCard')"
-                        @mousehover="checkProcess"
                         ><StopCircleIcon />
                     </Button>
                     <SpinnerIcon
@@ -453,7 +459,6 @@ onUnmounted(() => unlisten())
                         icon-only
                         :class="`transition-all scale-75 origin-bottom card-shadow ${disabled ? 'opacity-0 scale-75' : 'opacity-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:scale-100 group-focus-within:opacity-100'}`"
                         @click="(e) => play(e, 'InstanceCard')"
-                        @mousehover="checkProcess"
                         ><PlayIcon />
                     </Button>
                 </div>

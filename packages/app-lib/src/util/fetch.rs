@@ -6017,6 +6017,18 @@ async fn run_native_download_attempts(
         [false, true, true].into_iter().enumerate()
     {
         let mut attempted_routes = Vec::new();
+        // A preferred route that was already given up on would make every
+        // other route skip itself for the whole round, so the loop would spin
+        // without attempting anything.
+        if session
+            .preferred_route
+            .as_ref()
+            .is_some_and(|preferred| {
+                session.terminal_routes.contains(&preferred.url)
+            })
+        {
+            session.preferred_route = None;
+        }
         for (route_index, route) in routes.iter().enumerate() {
             if session.terminal_routes.contains(&route.url) {
                 continue;

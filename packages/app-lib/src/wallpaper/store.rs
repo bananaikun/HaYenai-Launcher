@@ -56,6 +56,9 @@ const MAX_DEPTH: usize = 32;
 /// 暂存目录名的自增部分，保证同一进程内不撞名。
 static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// 导入互斥：每次导入都会先清空 `incoming/`，两个导入并行会互删对方的半成品。
+static IMPORT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// 目录统计。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DirStat {
@@ -326,6 +329,29 @@ impl WallpaperStore {
         write_json_atomic(&self.config_path(), &config.clone().sanitized())
     }
 
+    /// 清掉上次异常退出留下的暂存目录。只在持有 `IMPORT_LOCK` 时调用，因此
+    /// 不会误删正在进行的导入。
+    fn prune_stale_staging(&self) {
+        let Ok(read_dir) = fs::read_dir(self.incoming_dir()) else {
+            return;
+        };
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            let result = if path.is_dir() {
+                fs::remove_dir_all(&path)
+            } else {
+                fs::remove_file(&path)
+            };
+            if let Err(error) = result {
+                tracing::warn!(
+                    %error,
+                    path = %path.display(),
+                    "清理壁纸导入暂存失败"
+                );
+            }
+        }
+    }
+
     /// 导入一个包。输入可以是 `.mpkg` / `.pkg` 文件，也可以是目录
     /// （工坊条目、WE 工程目录都算）。
     pub fn import(
@@ -333,7 +359,11 @@ impl WallpaperStore {
         src: &Path,
         options: &ImportOptions,
     ) -> Result<ImportOutcome> {
+        let _import_guard = IMPORT_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         self.ensure_dirs()?;
+        self.prune_stale_staging();
         let metadata = fs::metadata(src).map_err(|error| {
             if error.kind() == ErrorKind::NotFound {
                 WallpaperError::SourceMissing
@@ -629,11 +659,14 @@ fn hash_dir_into(
         if name == META_FILE_NAME {
             continue;
         }
-        let file_type = entry.file_type()?;
-        if file_type.is_symlink() {
+        // entry.file_type() 不识别 Windows 的 junction（它既不是 symlink 也算
+        // 目录），所以用 symlink_metadata + 属性位判断，避免把包外内容算进哈希。
+        let meta = std::fs::symlink_metadata(entry.path())?;
+        if crate::util::io::is_symlink_or_reparse(&meta) {
             // 不跟随：包外内容不该算进哈希。
             continue;
         }
+        let file_type = meta.file_type();
         if file_type.is_dir() {
             items.push((name, true));
         } else if file_type.is_file() {
@@ -692,10 +725,11 @@ fn accumulate_stat(
         if name == META_FILE_NAME {
             continue;
         }
-        let file_type = entry.file_type()?;
-        if file_type.is_symlink() {
+        let meta = std::fs::symlink_metadata(entry.path())?;
+        if crate::util::io::is_symlink_or_reparse(&meta) {
             continue;
         }
+        let file_type = meta.file_type();
         if file_type.is_dir() {
             accumulate_stat(&entry.path(), stat, depth + 1)?;
         } else if file_type.is_file() {
@@ -724,10 +758,11 @@ fn copy_tree_into(src: &Path, dest: &Path, depth: usize) -> Result<()> {
         if name == META_FILE_NAME {
             continue;
         }
-        let file_type = entry.file_type()?;
-        if file_type.is_symlink() {
+        let meta = std::fs::symlink_metadata(entry.path())?;
+        if crate::util::io::is_symlink_or_reparse(&meta) {
             continue;
         }
+        let file_type = meta.file_type();
         let target = dest.join(&name);
         if file_type.is_dir() {
             fs::create_dir_all(&target)?;

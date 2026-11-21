@@ -1039,6 +1039,36 @@ impl Drop for Kernel {
     }
 }
 
+/// Keeps only the newest few kernel session logs. Each kernel spawn creates a
+/// new file and nothing deleted them, so a long-running launcher accumulated
+/// one log per start forever.
+async fn prune_session_logs(keep: usize) {
+    let Ok(mut entries) = tokio::fs::read_dir(logs_dir()).await else {
+        return;
+    };
+    let mut files: Vec<(SystemTime, PathBuf)> = Vec::new();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with("session-") || !name.ends_with(".log") {
+            continue;
+        }
+        let modified = entry
+            .metadata()
+            .await
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        files.push((modified, entry.path()));
+    }
+    files.sort_by_key(|(modified, _)| *modified);
+    let excess = files.len().saturating_sub(keep);
+    for (_, path) in files.into_iter().take(excess) {
+        if let Err(error) = tokio::fs::remove_file(&path).await {
+            warn!(%error, path = %path.display(), "failed to prune an old kernel log");
+        }
+    }
+}
+
 async fn spawn_kernel(
     binary: &Path,
     node: &HongshiNode,
@@ -1046,6 +1076,7 @@ async fn spawn_kernel(
     id: u64,
 ) -> eyre::Result<Kernel> {
     tokio::fs::create_dir_all(logs_dir()).await?;
+    prune_session_logs(5).await;
     let filename = format!(
         "session-{}-{id}-{}.log",
         std::process::id(),

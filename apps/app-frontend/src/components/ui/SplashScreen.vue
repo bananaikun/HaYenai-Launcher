@@ -414,13 +414,20 @@ onMounted(() => {
     if (renderer.value === 'static') emitGpuReady()
 })
 
+let splashDisposed = false
+let unlistenLoading: (() => void) | undefined
+
 onBeforeUnmount(() => {
     destroyScene()
     // The reveal covered us; nothing left to time out.
     readyEmitted = true
+    splashDisposed = true
+    unlistenLoading?.()
+    unlistenLoading = undefined
 })
 
-loading_listener((event) => {
+void loading_listener((event) => {
+    if (splashDisposed) return
     if (event.event.type === 'directory_move') {
         progress.value = 100 * (event.fraction ?? 1)
         message.value = formatMessage(messages.updatingAppDirectory)
@@ -428,6 +435,13 @@ loading_listener((event) => {
         progress.value = 100 * (event.fraction ?? 1)
         message.value = formatMessage(messages.checkingForUpdates)
     }
+}).then((unlisten) => {
+    // 启动画面是短命的：注册回来时可能已经卸载，立刻退订别留悬空监听。
+    if (splashDisposed) {
+        unlisten()
+        return
+    }
+    unlistenLoading = unlisten
 })
 </script>
 

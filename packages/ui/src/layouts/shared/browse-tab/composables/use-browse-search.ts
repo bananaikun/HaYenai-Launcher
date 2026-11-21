@@ -25,6 +25,12 @@ export interface UseBrowseSearchOptions {
     environmentOverride?: ComputedRef<EnvironmentSearchOverride | undefined>
     installContextLoader?: ComputedRef<string | undefined>
     search: (params: string, signal: AbortSignal) => Promise<BrowseSearchResponse>
+    /**
+     * Extra state that changes what `search` does without changing `params`
+     * (for example the selected content source). It is folded into the in-flight
+     * dedupe key so a search for one source is never reused for another.
+     */
+    searchKey?: () => string
     invalidateSearch?: () => void
     syncQueryParams?: boolean
     persistentQueryParams: string[]
@@ -250,7 +256,26 @@ export function useBrowseSearch(options: UseBrowseSearchOptions): BrowseSearchSt
         }, 200)
     })
 
-    async function refreshSearch(reuseCache = false) {
+    let inflightSearch: { key: string; promise: Promise<void> } | null = null
+
+    async function refreshSearch(reuseCache = false): Promise<void> {
+        const params = effectiveRequestParams.value
+        const key = `${params}\u0000${options.searchKey?.() ?? ''}`
+        // Same request already on the wire: share that promise instead of aborting it
+        // and starting an identical one. Switching project type fires this twice in a
+        // row, and the second call used to cancel the first.
+        if (inflightSearch?.key === key) return inflightSearch.promise
+
+        const promise = runSearch(params, reuseCache)
+        inflightSearch = { key, promise }
+        try {
+            await promise
+        } finally {
+            if (inflightSearch?.promise === promise) inflightSearch = null
+        }
+    }
+
+    async function runSearch(params: string, reuseCache: boolean): Promise<void> {
         searchAbortController?.abort()
         if (!reuseCache) options.invalidateSearch?.()
         const abortController = new AbortController()
@@ -259,7 +284,7 @@ export function useBrowseSearch(options: UseBrowseSearchOptions): BrowseSearchSt
         debug('refreshSearch start', {
             version,
             projectType: options.projectType.value,
-            params: effectiveRequestParams.value.substring(0, 100),
+            params: params.substring(0, 100),
         })
 
         // Always surface the loading state so pagination/filter changes can mask
@@ -268,10 +293,7 @@ export function useBrowseSearch(options: UseBrowseSearchOptions): BrowseSearchSt
         searchError.value = null
 
         try {
-            const response = await options.search(
-                effectiveRequestParams.value,
-                abortController.signal,
-            )
+            const response = await options.search(params, abortController.signal)
 
             if (version !== searchVersion) {
                 debug('refreshSearch stale, discarding', { version, current: searchVersion })

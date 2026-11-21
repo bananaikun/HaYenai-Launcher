@@ -869,6 +869,12 @@ async fn try_get_world_session_lock(
     Ok(locked.then_some(file))
 }
 
+// servers.dat is rewritten whole on every edit, so two edits running at the same
+// time would each read the old list and drop the other's change. The file is tiny
+// and edits are rare, so one process-wide lock is enough.
+static SERVER_LIST_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
+
 pub async fn add_server_to_instance(
     instance_id: &str,
     name: String,
@@ -887,6 +893,7 @@ pub async fn add_server_to_instance(
         &state,
     )
     .await?;
+    let _server_list_guard = SERVER_LIST_LOCK.lock().await;
     let mut servers = servers_data::read(&instance_dir).await?;
     let insert_index = servers
         .iter()
@@ -947,6 +954,7 @@ pub async fn edit_server_in_instance(
         &state,
     )
     .await?;
+    let _server_list_guard = SERVER_LIST_LOCK.lock().await;
     let mut servers = servers_data::read(&instance_dir).await?;
     let server =
         servers
@@ -979,6 +987,7 @@ pub async fn remove_server_from_instance(
         &state,
     )
     .await?;
+    let _server_list_guard = SERVER_LIST_LOCK.lock().await;
     let mut servers = servers_data::read(&instance_dir).await?;
     if servers.get(index).as_ref().is_none_or(|x| x.hidden) {
         return Err(ErrorKind::InputError(format!(

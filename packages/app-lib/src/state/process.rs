@@ -5,7 +5,7 @@ use crate::event::{LogEvent, LogPayload};
 use crate::util::io::IOError;
 use crate::util::rpc::RpcServer;
 use chrono::{DateTime, Duration, NaiveDateTime, TimeZone, Utc};
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use serde::Deserialize;
@@ -147,6 +147,10 @@ impl LogRingBuffer {
         self.lines.iter().cloned().collect()
     }
 
+    fn contains(&self, line: &str) -> bool {
+        self.lines.iter().any(|existing| existing == line)
+    }
+
     fn clear(&mut self) {
         self.lines.clear();
         self.byte_len = 0;
@@ -228,6 +232,16 @@ pub fn get_log_buffer(instance_id: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Checks one line against the ring buffer without copying it out. The tailer
+/// calls this for every appended line, so cloning the whole buffer each time is
+/// the difference between O(1) and O(buffer) per line.
+pub fn log_buffer_contains(instance_id: &str, line: &str) -> bool {
+    LOG_BUFFERS
+        .get(instance_id)
+        .map(|buf| buf.contains(line))
+        .unwrap_or(false)
+}
+
 pub fn clear_log_buffer(instance_id: &str) {
     if let Some(mut buf) = LOG_BUFFERS.get_mut(instance_id) {
         buf.clear();
@@ -240,6 +254,23 @@ pub fn remove_log_buffer(instance_id: &str) {
 
 pub struct ProcessManager {
     processes: DashMap<Uuid, Process>,
+    /// Instances whose launch is being prepared but whose process is not spawned
+    /// yet. Without it two launches started at the same time both pass the
+    /// "already running" check and end up as two game processes.
+    launch_reservations: DashSet<String>,
+}
+
+/// Holds an instance launch slot until dropped, so every error path on the way
+/// to `insert_new_process` releases it again.
+pub struct InstanceLaunchReservation<'a> {
+    manager: &'a ProcessManager,
+    instance_id: String,
+}
+
+impl Drop for InstanceLaunchReservation<'_> {
+    fn drop(&mut self) {
+        self.manager.launch_reservations.remove(&self.instance_id);
+    }
 }
 
 impl Default for ProcessManager {
@@ -252,7 +283,25 @@ impl ProcessManager {
     pub fn new() -> Self {
         Self {
             processes: DashMap::new(),
+            launch_reservations: DashSet::new(),
         }
+    }
+
+    /// Claims the right to launch `instance_id`, returning `None` when the
+    /// instance is already running or another launch holds the slot.
+    pub fn reserve_instance_launch(
+        &self,
+        instance_id: &str,
+    ) -> Option<InstanceLaunchReservation<'_>> {
+        if self.has_instance_process(instance_id) {
+            return None;
+        }
+        self.launch_reservations
+            .insert(instance_id.to_string())
+            .then(|| InstanceLaunchReservation {
+                manager: self,
+                instance_id: instance_id.to_string(),
+            })
     }
 
     pub fn has_instance_process(&self, instance_id: &str) -> bool {

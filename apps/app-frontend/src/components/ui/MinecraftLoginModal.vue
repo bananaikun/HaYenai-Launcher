@@ -37,6 +37,9 @@ const deviceFlow = ref<DeviceLoginFlow | null>(null)
 const deviceError = ref<string | null>(null)
 let devicePollTimer: ReturnType<typeof setTimeout> | undefined
 let deviceExpiresAt = 0
+// Bumped whenever the modal is closed or a new flow starts, so an in-flight
+// begin_device_login() cannot resurrect polling after the user cancelled.
+let loginGeneration = 0
 
 const messages = defineMessages({
     title: { id: 'minecraft-login.title', defaultMessage: 'Sign in to Minecraft' },
@@ -68,6 +71,7 @@ function clearDevicePolling() {
 }
 
 function resetDeviceLogin() {
+    loginGeneration += 1
     clearDevicePolling()
     deviceFlow.value = null
     deviceError.value = null
@@ -120,12 +124,17 @@ async function startDeviceLogin() {
     if (busy.value) return
     busy.value = true
     deviceError.value = null
+    const generation = ++loginGeneration
     try {
         const flow = (await begin_device_login()) as DeviceLoginFlow
+        // The user may have closed the modal while the request was in flight;
+        // the flow must not be installed then.
+        if (generation !== loginGeneration) return
         deviceFlow.value = flow
         deviceExpiresAt = Date.now() + flow.expires_in * 1000
         void pollDeviceLogin(Math.max(flow.interval, 1) * 1000)
     } catch (error) {
+        if (generation !== loginGeneration) return
         deviceError.value = error instanceof Error ? error.message : String(error)
     } finally {
         busy.value = false

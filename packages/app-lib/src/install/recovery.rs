@@ -51,11 +51,22 @@ pub async fn recover_interrupted_jobs(state: &State) -> crate::Result<()> {
                     },
                 )?),
             });
-            if let Some(record) =
-                store::complete_running_job(job.id, &job.state, state).await?
-            {
-                emit_install_job(&record.snapshot()).await?;
-                continue;
+            match store::complete_running_job(job.id, &job.state, state).await? {
+                Some(record) => {
+                    emit_install_job(&record.snapshot()).await?;
+                    continue;
+                }
+                None => {
+                    // The row was dismissed or rewritten by something else while
+                    // recovery ran. Its work is already committed, so leaving it
+                    // alone is correct; falling through would rewrite a finished
+                    // plan as interrupted and let the retry replay it.
+                    tracing::warn!(
+                        job_id = %job.id,
+                        "Committed install job could not be completed; leaving it untouched"
+                    );
+                    continue;
+                }
             }
         }
         if job.state.display.is_none() {

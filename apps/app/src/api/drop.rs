@@ -682,7 +682,11 @@ pub async fn drop_detect_file_lock(
 ) -> Result<Vec<LockingProcess>, String> {
     let path = std::path::PathBuf::from(&path);
     info!("Detecting file lock for: {}", path.display());
-    let processes = get_locking_processes(&path);
+    // 句柄枚举会起 helper 进程（Restart Manager / handle.exe），几秒都算正常，
+    // 不能占着 tokio worker，同文件其它命令走 run_cancellable_blocking。
+    let processes = tauri::async_runtime::spawn_blocking(move || get_locking_processes(&path))
+        .await
+        .map_err(|error| format!("file lock detection task failed: {error}"))?;
     if !processes.is_empty() {
         warn!("File locked by {} process(es)", processes.len());
     }

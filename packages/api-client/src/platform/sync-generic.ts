@@ -90,6 +90,10 @@ export class GenericSyncClient extends AbstractSyncClient {
 
                 if (result === 'protocol-reconnect') {
                     connection.reconnectAttempts = 0
+                    connection.controller = undefined
+                    // 服务端要求重连时它往往紧接着就断开：不等一下就 continue
+                    // 会变成「连上→断开」的忙等，把 CPU 和请求都烧在这条循环里。
+                    await new Promise<void>((resolve) => setTimeout(resolve, 500))
                     continue
                 }
 

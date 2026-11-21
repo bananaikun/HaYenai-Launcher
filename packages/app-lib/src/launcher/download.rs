@@ -1099,6 +1099,30 @@ pub async fn download_minecraft(
     Ok(progress)
 }
 
+/// Reads, normalizes and persists a cached `versions/<id>.json`.
+async fn read_cached_version_info(
+    st: &State,
+    version: &GameVersion,
+    mod_loader: ModLoader,
+    loader: Option<&LoaderVersion>,
+    path: &Path,
+) -> crate::Result<GameVersionInfo> {
+    let mut info: GameVersionInfo = io::read(path)
+        .err_into::<crate::Error>()
+        .await
+        .and_then(|ref it| Ok(serde_json::from_slice(it)?))?;
+    let normalized_timestamps = normalize_version_timestamps(version, &mut info);
+    let normalized =
+        normalize_version_info(mod_loader, &version.id, &mut info, "cache");
+    let restored_legacy_arguments =
+        restore_legacy_minecraft_arguments(st, version, loader, &mut info)
+            .await?;
+    if normalized_timestamps || normalized || restored_legacy_arguments {
+        write_version_info(path, serde_json::to_vec(&info)?).await?;
+    }
+    Ok(info)
+}
+
 #[tracing::instrument(skip_all, fields(version = version.id.as_str(), loader = ?loader))]
 
 pub async fn download_version_info(
@@ -1120,21 +1144,37 @@ pub async fn download_version_info(
 
     let cache_is_current =
         loader.is_none() || derived_version_cache_is_current(&path).await;
-    let res = if path.exists() && !force.unwrap_or(false) && cache_is_current {
-        let mut info: GameVersionInfo = io::read(&path)
-            .err_into::<crate::Error>()
+    let cached = if path.exists() && !force.unwrap_or(false) && cache_is_current {
+        match read_cached_version_info(st, version, mod_loader, loader, &path)
             .await
-            .and_then(|ref it| Ok(serde_json::from_slice(it)?))?;
-        let normalized_timestamps =
-            normalize_version_timestamps(version, &mut info);
-        let normalized =
-            normalize_version_info(mod_loader, &version.id, &mut info, "cache");
-        let restored_legacy_arguments =
-            restore_legacy_minecraft_arguments(st, version, loader, &mut info)
-                .await?;
-        if normalized_timestamps || normalized || restored_legacy_arguments {
-            write_version_info(&path, serde_json::to_vec(&info)?).await?;
+        {
+            Ok(info) => Some(info),
+            Err(error) => {
+                // The file is unusable, and leaving it in place would make every
+                // later launch fail the same way; drop it and download again.
+                tracing::warn!(
+                    version = %version_id,
+                    path = %path.display(),
+                    %error,
+                    "Cached version metadata is unreadable; discarding it and downloading a fresh copy"
+                );
+                if let Err(remove_error) = tokio::fs::remove_file(&path).await
+                    && remove_error.kind() != std::io::ErrorKind::NotFound
+                {
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %remove_error,
+                        "Could not remove the unreadable cached version metadata"
+                    );
+                }
+                None
+            }
         }
+    } else {
+        None
+    };
+
+    let res = if let Some(info) = cached {
         info
     } else {
         tracing::info!(
@@ -2323,8 +2363,41 @@ pub async fn download_libraries(
                     let artifact_path = d::get_path_from_artifact(&library.name)?;
                     let path = st.directories.libraries_dir().join(&artifact_path);
 
-                    if path.exists() && !force {
-                        // already present; skip Java artifact download but continue to natives
+                    // A previous run can leave a truncated JAR behind (interrupted
+                    // download, disk full, half-replaced file). Reusing it only
+                    // fails later inside the game, so verify the hash the version
+                    // metadata declares before skipping the download.
+                    let reuse_existing = if path.exists() && !force {
+                        let intact = match library
+                            .downloads
+                            .as_ref()
+                            .and_then(|downloads| downloads.artifact.as_ref())
+                        {
+                            Some(artifact) if !artifact.sha1.is_empty() => {
+                                client_jar_is_intact(
+                                    &path,
+                                    Some(artifact.sha1.as_str()),
+                                )
+                                .await?
+                                    == Some(true)
+                            }
+                            _ => true,
+                        };
+                        if !intact {
+                            tracing::warn!(
+                                name = %library.name,
+                                path = %path.display(),
+                                "Existing Minecraft library does not match the version metadata hash; downloading it again"
+                            );
+                            move_corrupt_client(&path).await;
+                        }
+                        intact
+                    } else {
+                        false
+                    };
+
+                    if reuse_existing {
+                        // already present and verified; continue to natives
                     } else if let Some(d::minecraft::LibraryDownloads {
                         artifact: Some(ref artifact),
                         ..

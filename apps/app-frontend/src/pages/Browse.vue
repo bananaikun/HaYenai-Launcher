@@ -2098,6 +2098,8 @@ const searchState = useBrowseSearch({
         resourceSearchNotice.value = response.resourceNotice
         return response
     },
+    // search() reads contentSource, so it belongs in the dedupe key.
+    searchKey: () => contentSource.value,
     persistentQueryParams: ['i', 'ai', 'shi', 'sid', 'wid', 'from', 'source'],
     getExtraQueryParams: () => ({
         sid: serverIdQuery.value || undefined,

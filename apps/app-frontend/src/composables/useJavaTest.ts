@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 
 import { trackEvent } from '@/helpers/analytics'
 import { get_jre, test_jre } from '@/helpers/jre.js'
@@ -7,12 +7,15 @@ export default function useJavaTest() {
     const testingJava = ref(false)
     const javaTestResult = ref<boolean | null>(null)
     let testDebounceTimer: ReturnType<typeof setTimeout> | null = null
+    // 每次测试递增：慢的旧结果回来时不能覆盖新结果，也不能把还在跑的标志关掉。
+    let runToken = 0
 
     async function runJavaTest(path: string, version: number | null, track = true) {
         if (testDebounceTimer) {
             clearTimeout(testDebounceTimer)
             testDebounceTimer = null
         }
+        const token = ++runToken
         if (!path) {
             javaTestResult.value = null
             return
@@ -20,13 +23,16 @@ export default function useJavaTest() {
         testingJava.value = true
         try {
             if (version == null) {
-                javaTestResult.value = !!(await get_jre(path))
+                const found = !!(await get_jre(path))
+                if (token === runToken) javaTestResult.value = found
             } else {
-                javaTestResult.value = await test_jre(path, version)
+                const ok = await test_jre(path, version)
+                if (token === runToken) javaTestResult.value = ok
             }
         } catch {
-            javaTestResult.value = false
+            if (token === runToken) javaTestResult.value = false
         }
+        if (token !== runToken) return
         testingJava.value = false
 
         if (track) {
@@ -46,6 +52,14 @@ export default function useJavaTest() {
     async function testJavaInstallation(path: string, version: number | null, track = false) {
         await runJavaTest(path, version, track)
     }
+
+    onScopeDispose(() => {
+        if (testDebounceTimer) {
+            clearTimeout(testDebounceTimer)
+            testDebounceTimer = null
+        }
+        runToken += 1
+    })
 
     return {
         testingJava,

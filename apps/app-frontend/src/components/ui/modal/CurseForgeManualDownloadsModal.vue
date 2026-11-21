@@ -543,14 +543,24 @@ onMounted(() => {
         }
     })
         .then((unlisten) => {
+            // 弹窗可能在订阅结果回来之前就关了：那时 unlistenInstances 还是
+            // undefined，清理拿不到它，监听会永久留下。
+            if (disposed) {
+                unlisten()
+                return
+            }
             unlistenInstances = unlisten
         })
         .catch(() => undefined)
 })
 
+let disposed = false
+
 onUnmounted(() => {
+    disposed = true
     stopScanning()
     unlistenInstances?.()
+    unlistenInstances = undefined
 })
 
 defineExpose({

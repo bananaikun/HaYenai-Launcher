@@ -395,9 +395,18 @@ fn sync_write(
             )
         })?)?;
     tempfile.write_all(data.as_ref())?;
+    // flush 到磁盘再改名：否则断电后可能留下「改名成功、内容全 0」的文件。
+    tempfile.as_file().sync_all()?;
     let tmp_path = tempfile.into_temp_path();
     let path = path.as_ref();
     tmp_path.persist(path)?;
+    #[cfg(unix)]
+    if let Some(parent) = path.parent()
+        && let Ok(dir) = std::fs::File::open(parent)
+    {
+        // rename 本身也要落盘，否则崩溃后目录项可能还指向旧 inode。
+        let _ = dir.sync_all();
+    }
     std::io::Result::Ok(())
 }
 
@@ -561,14 +570,47 @@ pub async fn rename_or_move(
     }
 }
 
-#[async_recursion::async_recursion]
+/// Cross-disk move: copy the whole tree first, then delete the source once
+/// the copy is complete.  The old version deleted every file right after
+/// copying it, so a failure part way through left a half-moved directory:
+/// files already gone from the source and only partly present at the
+/// destination.
 async fn move_recursive(from: &Path, to: &Path) -> Result<()> {
+    if let Err(error) = copy_tree_preserving_links(from, to).await {
+        let _ = remove_dir_all(to).await;
+        let _ = tokio::fs::remove_file(to).await;
+        return Err(error);
+    }
+
+    let meta = tokio::fs::symlink_metadata(from)
+        .await
+        .wrap_err_with(|| eyre!("getting metadata of {from:?}"))?;
+    if is_symlink_or_reparse(&meta) || meta.is_file() {
+        // On Unix, remove_file works for all symlinks.  On Windows, directory
+        // reparse points (junctions) may need remove_dir as fallback.
+        if tokio::fs::remove_file(from).await.is_err() {
+            tokio::fs::remove_dir(from)
+                .await
+                .map_err(|e| io_error_with_lock_info(e, from))
+                .wrap_err_with(|| eyre!("removing source {from:?}"))?;
+        }
+        return Ok(());
+    }
+
+    remove_dir_all(from)
+        .await
+        .wrap_err_with(|| eyre!("removing source dir {from:?}"))?;
+    Ok(())
+}
+
+#[async_recursion::async_recursion]
+async fn copy_tree_preserving_links(from: &Path, to: &Path) -> Result<()> {
     let meta = tokio::fs::symlink_metadata(from)
         .await
         .wrap_err_with(|| eyre!("getting metadata of {from:?}"))?;
 
-    // Symlink / reparse point: recreate the link at the destination and
-    // remove the source link.  Never follow/copy the target.
+    // Symlink / reparse point: recreate the link at the destination.  Never
+    // follow/copy the target.
     if is_symlink_or_reparse(&meta) {
         let target = tokio::fs::read_link(from)
             .await
@@ -576,15 +618,6 @@ async fn move_recursive(from: &Path, to: &Path) -> Result<()> {
         create_symlink(&target, to).await.wrap_err_with(|| {
             eyre!("recreating symlink at {to:?} (target: {target:?})")
         })?;
-        // Remove the source link.  On Unix, remove_file works for all
-        // symlinks.  On Windows, directory reparse points (junctions)
-        // may need remove_dir as fallback.
-        if tokio::fs::remove_file(from).await.is_err() {
-            tokio::fs::remove_dir(from)
-                .await
-                .map_err(|e| io_error_with_lock_info(e, from))
-                .wrap_err_with(|| eyre!("removing source link {from:?}"))?;
-        }
         return Ok(());
     }
 
@@ -592,9 +625,6 @@ async fn move_recursive(from: &Path, to: &Path) -> Result<()> {
         copy(from, to)
             .await
             .wrap_err_with(|| eyre!("copying {from:?} to {to:?}"))?;
-        remove_file(from).await.wrap_err_with(|| {
-            eyre!("removing {from:?} after copying to {to:?}")
-        })?;
         return Ok(());
     }
 
@@ -611,16 +641,12 @@ async fn move_recursive(from: &Path, to: &Path) -> Result<()> {
         .wrap_err_with(|| eyre!("reading dir entry in {from:?}"))?
     {
         let new_path = to.join(entry.file_name());
-        move_recursive(&entry.path(), &new_path)
+        copy_tree_preserving_links(&entry.path(), &new_path)
             .await
             .with_context(|| {
-                eyre!("moving {:?} to {new_path:?}", entry.path())
+                eyre!("copying {:?} to {new_path:?}", entry.path())
             })?;
     }
-
-    remove_dir(from)
-        .await
-        .wrap_err_with(|| eyre!("removing source dir {from:?}"))?;
 
     Ok(())
 }
@@ -669,6 +695,16 @@ pub async fn copy_dir(
     let from = from.as_ref().to_path_buf();
     let to = to.as_ref().to_path_buf();
     copy_dir_inner(&from, &to, &mut Vec::new()).await
+}
+
+/// Copies one file through the OS instead of `read` + `write`: the old path held
+/// the whole file in memory (and cloned it again for the blocking write), which
+/// hurts when a pack ships a few hundred MB of jars.
+async fn copy_file_contents(from: &Path, to: &Path) -> Result<(), IOError> {
+    tokio::fs::copy(from, to)
+        .await
+        .map(|_| ())
+        .map_err(|e| io_error_with_lock_info(e, to))
 }
 
 #[async_recursion::async_recursion]
@@ -756,14 +792,12 @@ async fn copy_dir_inner(
                 copy_dir_inner(&resolved, &target, dir_stack).await?;
             } else {
                 // Materialize file links as their target's content.
-                let bytes = read(&entry_path).await?;
-                write(&target, bytes).await?;
+                copy_file_contents(&entry_path, &target).await?;
             }
         } else if meta.is_dir() {
             create_dir_all(&target).await?;
         } else {
-            let bytes = read(&entry_path).await?;
-            write(&target, bytes).await?;
+            copy_file_contents(&entry_path, &target).await?;
         }
     }
 

@@ -153,6 +153,8 @@ const joinCode = ref('')
 
 let pollTimer: number | null = null
 let lastId = 0
+/** 递增的房间身份。切房间时旧请求可能后回来，只有最后一次切换才允许写状态。 */
+let roomGeneration = 0
 
 const isHost = computed(() => memberBase.value === null)
 /** 当前房间标识。成员没有本地房间记录，用邀请码派生一个稳定的键。 */
@@ -201,21 +203,32 @@ async function refreshRooms() {
 }
 
 async function loadRoom(room: RoomConfig) {
+    const generation = ++roomGeneration
     activeRoom.value = room
-    settings.value = await roomGetSettings(room.id).catch(() => ({ plugins: {} }))
+    const nextSettings = await roomGetSettings(room.id).catch(() => ({ plugins: {} }))
+    // 切房间时上一间的拉取可能后回来：只认最后一次切换，否则会把 A 间的设置
+    // 写进 B 间，随后 persistSettings 还会把它们存到 B 间名下。
+    if (generation !== roomGeneration) return
+    settings.value = nextSettings
     // 成员也要跟着换房间重新拉，否则右栏会一直显示上一个房间的人。
-    members.value = await roomMembers(room.id).catch(() => [])
+    const nextMembers = await roomMembers(room.id).catch(() => [])
+    if (generation !== roomGeneration) return
+    members.value = nextMembers
     await refreshChat(true)
 }
 
 async function refreshChat(reset = false) {
+    // 拉取期间可能已经切房间或换了网络：回来时按出手时的身份对一次账。
+    const generation = roomGeneration
+    const roomId = activeRoomId.value
     try {
         const rows = await roomPull(
-            activeRoomId.value,
+            roomId,
             reset ? 0 : lastId,
             memberBase.value,
             memberCode.value,
         )
+        if (generation !== roomGeneration || activeRoomId.value !== roomId) return
         if (reset) chat.value = []
         if (rows.length) {
             chat.value = [...chat.value, ...rows].slice(-500)
@@ -427,8 +440,11 @@ function stopPolling() {
  */
 async function maybeBotReply(incoming: RoomMessage[]) {
     const cfg = settings.value.bot
+    // 回复可能等几秒才生成：出手时的房间/网络变了就别往新房间发。
+    const roomId = activeRoomId.value
     if (!cfg || !cfg.presetId || !isHost.value || !host.value.running) return
     for (const message of incoming) {
+        if (roomId !== activeRoomId.value) return
         if (message.from === cfg.name) continue
         const text = message.text.trim()
         const prefix = `@${cfg.name}`
@@ -444,7 +460,7 @@ async function maybeBotReply(incoming: RoomMessage[]) {
             })
             if (!reply.trim()) continue
             await roomSend({
-                roomId: activeRoomId.value,
+                roomId,
                 from: cfg.name,
                 text: reply.trim(),
                 base: null,
@@ -523,6 +539,13 @@ function togglePlugin(id: string) {
         plugins: { ...settings.value.plugins, [id]: !settings.value.plugins[id] },
     }
     void persistSettings()
+}
+
+// 模组列表是未类型化的 payload，模板里写 `as { name: string }[]` 会让
+// vue-tsc 的模板解析器报 TS1005（它不支持属性表达式里的对象类型字面量）。
+function packMods(message: RoomMessage): { name: string }[] {
+    const mods = message.payload?.mods
+    return Array.isArray(mods) ? (mods as { name: string }[]) : []
 }
 
 function fileUrl(message: RoomMessage): string | null {
@@ -866,9 +889,7 @@ watch(
                                         <summary>{{ formatMessage(messages.list) }}</summary>
                                         <ul>
                                             <li
-                                                v-for="mod in (message.payload?.mods as {
-                                                    name: string
-                                                }[]) ?? []"
+                                                v-for="mod in packMods(message)"
                                                 :key="mod.name"
                                             >
                                                 {{ mod.name }}

@@ -104,10 +104,15 @@ function readDataSlice(instanceId: string): CacheDataSlice | null {
 }
 
 function writeDataSlice(instanceId: string, patch: Partial<CacheDataSlice>): boolean {
+    const key = dataKey(instanceId)
     const existing = readDataSlice(instanceId)
     const base = existing ?? defaultData()
     const merged = { ...base, ...patch }
-    return safeSetItem(dataKey(instanceId), JSON.stringify(merged))
+    const serialized = JSON.stringify(merged)
+    // 内容没变就不写：Mods 页每次刷新都会把全部内容项交进来，无脑 setItem 等于
+    // 每次刷新都重新序列化并覆盖一整块 JSON。
+    if (safeGetItem(key) === serialized) return true
+    return safeSetItem(key, serialized)
 }
 
 function readUiSlice(instanceId: string): CacheUiSlice | null {
@@ -122,10 +127,13 @@ function readUiSlice(instanceId: string): CacheUiSlice | null {
 }
 
 function writeUiSlice(instanceId: string, patch: Partial<CacheUiSlice>): boolean {
+    const key = uiKey(instanceId)
     const existing = readUiSlice(instanceId)
     const base = existing ?? defaultUi()
     const merged = { ...base, ...patch }
-    return safeSetItem(uiKey(instanceId), JSON.stringify(merged))
+    const serialized = JSON.stringify(merged)
+    if (safeGetItem(key) === serialized) return true
+    return safeSetItem(key, serialized)
 }
 
 // ---- 旧缓存迁移 ----

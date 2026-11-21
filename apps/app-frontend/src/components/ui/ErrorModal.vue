@@ -210,6 +210,9 @@ defineExpose({
     async show(errorVal, context, canClose = true, source = null) {
         console.log(errorVal, context, canClose, source)
         closable.value = canClose
+        // 上一轮错误留下的标记必须先清：否则网络类提示会盖住这次的 hosts 提示，
+        // 旧的 instanceId 还会被「一键修复」拿去装错实例。
+        metadata.value = {}
 
         if (errorVal.message && errorVal.message.includes('Minecraft authentication error:')) {
             title.value = formatMessage(messages.minecraftAuthTitle)

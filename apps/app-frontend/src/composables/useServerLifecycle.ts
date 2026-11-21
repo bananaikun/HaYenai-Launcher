@@ -34,16 +34,25 @@ export function useServerLifecycle() {
 
     // Listen for real-time EULA prompt detection from the Rust backend
     let unregisterEulaListener: (() => void) | null = null
+    let disposed = false
     serverEventListener((serverId, payload) => {
         if (payload.event === 'eula_required' && payload.server_id === pendingId) {
             eulaText.value = payload.eula_text
             eulaModal.value?.show()
         }
     }).then((unregister) => {
+        // Scope already gone: unregister immediately so the backend does not keep
+        // a listener that would fire into a disposed component.
+        if (disposed) {
+            unregister()
+            return
+        }
         unregisterEulaListener = unregister
     })
     onScopeDispose(() => {
+        disposed = true
         unregisterEulaListener?.()
+        unregisterEulaListener = null
     })
 
     /**

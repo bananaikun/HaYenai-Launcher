@@ -522,15 +522,7 @@ impl InstanceMetadataRow {
     }
 }
 
-pub(crate) async fn get_instance_by_id<'e, E>(
-    id: &str,
-    exec: E,
-) -> crate::Result<Option<Instance>>
-where
-    E: Executor<'e, Database = Sqlite> + Copy,
-{
-    let row = sqlx::query_as::<_, InstanceRow>(
-        "
+const INSTANCE_BY_ID_SELECT: &str = "
 		SELECT
 			id,
 			path,
@@ -550,17 +542,46 @@ where
 			recent_time_played
 		FROM instances
 		WHERE id = ?
-		",
-    )
-    .bind(id)
-    .fetch_optional(exec)
-    .await?;
+		";
+
+pub(crate) async fn get_instance_by_id<'e, E>(
+    id: &str,
+    exec: E,
+) -> crate::Result<Option<Instance>>
+where
+    E: Executor<'e, Database = Sqlite> + Copy,
+{
+    let row = sqlx::query_as::<_, InstanceRow>(INSTANCE_BY_ID_SELECT)
+        .bind(id)
+        .fetch_optional(exec)
+        .await?;
 
     let Some(row) = row else {
         return Ok(None);
     };
     let mut instance: Instance = row.try_into()?;
     let fields = get_direct_link_fields(id, exec).await?;
+    fields.apply_to(&mut instance);
+
+    Ok(Some(instance))
+}
+
+/// Reads an instance inside an open transaction, for callers that must read and
+/// write the same row without another connection slipping in between.
+pub(crate) async fn get_instance_by_id_in_transaction(
+    id: &str,
+    tx: &mut Transaction<'_, Sqlite>,
+) -> crate::Result<Option<Instance>> {
+    let row = sqlx::query_as::<_, InstanceRow>(INSTANCE_BY_ID_SELECT)
+        .bind(id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let mut instance: Instance = row.try_into()?;
+    let fields = get_direct_link_fields(id, &mut **tx).await?;
     fields.apply_to(&mut instance);
 
     Ok(Some(instance))

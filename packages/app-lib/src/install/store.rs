@@ -494,7 +494,7 @@ pub async fn complete_running_job(
         "UPDATE install_jobs
          SET instance_id = (SELECT id FROM instances WHERE id = ?),
              status = ?, state = ?, modified = ?, finished = ?
-         WHERE id = ? AND (status = ? OR (status = 'canceling' AND ?))",
+         WHERE id = ? AND (status IN ('running', 'queued') OR (status = 'canceling' AND ?))",
     )
     .bind(instance_id.as_deref())
     .bind(InstallJobStatus::Succeeded.as_str())
@@ -502,7 +502,6 @@ pub async fn complete_running_job(
     .bind(modified)
     .bind(now.timestamp())
     .bind(&id_value)
-    .bind(InstallJobStatus::Running.as_str())
     .bind(resource_committed)
     .execute(&mut *transaction)
     .await?;

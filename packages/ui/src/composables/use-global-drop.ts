@@ -68,7 +68,7 @@ export interface UseGlobalDropOptions {
      * Called when the user drops multiple files. The consumer owns the rest of
      * the batch flow and must call `finishBatch()` when it is done.
      */
-    onBatchStart?: (paths: string[]) => void
+    onBatchStart?: (paths: string[]) => void | Promise<void>
 
     /** Called when an error occurs (unknown type, too many files, etc.). */
     onError?: (message: string) => void
@@ -138,7 +138,15 @@ export function useGlobalDrop(
             if (options.onBatchStart) {
                 isProcessing.value = true
                 droppedFileName.value = null
-                options.onBatchStart(paths)
+                // The consumer owns the batch and releases the lock through
+                // `finishBatch()`. Awaiting it lets a throwing consumer be
+                // caught here instead of leaving drops ignored forever.
+                try {
+                    await options.onBatchStart(paths)
+                } catch (error) {
+                    debug('handleNativeDrop: batch start threw, releasing the drop lock', error)
+                    isProcessing.value = false
+                }
                 return
             }
             options.onError?.('multiple-files')

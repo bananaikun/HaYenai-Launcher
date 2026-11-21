@@ -137,11 +137,17 @@ pub(crate) async fn edit_instance(
     pool: &SqlitePool,
 ) -> crate::Result<Instance> {
     let _metadata_usage = crate::storage::usage::lease().await?;
-    let mut instance = instance_rows::get_instance_by_id(instance_id, pool)
-        .await?
-        .ok_or_else(|| {
-            crate::ErrorKind::InputError("Unknown instance".to_string())
-        })?;
+
+    // Everything the patch reads is read inside the transaction that writes it
+    // back. Reading outside let the install runner, the direct-link sync or a
+    // refresh commit in between, and the full-row update then reverted them.
+    let mut tx = pool.begin().await?;
+    let mut instance =
+        instance_rows::get_instance_by_id_in_transaction(instance_id, &mut tx)
+            .await?
+            .ok_or_else(|| {
+                crate::ErrorKind::InputError("Unknown instance".to_string())
+            })?;
     let now = Utc::now();
 
     apply_instance_patch(&mut instance, &patch, now);
@@ -153,7 +159,7 @@ pub(crate) async fn edit_instance(
     let mut content_set = match patch.content_set_patch {
         Some(content_set_patch) => {
             let applied_content_set =
-                content_rows::get_applied_content_set(&instance.id, pool)
+                content_rows::get_applied_content_set(&instance.id, &mut *tx)
                     .await?
                     .ok_or_else(|| {
                         crate::ErrorKind::InputError(format!(
@@ -173,7 +179,7 @@ pub(crate) async fn edit_instance(
         Some(launch_patch) => {
             let current = instance_rows::get_instance_launch_overrides(
                 &instance.id,
-                pool,
+                &mut *tx,
             )
             .await?
             .unwrap_or_else(|| {
@@ -184,7 +190,6 @@ pub(crate) async fn edit_instance(
         None => None,
     };
 
-    let mut tx = pool.begin().await?;
     instance_rows::update_instance(&instance, &mut tx).await?;
 
     if let Some(content_set) = content_set.as_mut() {

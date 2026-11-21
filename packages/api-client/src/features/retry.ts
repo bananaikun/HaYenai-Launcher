@@ -101,6 +101,13 @@ export class RetryFeature extends AbstractFeature {
             } catch (error) {
                 lastError = error as Error
 
+                // Retrying a POST/PATCH can duplicate the write when the first
+                // attempt actually landed (200 lost in transit, 500 after the
+                // insert). Only retry when the caller asked for it explicitly.
+                if (!this.isIdempotent(context) && context.options.retry === undefined) {
+                    throw error
+                }
+
                 const shouldRetry = this.shouldRetryError(error, attempt, maxAttempts)
 
                 if (!shouldRetry || attempt >= maxAttempts) {
@@ -127,6 +134,15 @@ export class RetryFeature extends AbstractFeature {
         }
 
         return super.shouldApply(context)
+    }
+
+    /**
+     * Methods that can be repeated without changing the outcome.
+     * PUT and DELETE are idempotent by definition; POST and PATCH are not.
+     */
+    private isIdempotent(context: RequestContext): boolean {
+        const method = context.options.method ?? 'GET'
+        return method !== 'POST' && method !== 'PATCH'
     }
 
     /**
