@@ -105,9 +105,34 @@ function main() {
         CARGO_BUILD_JOBS: jobs,
         JAVA_HOME: process.env.JAVA_HOME || 'C:\\Program Files\\Java\\jdk-21',
     }
+    // PATH 的键名在 Windows 上是 `Path`，Node 的 env 是普通对象、区分大小写：
+    // 直接写 env.PATH 会新增一个和 `Path` 并存的键，cmd.exe 只认其中一个，
+    // 于是 npx 找不到（2026-11-21 打包就在这一步挂的）。
+    const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'Path'
+    const pathPrefix = []
+    // 先放 rustup 里 rust-toolchain.toml 钉的那个工具链：~/.cargo/bin 下的 cargo
+    // 可能是另一个版本（本机是 1.100），跟这里的 rustc 1.95 混用会报一堆
+    // 「cannot find type Option in this scope」这种像编译器坏了的错。
+    try {
+        const toolchainToml = fs.readFileSync(path.join(ROOT, 'rust-toolchain.toml'), 'utf8')
+        const channel = /channel\s*=\s*"([^"]+)"/.exec(toolchainToml)?.[1]
+        if (channel) {
+            const toolchainBin = path.join(
+                process.env.USERPROFILE || '',
+                '.rustup',
+                'toolchains',
+                `${channel}-x86_64-pc-windows-msvc`,
+                'bin',
+            )
+            if (fs.existsSync(toolchainBin)) pathPrefix.push(toolchainBin)
+        }
+    } catch {
+        // 没有 rust-toolchain.toml 就退回 rustup 默认链
+    }
     const cargoBin = path.join(process.env.USERPROFILE || '', '.cargo', 'bin')
-    if (fs.existsSync(cargoBin)) {
-        env.PATH = `${cargoBin}${path.delimiter}${env.PATH ?? ''}`
+    if (fs.existsSync(cargoBin)) pathPrefix.push(cargoBin)
+    if (pathPrefix.length) {
+        env[pathKey] = `${pathPrefix.join(path.delimiter)}${path.delimiter}${env[pathKey] ?? ''}`
     }
 
     // 自动更新的 minisign 私钥。**在仓库外**（不随代码走），口令为空。
