@@ -75,7 +75,10 @@ const categoryClasses: Record<AnnouncementChangeType, string> = {
 }
 
 function getLocalizedText(text: LocalizedAnnouncementText): string {
-    return text[locale.value === 'zh-CN' ? 'zh-CN' : 'en-US']
+    const preferred = locale.value === 'zh-CN' ? 'zh-CN' : 'en-US'
+    const other = preferred === 'zh-CN' ? 'en-US' : 'zh-CN'
+    // 目录里偶尔有一侧还没翻译（空串），照着渲染就是一条空列表项。
+    return text[preferred] || text[other] || ''
 }
 
 function getAnnouncementChangeTypes(announcement: LauncherAnnouncement): AnnouncementChangeType[] {

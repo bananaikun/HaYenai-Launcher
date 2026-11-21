@@ -11,6 +11,7 @@ import { defineMessages, LOCALES, useVIntl } from '@modrinth/ui/src/composables/
 import { injectI18n } from '@modrinth/ui/src/providers/i18n.ts'
 
 import { type DownloadSource, useDownloadSource } from '~/composables/use-download-source'
+import { SUPPORTED_SITE_LOCALES } from '~/locales/site'
 
 type Theme = 'system' | 'light' | 'dark' | 'oled'
 type SettingsTab = 'appearance' | 'downloads' | 'language'
@@ -26,7 +27,9 @@ const advancedRendering = ref(true)
 const reduceMotion = ref(false)
 const externalLinksNewTab = ref(true)
 const themeOptions = ['dark', 'light', 'oled', 'system'] as const
-const supportedLocales = LOCALES.filter((item) => ['en-US', 'zh-CN'].includes(item.code))
+const supportedLocales = LOCALES.filter((item) =>
+    SUPPORTED_SITE_LOCALES.includes(item.code as (typeof SUPPORTED_SITE_LOCALES)[number]),
+)
 const changingLocale = ref(false)
 const activeTab = ref<SettingsTab>('appearance')
 
@@ -63,7 +66,7 @@ const messages = defineMessages({
     },
     downloadSourceAutoDescription: {
         id: 'axolotl-settings.download-source.auto.description',
-        defaultMessage: 'Choose a source from your browser language and timezone.',
+        defaultMessage: 'Use the Update Server by default, falling back to GitHub.',
     },
     downloadSourceUpdateServer: {
         id: 'axolotl-settings.download-source.update-server',
@@ -230,14 +233,28 @@ function handleKeyDown(event: KeyboardEvent) {
 
 function handleExternalLink(event: MouseEvent) {
     if (!externalLinksNewTab.value || !(event.target instanceof Element)) return
+    // 只在「普通左键点击且没有修饰键」时接管，其余交给浏览器默认行为。
+    if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+    ) {
+        return
+    }
+
     const anchor = event.target.closest<HTMLAnchorElement>('a[href]')
-    if (!anchor) return
+    if (!anchor || anchor.hasAttribute('download')) return
 
     const destination = new URL(anchor.href, window.location.href)
-    if (destination.origin !== window.location.origin) {
-        anchor.target = '_blank'
-        anchor.rel = 'noopener'
-    }
+    if (destination.origin === window.location.origin) return
+
+    // 不在 DOM 上改 target：那样改动会永久留在链接上，关掉开关后已点过的链接
+    // 仍会开新标签页，安装包直链也会被接管。
+    event.preventDefault()
+    window.open(destination.href, '_blank', 'noopener')
 }
 
 watch(open, (isOpen) => {

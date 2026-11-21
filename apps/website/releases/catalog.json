@@ -922,51 +922,6 @@
       }
     },
     {
-      "id": "launcher-1.9.7-beta.4",
-      "version": "1.9.7-beta.4",
-      "publishedAt": "2026-09-20",
-      "title": {
-        "en-US": "HaYenai 1.9.7-beta.4",
-        "zh-CN": "HaYenai 1.9.7-beta.4"
-      },
-      "changes": {
-        "added": [
-          {
-            "en-US": "Added instance grouping: create, rename, delete, collapse/expand, and drag-and-drop reorder groups on the library page.",
-            "zh-CN": "新增实例分组功能：支持在库页面创建、重命名、删除、折叠/展开分组，以及拖拽排序。"
-          },
-          {
-            "en-US": "Added batch group management modal: select multiple instances at once to create a new group or add to an existing group.",
-            "zh-CN": "新增批量分组管理弹窗：一次选择多个实例，创建新分组或添加到已有分组。"
-          }
-        ],
-        "changed": [
-          {
-            "en-US": "Optimized content installation: reduced redundant network requests by bundling project metadata into the dependency resolution step.",
-            "zh-CN": "优化内容安装流程：将项目元数据查询合并至依赖解析步骤，减少冗余网络请求。"
-          },
-          {
-            "en-US": "Context menus on the library page now include pin/unpin and remove-from-group actions.",
-            "zh-CN": "库页面的右键菜单现在包含置顶/取消置顶和移出分组操作。"
-          },
-          {
-            "en-US": "Group names can now be edited inline, with validation for empty and overly long names.",
-            "zh-CN": "分组名称现在支持内联编辑，并对空名称和过长名称进行校验。"
-          }
-        ],
-        "fixed": [
-          {
-            "en-US": "Fixed the system language toggle button having an incorrect size.",
-            "zh-CN": "修复跟随系统语言按钮大小异常"
-          },
-          {
-            "en-US": "Fixed a missing reka-ui dependency that caused Vite import resolution failures on the library page.",
-            "zh-CN": "修复库页面因缺少 reka-ui 依赖导致 Vite 导入解析失败的问题。"
-          }
-        ]
-      }
-    },
-    {
       "id": "launcher-1.9.7-beta.3",
       "version": "1.9.7-beta.3",
       "publishedAt": "2026-09-20",
@@ -2238,17 +2193,17 @@
             "zh-CN": "修复发现内容的紧凑和网格视图中服务器信息与操作按钮重叠的问题。"
           },
           {
-            "en-US": "",
+            "en-US": "Fixed the XMCL download engine returning HTTP 416 in some cases.",
             "zh-CN": "修复XMCL下载引擎部分情况416的问题。"
           }
         ],
         "added": [
           {
-            "en-US": "",
+            "en-US": "Added collapsible options to the bottom of the world-edit screen; they start collapsed and expand while searching.",
             "zh-CN": "为存档编辑页面下方选项添加折叠，现在它们默认折叠，并在搜索时展开。"
           },
           {
-            "en-US": "",
+            "en-US": "Truncated the error modal to five lines.",
             "zh-CN": "为错误弹窗添加5行截断"
           },
           {

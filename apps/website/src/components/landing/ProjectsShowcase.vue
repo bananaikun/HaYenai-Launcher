@@ -174,7 +174,10 @@ const messages = defineMessages({
                     class="project"
                     :aria-hidden="project.isVisualDuplicate ? 'true' : undefined"
                 >
-                    <Avatar :src="project.iconUrl" alt="" size="sm" />
+                    <!-- 80 个头像（40 个是无限滚动的副本）一次性渲染，全部 eager
+                         会让首屏同时发 80 个 cdn.modrinth.com 请求；lazy 只推迟
+                         视口外的，首行仍然立即加载。 -->
+                    <Avatar :src="project.iconUrl" alt="" size="sm" loading="lazy" />
                     <div class="project-info">
                         <span class="title">{{ project.title }}</span>
                         <span class="description">{{ project.description }}</span>

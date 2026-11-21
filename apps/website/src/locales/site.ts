@@ -233,7 +233,7 @@ export const siteLocaleMessages: Record<string, Record<string, string>> = {
 		'axolotl-settings.download-source.description':
 			'自动模式使用 Update Server，GitHub 作为备用来源。',
 		'axolotl-settings.download-source.auto': '自动选择',
-		'axolotl-settings.download-source.auto.description': '根据浏览器语言和时区选择下载源。',
+		'axolotl-settings.download-source.auto.description': '默认使用 Update Server，GitHub 作为备用来源。',
 		'axolotl-settings.download-source.update-server': 'Update Server',
 		'axolotl-settings.download-source.update-server.description': '通过 Axolotl 官方更新服务下载。',
 		'axolotl-settings.download-source.github': 'GitHub',

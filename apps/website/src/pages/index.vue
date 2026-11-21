@@ -94,6 +94,11 @@ const { data: launcherRelease, status: launcherReleaseStatus } =
         // static generation independent from the update service's availability and
         // lets every deployed page resolve the current release after loading.
         server: false,
+        // 没有超时的话，update.axlmc.org 被墙或弱网悬挂时 status 既不 success
+        // 也不 error，首屏主按钮会永远停在「获取下载链接中」。超时按失败处理，
+        // 主 CTA 降级为跳下载区，那里还有 GitHub Releases 兜底。
+        timeout: 8000,
+        retry: 1,
         transform(data: UpdateServerDownloadMetadata) {
             return {
                 tag_name: `v${data.version}`,
@@ -142,6 +147,14 @@ const os = computed<OSType>(() => {
     } else {
         return null
     }
+})
+
+// 首屏主按钮始终渲染：静态预渲染时没有 User-Agent，os 为 null，如果按钮
+// 依赖 os 出现，访客端首帧就会多出一个节点（水合失配），无 JS 抓取也拿不到
+// 主 CTA。图标等挂载后再按真实系统补上，标签与行为不依赖它。
+const browserOs = ref<OSType>(null)
+onMounted(() => {
+    browserOs.value = os.value
 })
 
 const modManagementData = [
@@ -1052,16 +1065,15 @@ useHead(() => ({
                 </p>
                 <div class="button-group mt-3 flex flex-wrap justify-end gap-2">
                     <Button
-                        v-if="os"
                         type="colored"
                         color="brand"
                         size="xl"
                         class="hero-download-button"
                         :disabled="downloadState === 'loading'"
                         @click="handleDownload"
-                        ><LinuxIcon v-if="os === 'Linux'" />
-                        <WindowsIcon v-else-if="os === 'Windows'" />
-                        <AppleIcon v-else-if="os === 'Mac'" />
+                        ><LinuxIcon v-if="browserOs === 'Linux'" />
+                        <WindowsIcon v-else-if="browserOs === 'Windows'" />
+                        <AppleIcon v-else-if="browserOs === 'Mac'" />
                         {{
                             downloadState === 'loading'
                                 ? formatMessage(messages.fetchingDownloadLinks)

@@ -16,7 +16,16 @@ const copied = ref(false)
 let copyTimer: ReturnType<typeof setTimeout> | undefined
 
 async function copyQqGroupNumber() {
-    await navigator.clipboard.writeText(QQ_GROUP_NUMBER)
+    // 非安全上下文（http）或用户拒绝剪贴板权限时 clipboard 可能不存在或直接
+    // reject；没有兜底的话按钮点了没有任何反馈，控制台只多一条 unhandled rejection。
+    try {
+        if (!navigator.clipboard) throw new Error('Clipboard API unavailable')
+        await navigator.clipboard.writeText(QQ_GROUP_NUMBER)
+    } catch {
+        window.prompt('QQ', QQ_GROUP_NUMBER)
+        return
+    }
+
     copied.value = true
     clearTimeout(copyTimer)
     copyTimer = setTimeout(() => {

@@ -21,16 +21,27 @@ function isSupportedLocale(locale: string): boolean {
     return supportedLocales.some((item) => item.code === locale)
 }
 
-// 解析 Accept-Language 头：取第一个可支持的语言，zh* 归一为 zh-CN，en* 归一为 en-US
+// 归一化一个语言标签到站点支持的语言：精确匹配优先，其次按语言前缀
+// （zh* → zh-CN，en* → en-US）。两种语言推断共用这一处，避免 SSR 与客户端
+// 得出不同结论（en-GB 曾在客户端被归成中文）。
+function normalizeLocaleCode(code: string): string | null {
+    if (isSupportedLocale(code)) return code
+
+    const language = code.toLowerCase()
+    if (language.startsWith('zh')) return 'zh-CN'
+    if (language.startsWith('en')) return 'en-US'
+
+    return null
+}
+
+// 解析 Accept-Language 头：取第一个可支持的语言
 function parseAcceptLanguage(header: string): string {
     for (const part of header.split(',')) {
         const [code] = part.trim().split(';')
         if (!code) continue
-        if (isSupportedLocale(code)) return code
 
-        const language = code.toLowerCase()
-        if (language.startsWith('zh')) return 'zh-CN'
-        if (language.startsWith('en')) return 'en-US'
+        const normalized = normalizeLocaleCode(code)
+        if (normalized) return normalized
     }
 
     return DEFAULT_LOCALE
@@ -42,11 +53,8 @@ function getBrowserLocale(): string {
     const browserLocales = navigator.languages?.length ? navigator.languages : [navigator.language]
 
     for (const browserLocale of browserLocales) {
-        if (isSupportedLocale(browserLocale)) return browserLocale
-
-        const language = browserLocale.toLowerCase()
-        if (language.startsWith('zh')) return 'zh-CN'
-        if (language.startsWith('en')) return DEFAULT_LOCALE
+        const normalized = normalizeLocaleCode(browserLocale)
+        if (normalized) return normalized
     }
 
     return DEFAULT_LOCALE
@@ -144,7 +152,13 @@ export default defineNuxtPlugin({
     enforce: 'pre',
     async setup(nuxtApp) {
         const locale = ref(DEFAULT_LOCALE)
-        const savedLocale = useCookie<string | null>('locale').value
+        // 只在这里创建一次：useCookie 依赖调用点的 effect scope，放在
+        // setLocale 里会在每次切语言时多一个永不解绑的 watcher / BroadcastChannel。
+        const localeCookie = useCookie<string | null>('locale', {
+            maxAge: 31536000,
+            path: '/',
+        })
+        const savedLocale = localeCookie.value
 
         // 首屏语言优先级：cookie > Accept-Language（SSR）> 默认中文。
         // SSR 阶段就决定语言，避免客户端挂载后整页跳变。
@@ -207,7 +221,7 @@ export default defineNuxtPlugin({
             })
 
             locale.value = newLocale
-            useCookie('locale', { maxAge: 31536000, path: '/' }).value = newLocale
+            localeCookie.value = newLocale
             if (import.meta.client) document.documentElement.lang = newLocale
         }
 
