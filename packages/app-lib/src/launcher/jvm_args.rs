@@ -87,6 +87,65 @@ fn probe_cache() -> &'static Mutex<HashMap<(String, Vec<String>), bool>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// On-disk half of the probe cache.
+///
+/// The in-memory map dies with the process, and the launcher is restarted all
+/// the time — so every fresh launch paid another `java -version` spawn (up to
+/// the 5s timeout) per candidate GC block. Only *accepted* outcomes are
+/// persisted: a timeout or spawn failure may be transient, and caching it
+/// would pin a working flag set as unsupported until the JDK file changes.
+#[derive(Default, Deserialize, Serialize)]
+struct ProbeDiskCache {
+    entries: HashMap<String, bool>,
+}
+
+async fn probe_disk_cache_path() -> Option<std::path::PathBuf> {
+    let state = crate::State::get().await.ok()?;
+    let dir = state.directories.caches_dir();
+    tokio::fs::create_dir_all(&dir).await.ok()?;
+    Some(dir.join("jvm-probe-cache.json"))
+}
+
+/// Key includes the JVM file's size and mtime so a JDK upgrade invalidates it.
+async fn probe_disk_key(java: &Path, args: &[String]) -> Option<String> {
+    let metadata = tokio::fs::metadata(java).await.ok()?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|elapsed| elapsed.as_millis())
+        .unwrap_or(0);
+    Some(format!(
+        "{}\u{0}{}\u{0}{}\u{0}{}",
+        java.to_string_lossy(),
+        metadata.len(),
+        modified,
+        args.join("\u{0}"),
+    ))
+}
+
+async fn read_disk_cache(path: &Path) -> ProbeDiskCache {
+    match tokio::fs::read_to_string(path).await {
+        Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
+        Err(_) => ProbeDiskCache::default(),
+    }
+}
+
+async fn remember_supported_prefix(path: &Path, key: String) {
+    let mut cache = read_disk_cache(path).await;
+    // Each launch probes two or three candidates; a couple hundred entries is
+    // years of JDK upgrades. Start over rather than grow without bound.
+    if cache.entries.len() > 256 {
+        cache.entries.clear();
+    }
+    cache.entries.insert(key, true);
+    if let Ok(text) = serde_json::to_string(&cache) {
+        if let Err(error) = tokio::fs::write(path, text).await {
+            warn!("Failed to persist the JVM probe cache: {error}");
+        }
+    }
+}
+
 /// Run `java <args> -version` and report whether the JVM accepted `args`.
 /// A supported flag set exits 0; an unrecognized option exits non-zero with
 /// an explanatory message on stderr.
@@ -97,6 +156,21 @@ async fn probe_jvm_arguments(java: &Path, args: &[String]) -> ProbeOutcome {
             supported,
             stderr_text: String::new(),
         };
+    }
+
+    let disk = match probe_disk_cache_path().await {
+        Some(path) => probe_disk_key(java, args).await.map(|key| (path, key)),
+        None => None,
+    };
+    if let Some((path, disk_key)) = disk.as_ref() {
+        let cache = read_disk_cache(path).await;
+        if let Some(supported) = cache.entries.get(disk_key) {
+            probe_cache().lock().unwrap().insert(key, *supported);
+            return ProbeOutcome {
+                supported: *supported,
+                stderr_text: String::new(),
+            };
+        }
     }
 
     let timed = timeout(
@@ -129,6 +203,9 @@ async fn probe_jvm_arguments(java: &Path, args: &[String]) -> ProbeOutcome {
     };
 
     probe_cache().lock().unwrap().insert(key, outcome.supported);
+    if outcome.supported && let Some((path, disk_key)) = disk {
+        remember_supported_prefix(&path, disk_key).await;
+    }
     outcome
 }
 

@@ -32,7 +32,7 @@
 | 1 切换 300ms 出静帧、<400ms 淡入 | 已实现，待真机计时 | `WallpaperLayer.vue` 的 `posterVisible` 本来就一到 `engineReady` 才收起；`wallpaperPosterUrl` 改成优先 `/posters/<id>-frame.png`，所以切换时垫的是上次真实渲染帧 |
 | 2 导入时预生成、已有壁纸后台补齐、缺失回落 | 部分实现 | 抓帧在 `onFirstFrame` 后 1.2s 触发（`captureFrameSnapshot()`），首次渲染成功即落盘；导入瞬间还没渲染，故「导入时」实际是首次显示后补齐，缺失时仍回落包内 `preview` |
 | 3 三类失败 60 秒内可重试 | 已实现，待真机 | 维护锁 20s 超时（备份/还原占用时明确报错）、准备阶段超时若已登记进程按已启动返回、JVM 探测 10s 超时、`insert_new_process` 的 emit 失败不再返回错误、实例页 catch 先清 loading 再分析崩溃 |
-| 4 第二次启动固定开销下降 | 部分实现，待实测 | 库 jar 加 `<jar>.verified` 校验戳（size+mtime+sha1 全等则跳过整份 SHA-1）；显式 Java 路径不再重复 `check_jre`（原来两次 JVM 探测）；GC 探测落盘缓存、natives 校验戳、准备段并行未做 |
+| 4 第二次启动固定开销下降 | 部分实现，待实测 | 库 jar 加 `<jar>.verified` 校验戳（size+mtime+sha1 全等则跳过整份 SHA-1）；显式 Java 路径不再重复 `check_jre`（原来两次 JVM 探测）；GC 探测结果加落盘缓存（`caches/jvm-probe-cache.json`，键含 Java 路径+大小+mtime+参数，只缓存通过的结果，见 `jvm_args.rs` 的 `remember_supported_prefix`），启动器重启后不再为每个候选 GC 块起一次 `java -version`；natives 校验戳、准备段并行仍未做 |
 | 5 条子进度视图 | 已实现 | `.mb-pages` 内 `v-if="activity"` 的 `mb-activity` 段（不切 mode，页码不跳），启动显示阶段文案（preparing/libraries/starting 由后端 `launch_stage` 事件推），安装/下载显示百分比与取消按钮 |
 | 6 三处检查 | 通过 | `cargo check -p theseus` / `-p theseus_gui` exit 0、`pnpm --filter @modrinth/app-frontend build` ✓ 55.87s、改动文件 eslint 仅 HEAD 基线错误 |
 | 7 提交与 1.0.50 | 已完成 | `7c3bfb1` + `058e25d`（`public-main`），tag `hayenai-v1.0.50`，release id 453520694 |
@@ -55,6 +55,15 @@
 
 - 「壁纸有时候会失效」按主人要求不做。
 - 切回旧壁纸复用库内 pkg 解析缓存：不做。`SceneWallpaper.vue` 主动 `releasePkgCache` 是为了不随壁纸数量累积内存/显存，只在「切回同一张」时省一次解析，收益抵不过泄漏风险。
-- GC 探测结果落盘缓存、natives 大小校验戳、准备段（manifest / Java / 库）并行：留待 1.0.51。
+- natives 大小校验戳、准备段（manifest / Java / 库）并行：留待 1.0.52。
+
+### GC 探测磁盘缓存（2026-11-21 16:20 补）
+
+启动器每重启一次，第一次启动游戏就要为每个候选 GC 参数块起一次 `java -version`（每次最多等 5 秒），纯属重复劳动。现在把「通过」的结果写进 `caches/jvm-probe-cache.json`：
+
+- 键 = Java 可执行文件路径 + 文件大小 + 修改时间 + 参数列表，JDK 换版本或参数变了自动失效；
+- 只缓存 `supported = true`：超时和 spawn 失败可能是瞬时的，缓存下来会把这个参数块永久判死；
+- 命中时不写 stderr 文本（与进程内缓存命中一致），上层只关心「能不能用」；
+- 超过 256 条就整体清空——一个 JDK 一辈子也就几套候选，不值得为它写淘汰算法。
 - steam 导入的 `hash_dir` 全量 SHA-1、`copy_tree` 全量复制：未改，属长任务，需要进度反馈而非单纯提速。
 
