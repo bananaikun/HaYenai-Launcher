@@ -104,8 +104,14 @@
   "app.magnetic.all-added": {
     "message": "所有组件都已经在面板里了。"
   },
+  "app.magnetic.bulk-updating": {
+    "message": "正在更新实例"
+  },
   "app.magnetic.cancel-activity": {
     "message": "取消"
+  },
+  "app.magnetic.checking-drop": {
+    "message": "正在识别拖入的文件"
   },
   "app.magnetic.common-title": {
     "message": "布局"
@@ -119,11 +125,17 @@
   "app.magnetic.disk": {
     "message": "磁盘"
   },
+  "app.magnetic.downloading-update": {
+    "message": "正在下载更新"
+  },
   "app.magnetic.done": {
     "message": "完成"
   },
   "app.magnetic.free": {
     "message": "可用"
+  },
+  "app.magnetic.importing-instance": {
+    "message": "正在导入实例"
   },
   "app.magnetic.installing-job": {
     "message": "正在安装…"
@@ -305,8 +317,17 @@
   "app.magnetic.server-online": {
     "message": "在线"
   },
+  "app.magnetic.server-preparing": {
+    "message": "正在准备服务端文件"
+  },
   "app.magnetic.server-remove": {
     "message": "删除"
+  },
+  "app.magnetic.server-started": {
+    "message": "服务端已启动"
+  },
+  "app.magnetic.server-stopped": {
+    "message": "服务端已停止"
   },
   "app.magnetic.server-unknown": {
     "message": "检测中…"

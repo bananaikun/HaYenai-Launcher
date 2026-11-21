@@ -6434,8 +6434,14 @@
   "app.magnetic.all-added": {
     "message": "Every widget is already shown."
   },
+  "app.magnetic.bulk-updating": {
+    "message": "Updating instances"
+  },
   "app.magnetic.cancel-activity": {
     "message": "Cancel"
+  },
+  "app.magnetic.checking-drop": {
+    "message": "Checking dropped files"
   },
   "app.magnetic.common-title": {
     "message": "Layout"
@@ -6446,6 +6452,9 @@
   "app.magnetic.dialog-label": {
     "message": "Floating bar menu"
   },
+  "app.magnetic.downloading-update": {
+    "message": "Downloading update"
+  },
   "app.magnetic.disk": {
     "message": "Disk"
   },
@@ -6454,6 +6463,9 @@
   },
   "app.magnetic.free": {
     "message": "free"
+  },
+  "app.magnetic.importing-instance": {
+    "message": "Importing instance"
   },
   "app.magnetic.installing-job": {
     "message": "Installing…"
@@ -6635,8 +6647,17 @@
   "app.magnetic.server-online": {
     "message": "Online"
   },
+  "app.magnetic.server-preparing": {
+    "message": "Preparing server files"
+  },
   "app.magnetic.server-remove": {
     "message": "Remove"
+  },
+  "app.magnetic.server-started": {
+    "message": "Server started"
+  },
+  "app.magnetic.server-stopped": {
+    "message": "Server stopped"
   },
   "app.magnetic.server-unknown": {
     "message": "Checking…"

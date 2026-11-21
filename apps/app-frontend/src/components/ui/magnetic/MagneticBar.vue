@@ -22,12 +22,14 @@ import { useRouter } from 'vue-router'
 import StrokeText from '@/components/ui/fx/StrokeText.vue'
 import InstanceIcon from '@/components/ui/InstanceIcon.vue'
 import MagneticPanel from '@/components/ui/magnetic/MagneticPanel.vue'
-import { install_job_listener, launch_stage_listener, process_listener } from '@/helpers/events'
+import { drop_classify_progress_listener, import_plan_listener, install_job_listener, instance_bulk_update_progress_listener, launch_stage_listener, process_listener } from '@/helpers/events'
 import { install_job_cancel } from '@/helpers/install'
 import { list as listInstances, run as runInstance } from '@/helpers/instance'
 import { useMagneticServers } from '@/helpers/magnetic/servers'
 import { type MagneticSettings,readMagneticSettings } from '@/helpers/magnetic-settings'
 import { BAND_COUNT, readBands } from '@/helpers/music/music-analyser'
+import { serverEventListener, servers as serversApi } from '@/helpers/servers'
+import { appUpdateState } from '@/providers/app-update'
 import {
     currentSong,
     loadPlaylist,
@@ -73,6 +75,22 @@ const messages = defineMessages({
     activity: { id: 'app.magnetic.activity', defaultMessage: 'In progress' },
     cancelActivity: { id: 'app.magnetic.cancel-activity', defaultMessage: 'Cancel' },
     installingJob: { id: 'app.magnetic.installing-job', defaultMessage: 'Installing…' },
+    downloadingUpdate: {
+        id: 'app.magnetic.downloading-update',
+        defaultMessage: 'Downloading update',
+    },
+    serverPreparing: {
+        id: 'app.magnetic.server-preparing',
+        defaultMessage: 'Preparing server files',
+    },
+    serverStarted: { id: 'app.magnetic.server-started', defaultMessage: 'Server started' },
+    serverStopped: { id: 'app.magnetic.server-stopped', defaultMessage: 'Server stopped' },
+    bulkUpdating: { id: 'app.magnetic.bulk-updating', defaultMessage: 'Updating instances' },
+    importingInstance: {
+        id: 'app.magnetic.importing-instance',
+        defaultMessage: 'Importing instance',
+    },
+    checkingDrop: { id: 'app.magnetic.checking-drop', defaultMessage: 'Checking dropped files' },
 })
 
 type Mode = 'lyrics' | 'launch' | 'system' | 'instances' | 'downloads' | 'server'
@@ -332,6 +350,10 @@ const downloads = ref<InstallProgress[]>([])
 let unlistenJobs: (() => void) | null = null
 let unlistenLaunchStage: (() => void) | null = null
 let unlistenProcesses: (() => void) | null = null
+let unlistenBulkUpdate: (() => void) | null = null
+let unlistenImportPlan: (() => void) | null = null
+let unlistenDropClassify: (() => void) | null = null
+let unlistenServers: (() => void) | null = null
 /** 订阅是 await 出来的：组件先卸载再解析完时得自己退订，否则监听永久泄漏。 */
 let jobsListenerDisposed = false
 let launchListenersDisposed = false
@@ -378,12 +400,32 @@ function noteLaunchStage(id: string, stage: string): void {
    进入条件是「有条子自己发起的启动」或「有活动中的安装/下载任务」；
    mode 不动，所以退出时还是原来那一页。 */
 interface BarActivity {
-    kind: 'launch' | 'install'
+    kind: 'launch' | 'install' | 'update' | 'server' | 'batch' | 'import' | 'drop'
     title: string
     detail: string
     /** null = 未知进度（启动阶段还没有百分比可汇报） */
     percent: number | null
     jobId?: string
+}
+
+/* 启动器里其它"有事在发生"的通道：受管服务端准备文件、批量更新实例、
+   导入实例、拖入文件分类。它们都没有结束事件或结束事件不可靠，所以
+   统一走"最后一次事件 + 静默超时"的临时视图，不占页面。 */
+const transientActivity = ref<BarActivity | null>(null)
+let transientActivityTimer: ReturnType<typeof setTimeout> | null = null
+
+function setTransientActivity(next: BarActivity | null, clearAfterMs?: number): void {
+    if (transientActivityTimer !== null) {
+        clearTimeout(transientActivityTimer)
+        transientActivityTimer = null
+    }
+    transientActivity.value = next
+    if (next && clearAfterMs) {
+        transientActivityTimer = setTimeout(() => {
+            transientActivity.value = null
+            transientActivityTimer = null
+        }, clearAfterMs)
+    }
 }
 
 const activity = computed<BarActivity | null>(() => {
@@ -408,6 +450,23 @@ const activity = computed<BarActivity | null>(() => {
             jobId: job.id,
         }
     }
+    // 启动器自更新走的是另一条通道（app-update provider），不是安装任务，
+    // 所以下载页在动、条子却毫无反应。这里把它接进来。
+    const update = appUpdateState
+    const updateProgress = update.downloadProgress.value
+    if (
+        update.downloading.value ||
+        (updateProgress > 0 && updateProgress < 1 && !update.finishedDownloading.value)
+    ) {
+        const version = update.availableUpdate.value?.version
+        return {
+            kind: 'update',
+            title: formatMessage(messages.downloadingUpdate),
+            detail: version ? `v${version}` : '',
+            percent: Math.max(0, Math.min(100, update.downloadPercent.value)),
+        }
+    }
+    if (transientActivity.value) return transientActivity.value
     return null
 })
 
@@ -723,6 +782,123 @@ onMounted(async () => {
     } catch {
         unlistenProcesses = null
     }
+    // 受管服务端在准备文件（下载 jar/库）时把进度接进条子。
+    const managedServerNames = new Map<string, string>()
+    void serversApi
+        .list()
+        .then((rows) => rows.forEach((row) => managedServerNames.set(row.id, row.name)))
+        .catch(() => undefined)
+    try {
+        unlistenServers = await serverEventListener((serverId, payload) => {
+            const name = managedServerNames.get(serverId) ?? formatMessage(messages.server)
+            if (payload.event === 'started') {
+                setTransientActivity(
+                    { kind: 'server', title: name, detail: formatMessage(messages.serverStarted), percent: null },
+                    6_000,
+                )
+                return
+            }
+            if (payload.event === 'stopped') {
+                setTransientActivity(
+                    { kind: 'server', title: name, detail: formatMessage(messages.serverStopped), percent: null },
+                    6_000,
+                )
+                return
+            }
+            if (payload.event !== 'download_progress') return
+            const total = payload.total ?? 0
+            setTransientActivity(
+                {
+                    kind: 'server',
+                    title: name,
+                    detail: formatMessage(messages.serverPreparing),
+                    percent:
+                        total > 0
+                            ? Math.max(0, Math.min(100, Math.round((payload.downloaded / total) * 100)))
+                            : null,
+                },
+                60_000,
+            )
+        })
+        if (launchListenersDisposed) {
+            unlistenServers()
+            unlistenServers = null
+        }
+    } catch {
+        unlistenServers = null
+    }
+    // 批量更新实例：有 current/total，结束没有专门事件，静默 30 秒即收。
+    try {
+        unlistenBulkUpdate = await instance_bulk_update_progress_listener((payload: unknown) => {
+            const progress = payload as { instance_id?: string; current?: number; total?: number }
+            if (!progress?.instance_id) return
+            const total = progress.total ?? 0
+            const current = progress.current ?? 0
+            setTransientActivity(
+                {
+                    kind: 'batch',
+                    title: instanceNameOf(progress.instance_id) ?? formatMessage(messages.bulkUpdating),
+                    detail: formatMessage(messages.bulkUpdating),
+                    percent: total > 0 ? Math.max(0, Math.min(100, Math.round((current / total) * 100))) : null,
+                },
+                30_000,
+            )
+        })
+        if (launchListenersDisposed) {
+            unlistenBulkUpdate()
+            unlistenBulkUpdate = null
+        }
+    } catch {
+        unlistenBulkUpdate = null
+    }
+    // 导入实例：快照带 stage（resolving / scanning / done / error），done 与 error 收尾。
+    try {
+        unlistenImportPlan = await import_plan_listener((payload: unknown) => {
+            const snapshot = payload as { stage?: string; game_version?: string }
+            const stage = snapshot?.stage ?? ''
+            if (stage === 'done' || stage === 'error') {
+                setTransientActivity(null)
+                return
+            }
+            setTransientActivity(
+                {
+                    kind: 'import',
+                    title: formatMessage(messages.importingInstance),
+                    detail: snapshot?.game_version ?? '',
+                    percent: null,
+                },
+                20_000,
+            )
+        })
+        if (launchListenersDisposed) {
+            unlistenImportPlan()
+            unlistenImportPlan = null
+        }
+    } catch {
+        unlistenImportPlan = null
+    }
+    // 拖入文件时逐个分类，没有结束事件，6 秒静默即收。
+    try {
+        unlistenDropClassify = await drop_classify_progress_listener((payload: unknown) => {
+            const item = payload as { currentItem?: string }
+            const name = String(item?.currentItem ?? '').split(/[\\/]/).pop() ?? ''
+            setTransientActivity(
+                {
+                    kind: 'drop',
+                    title: formatMessage(messages.checkingDrop),
+                    detail: name,
+                    percent: null,
+                },
+                6_000,
+            )
+        })
+        if (launchListenersDisposed) {
+            unlistenDropClassify()
+            unlistenDropClassify = null
+        }
+    } catch {
+        unlistenDropClassify = null
+    }
 })
 
 onMounted(() => {
@@ -747,6 +923,15 @@ onBeforeUnmount(() => {
     launchListenersDisposed = true
     unlistenLaunchStage?.()
     unlistenProcesses?.()
+    unlistenServers?.()
+    unlistenBulkUpdate?.()
+    unlistenImportPlan?.()
+    unlistenDropClassify?.()
+    if (transientActivityTimer !== null) {
+        clearTimeout(transientActivityTimer)
+        transientActivityTimer = null
+    }
+    transientActivity.value = null
     clearLaunchActivity()
 })
 </script>
