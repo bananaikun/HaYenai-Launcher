@@ -7,23 +7,25 @@
  */
 import { ArrowDownIcon, ArrowUpIcon } from '@modrinth/assets'
 import { defineMessages, StyledInput, useVIntl } from '@modrinth/ui'
-
-// ⚠ SettingsSection / SettingsRow 是**本地组件**（AppearanceSettings 也从这里引），
-// 从 @modrinth/ui 引会解析失败，整页渲染崩成空白。
-import SettingsRow from './SettingsRow.vue'
-import SettingsSection from './SettingsSection.vue'
 import { ref } from 'vue'
 
 import { magneticBarPageMessages, magneticWidgetMessages } from '@/helpers/magnetic/labels'
 import {
     clearWidgetPositions,
+    MAGNETIC_MAX_SERVERS,
+    type MagneticBarPage,
+    type MagneticServerTarget,
+    type MagneticSettings,
+    type MagneticWidgetId,
     moveWidget,
     readMagneticSettings,
     writeMagneticSettings,
-    type MagneticBarPage,
-    type MagneticSettings,
-    type MagneticWidgetId,
 } from '@/helpers/magnetic-settings'
+
+// ⚠ SettingsSection / SettingsRow 是**本地组件**（AppearanceSettings 也从这里引），
+// 从 @modrinth/ui 引会解析失败，整页渲染崩成空白。
+import SettingsRow from './SettingsRow.vue'
+import SettingsSection from './SettingsSection.vue'
 
 const { formatMessage } = useVIntl()
 
@@ -77,10 +79,12 @@ const messages = defineMessages({
     serverDesc: {
         id: 'app.magnetic-settings.server-desc',
         defaultMessage:
-            'Shown by the server widget. Use host:port for a Minecraft server (real ping and player count), or an http(s) URL to check that it answers 2xx.',
+            'Up to 4 servers, one row each in the server widget. Use host:port for a Minecraft server (real ping, MOTD, icon and player count), or an http(s) URL to check that it answers 2xx.',
     },
     serverName: { id: 'app.magnetic-settings.server-name', defaultMessage: 'Display name' },
     serverUrl: { id: 'app.magnetic-settings.server-url', defaultMessage: 'Address' },
+    serverAdd: { id: 'app.magnetic.server-add', defaultMessage: 'Add server' },
+    serverRemove: { id: 'app.magnetic.server-remove', defaultMessage: 'Remove' },
     enabledTitle: { id: 'app.magnetic-settings.enabled', defaultMessage: 'Show the floating bar' },
     enabledDesc: {
         id: 'app.magnetic-settings.enabled-desc',
@@ -118,6 +122,28 @@ function resetLayout(): void {
 
 function setPanelWidth(value: string | number): void {
     settings.value.panelWidth = Number(value)
+    save()
+}
+
+function serverTarget(id: string): MagneticServerTarget | undefined {
+    return settings.value.servers.find((item) => item.id === id)
+}
+
+function setServerField(id: string, field: 'name' | 'address', value: string): void {
+    const target = serverTarget(id)
+    if (!target) return
+    target[field] = value
+    save()
+}
+
+function addServer(): void {
+    if (settings.value.servers.length >= MAGNETIC_MAX_SERVERS) return
+    settings.value.servers.push({ id: `s${Date.now().toString(36)}`, name: '', address: '' })
+    save()
+}
+
+function removeServer(id: string): void {
+    settings.value.servers = settings.value.servers.filter((item) => item.id !== id)
     save()
 }
 
@@ -240,17 +266,17 @@ function move(index: number, delta: number): void {
                         </label>
                         <div class="mgs-move">
                             <button
+                                v-tooltip="formatMessage(messages.up)"
                                 type="button"
                                 :disabled="index === 0"
-                                v-tooltip="formatMessage(messages.up)"
                                 @click="moveBarPage(index, -1)"
                             >
                                 <ArrowUpIcon />
                             </button>
                             <button
+                                v-tooltip="formatMessage(messages.down)"
                                 type="button"
                                 :disabled="index === settings.barPages.length - 1"
-                                v-tooltip="formatMessage(messages.down)"
                                 @click="moveBarPage(index, 1)"
                             >
                                 <ArrowDownIcon />
@@ -301,17 +327,17 @@ function move(index: number, delta: number): void {
                         </label>
                         <div class="mgs-move">
                             <button
+                                v-tooltip="formatMessage(messages.up)"
                                 type="button"
                                 :disabled="index === 0"
-                                v-tooltip="formatMessage(messages.up)"
                                 @click="move(index, -1)"
                             >
                                 <ArrowUpIcon />
                             </button>
                             <button
+                                v-tooltip="formatMessage(messages.down)"
                                 type="button"
                                 :disabled="index === settings.widgets.length - 1"
-                                v-tooltip="formatMessage(messages.down)"
                                 @click="move(index, 1)"
                             >
                                 <ArrowDownIcon />
@@ -326,27 +352,40 @@ function move(index: number, delta: number): void {
             <template #label>{{ formatMessage(messages.serverTitle) }}</template>
             <template #description>{{ formatMessage(messages.serverDesc) }}</template>
             <template #control>
-                <div class="mgs-pair">
-                    <StyledInput
-                        :model-value="settings.server.name"
-                        :placeholder="formatMessage(messages.serverName)"
-                        @update:model-value="
-                            (value) => {
-                                settings.server.name = String(value)
-                                save()
-                            }
-                        "
-                    />
-                    <StyledInput
-                        :model-value="settings.server.url"
-                        :placeholder="formatMessage(messages.serverUrl)"
-                        @update:model-value="
-                            (value) => {
-                                settings.server.url = String(value)
-                                save()
-                            }
-                        "
-                    />
+                <div class="mgs-servers">
+                    <div v-for="row in settings.servers" :key="row.id" class="mgs-server">
+                        <StyledInput
+                            :model-value="row.name"
+                            :placeholder="formatMessage(messages.serverName)"
+                            @update:model-value="
+                                (value) => setServerField(row.id, 'name', String(value))
+                            "
+                        />
+                        <StyledInput
+                            :model-value="row.address"
+                            :placeholder="formatMessage(messages.serverUrl)"
+                            @update:model-value="
+                                (value) => setServerField(row.id, 'address', String(value))
+                            "
+                        />
+                        <button
+                            type="button"
+                            class="mgs-server-remove"
+                            :aria-label="formatMessage(messages.serverRemove)"
+                            :title="formatMessage(messages.serverRemove)"
+                            @click="removeServer(row.id)"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <button
+                        v-if="settings.servers.length < MAGNETIC_MAX_SERVERS"
+                        type="button"
+                        class="mgs-btn mgs-server-add"
+                        @click="addServer"
+                    >
+                        + {{ formatMessage(messages.serverAdd) }}
+                    </button>
                 </div>
             </template>
         </SettingsRow>
@@ -438,10 +477,39 @@ function move(index: number, delta: number): void {
     height: 11px;
 }
 
-.mgs-pair {
+.mgs-servers {
     display: flex;
-    gap: 0.4rem;
-    min-width: 260px;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 320px;
+}
+
+.mgs-server {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) auto;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.mgs-server-remove {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    border: 1px solid var(--stroke-1);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.mgs-server-remove:hover {
+    border-color: color-mix(in srgb, var(--color-red, #e05a5a) 55%, transparent);
+    color: var(--color-red, #e05a5a);
+}
+
+.mgs-server-add {
+    align-self: flex-start;
 }
 
 .mgs-btn {
