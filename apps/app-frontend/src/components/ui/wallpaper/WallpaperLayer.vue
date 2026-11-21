@@ -361,6 +361,10 @@ async function captureFrameSnapshot(): Promise<void> {
     capturedFrames.add(meta.id)
     try {
         await writeWallpaperFrame(meta.id, new Uint8Array(await blob.arrayBuffer()))
+        // 列表里的这一项也标记上，下次在本会话里切回它时就能直接用静帧，
+        // 不用等一次 refreshWallpapers()（那会重扫全部包）。
+        const cached = wallpaperState.items.find((item) => item.id === meta.id)
+        if (cached) cached.hasFrame = true
     } catch {
         // 磁盘满 / 包被删掉之类：下次进到这个壁纸时再试。
         capturedFrames.delete(meta.id)

@@ -6425,11 +6425,17 @@
   "app.magnetic-settings.width-desc": {
     "message": "How wide the expanded panel is. Narrower = the compact look."
   },
+  "app.magnetic.activity": {
+    "message": "In progress"
+  },
   "app.magnetic.add-widget": {
     "message": "Add widget"
   },
   "app.magnetic.all-added": {
     "message": "Every widget is already shown."
+  },
+  "app.magnetic.cancel-activity": {
+    "message": "Cancel"
   },
   "app.magnetic.common-title": {
     "message": "Layout"
@@ -6448,6 +6454,9 @@
   },
   "app.magnetic.free": {
     "message": "free"
+  },
+  "app.magnetic.installing-job": {
+    "message": "Installing…"
   },
   "app.magnetic.kind.instance": {
     "message": "Launch"
@@ -6640,6 +6649,15 @@
   },
   "app.magnetic.shortcuts": {
     "message": "Jump to"
+  },
+  "app.magnetic.stage-libraries": {
+    "message": "Checking libraries…"
+  },
+  "app.magnetic.stage-preparing": {
+    "message": "Preparing files…"
+  },
+  "app.magnetic.stage-starting": {
+    "message": "Starting the game…"
   },
   "app.magnetic.unpin-widget": {
     "message": "Unpin"

@@ -95,11 +95,17 @@
   "app.magnetic-settings.width-desc": {
     "message": "展开面板有多宽。越窄越紧凑。"
   },
+  "app.magnetic.activity": {
+    "message": "进行中"
+  },
   "app.magnetic.add-widget": {
     "message": "添加组件"
   },
   "app.magnetic.all-added": {
     "message": "所有组件都已经在面板里了。"
+  },
+  "app.magnetic.cancel-activity": {
+    "message": "取消"
   },
   "app.magnetic.common-title": {
     "message": "布局"
@@ -118,6 +124,9 @@
   },
   "app.magnetic.free": {
     "message": "可用"
+  },
+  "app.magnetic.installing-job": {
+    "message": "正在安装…"
   },
   "app.magnetic.kind.instance": {
     "message": "启动"
@@ -310,6 +319,15 @@
   },
   "app.magnetic.shortcuts": {
     "message": "快捷跳转"
+  },
+  "app.magnetic.stage-libraries": {
+    "message": "正在检查库文件…"
+  },
+  "app.magnetic.stage-preparing": {
+    "message": "正在准备文件…"
+  },
+  "app.magnetic.stage-starting": {
+    "message": "正在启动游戏…"
   },
   "app.magnetic.unpin-widget": {
     "message": "取消固定"

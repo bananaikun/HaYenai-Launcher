@@ -35,7 +35,21 @@
 | 4 第二次启动固定开销下降 | 部分实现，待实测 | 库 jar 加 `<jar>.verified` 校验戳（size+mtime+sha1 全等则跳过整份 SHA-1）；显式 Java 路径不再重复 `check_jre`（原来两次 JVM 探测）；GC 探测落盘缓存、natives 校验戳、准备段并行未做 |
 | 5 条子进度视图 | 已实现 | `.mb-pages` 内 `v-if="activity"` 的 `mb-activity` 段（不切 mode，页码不跳），启动显示阶段文案（preparing/libraries/starting 由后端 `launch_stage` 事件推），安装/下载显示百分比与取消按钮 |
 | 6 三处检查 | 通过 | `cargo check -p theseus` / `-p theseus_gui` exit 0、`pnpm --filter @modrinth/app-frontend build` ✓ 55.87s、改动文件 eslint 仅 HEAD 基线错误 |
-| 7 提交与 1.0.50 | 待做 | — |
+| 7 提交与 1.0.50 | 已完成 | `7c3bfb1` + `058e25d`（`public-main`），tag `hayenai-v1.0.50`，release id 453520694 |
+
+### 审计式自检（2026-11-21 15:40 补）
+
+自检发现两个漏项，均在 1.0.51 修掉：
+
+1. 磁悬条新增的 6 条文案（`app.magnetic.activity` / `cancel-activity` / `installing-job` / `stage-preparing` / `stage-libraries` / `stage-starting`）只写了 `defaultMessage`，没有进 `locales/{en-US,zh-CN}/index.json`，中文环境下会回落成英文。1.0.50 已发布，所以用 1.0.51 补上（en-US 5308→5314 键、zh-CN 5315→5321 键，无重复键）。
+2. 静帧写入成功后没有更新 `wallpaperState.items` 里的 `hasFrame`，导致同一会话内切回该壁纸仍垫 `preview`，要等下次 `refreshWallpapers()`（重开启动器）。现在 `captureFrameSnapshot()` 成功后直接 `cached.hasFrame = true`。
+
+其余自检结论：
+
+- `store.write_frame` 自己 `create_dir_all(posters_dir())`，不依赖导入流程建目录。
+- `/posters/` 旁路放在包 id 解析之前，避免 `posters` 被当成合法包名；`safe_rel` 拦 `../`。
+- `clearLaunchActivity()` 会清 180s 兜底定时器，不会残留定时器把新一次启动的视图提前收掉。
+
 
 ### 未做（明确记账）
 
