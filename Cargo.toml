@@ -242,12 +242,6 @@ lto = false
 # 每个单元小很多，峰值明显下降（代价是产物略大、跨单元内联少一点）。
 codegen-units = 32
 
-# 2026-11-21：32 个单元仍然在 15.2G 机器上撞 `rustc-LLVM ERROR: out of memory`
-# （两次连续复现，都是 theseus lib 的 codegen 阶段）。再翻一倍：单单元更小，
-# LLVM 并行 codegen 的峰值随之下降；只有这一包重编，依赖树缓存全部复用。
-[profile.release.package.theseus]
-codegen-units = 64
-
 # 2026-11-15：只有这个 bin 编不过去（tauri 全插件 + 巨型 main.rs，`opt-level="s"` 下
 # LLVM 峰值顶穿 16G 机器）。单独给它降到 1：只有它重编，依赖树的缓存全部复用。
 [profile.release.package.theseus_gui]
